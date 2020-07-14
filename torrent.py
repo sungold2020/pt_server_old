@@ -15,7 +15,6 @@ class Torrent:
         #tFiles = []            #存储文件的数组,#名字,大小，完成率
         self.dir_name = ""             #种子目录名称
         self.root_folder = ""          #种子保存的路径所在根目录
-        self.is_root_folder = True     #"QB"才有效：是否创建了子文件夹
 
         self.error_string = ""
         
@@ -246,100 +245,17 @@ class Torrent:
         
         return True
         
-    def get_dir_name(self):
-        """
-        基于SavedPath和FileName获取一级目录DirName
-        假设平常pt软件的下载保存路径为/media/root/BT/Movies，这个称之为根目录，那么这个函数的作用就是获取保存在这个路径上的一级目录名称。
-        
-        前提：SavedPath和FileName都必须已经获取
-        
-        根据，1:是否有自定义保存路径，2:是否创建子文件夹。组合出以下几种情况：
-        1，有自定义保存路径，同时还创建了子文件夹，举例：
-            save_path = /media/root/BT/Movies/1912-美-美国往事 
-            files     = 美国往事XXX-FRDS/once.upon.XXX.mkv
-                        美国往事XXX-FRDS/once.upon.XXX.nfo
-            这样实际保存路径为：/media/root/BT/Movies/1912-美-美国往事/美国往事XXX-FRDS/
-            root_folder = /media/root/BT/movies/1912-美=美国往事
-            DirName=美国往事xxx-FRDS
-        2、有自定义保存路径，未创建子文件夹，举例：
-            save_path = /media/root/BT/Movies/1912-美-美国往事 
-            files     = once.upon.XXX.mkv
-                        once.upon.XXX.nfo   
-            这样实际保存路径为：/media/root/BT/Movies/1912-美-美国往事/
-            root_folder = /media/root/BT/movies/
-            DirName=1912-美-美国往事
-        3、未自定义保存路径，创建了子文件夹，举例：
-            SavedPath = /media/root/BT/Movies 
-            FileName  = 美国往事XXX-FRDS/once.upon.XXX.mkv
-                        美国往事XXX-FRDS/once.upon.XXX.nfo
-            这样实际保存路径为：/media/root/BT/Movies/美国往事XXX-FRDS
-            DirName=美国往事XXX-FRDS
-        4，未自定义保存路径，且未创建子文件夹，举例：
-            SavedPath = /media/root/BT/Movies 
-            FileName  = once.upon.XXX.mkv
-            这种情况下，仅允许有一个文件（否则报错)用文件名当做DirName
-            DirName=once.upon.XXX.mkv
-        
-        返回值:
-            -1: 寻找DirName错误，记录日志
-            0:  自定义了保存路径(情况1-2),DirName直接从SavedPath获取
-            1： 未自定义保存路径(情况3-4),需要从FileName中获取
-        """
-    
+    def is_root_folder(self):
         tFiles = self.files
-        #先做前提条件检查,FFileName和SavedPath已经有内容
-        if len(tFiles) == 0 or self.save_path == "" :
-            ErrorLog("no file or SavedPath is empty:"+self.save_path+"::"+str(tFiles))
-            return -1
-    
+
         #如何判断是否创建了子文件夹IsRootFolder，所有的文件都包含了目录，而且是一致的。
-        self.is_root_folder = True; tSubDirName = ""  
+        tSubDirName = ""
         for i in range(len(tFiles)) :
             tIndex = (tFiles[i]['name']).find('/')
-            if tIndex == -1 :  self.is_root_folder = False; break
+            if tIndex == -1 :  return False
             if tSubDirName == "":
                 tSubDirName = (tFiles[i]['name'])[0:tIndex]
             else :
-                if (tFiles[i]['name'])[0:tIndex] != tSubDirName : self.is_root_folder = False; break
-          
-        # TODO
+                if (tFiles[i]['name'])[0:tIndex] != tSubDirName : return False
 
-        
-        """
-        self.SavedPath = self.SavedPath.strip()
-        if self.SavedPath[-1:] == '/' : self.SavedPath = self.SavedPath[:-1] #去掉最后一个字符'/'
-        
-        tSplitPath = self.sav_path.split('/')
-        #Print(tSplitPath)
-        i = 0 ; tIndex = 0;  tPath = "/"
-        while i < len(tSplitPath) :
-            tPath = os.path.join(tPath,tSplitPath[i])
-            #Print(tPath)
-            if tPath in RootFolderList : 
-                #Print("find at:"+str(i))
-                tIndex = i; break
-            i += 1
-        
-        if tIndex == 0 : #SavedPath不在RootFolderList中
-            #Print(RootFolderList)
-            ErrorLog("SavedPath:"+self.SavedPath+" not in rootfolder")
-            return -1
-        
-        if tIndex != len(tSplitPath)-1 : #情况1，2，SavedPath中包含了DirName，直接取下一层路径为DirName
-            self.RootFolder = tPath
-            self.DirName    = tSplitPath[tIndex+1]
-            return 0
-        
-        #情况3-4，SavedPath就是RootFolder，需要从FileName中找DirName
-        #如果只有一个文件，DirName就是这个文件
-        #否则就从FileName[0]中找'/'
-        self.RootFolder = self.SavedPath
-        tIndex = tFiles[0]['name'].find('/')
-        if tIndex == -1 : #情况4
-            if len(tFiles) == 1 :   self.DirName = tFiles[0]['name']; return  1
-            else : ErrorLog("2+file in root folder:"+self.SavedPath+"::"+self.Name); return -1
-        else:  #情况3
-            self.DirName = tFiles[0]['name'][:tIndex]  #取第一个/之前的路径为DirName
-        """
-        return 1    
-    #end def GetDirName()      
+        return True

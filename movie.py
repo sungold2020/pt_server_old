@@ -139,6 +139,10 @@ class Movie:
         self.HDR = ""          #HDR
         self.ZipGroup = ""     #压缩组
         
+        self.hash = ""
+        self.torrent_file = ""
+        self.resume_file  = ""
+        self.download_link = ""
         self.IsError = 0       # 检查完以后是否有错误
     #end def __init__
       
@@ -335,7 +339,7 @@ class Movie:
         
         FileName = self.VideoFileName[0]
         Length = len(FileName)
-        if FileName[-3:] == "mkv" or FileName[-3:] == "avi"or FileName[-3:] == "mp4":
+        if FileName[-3:] == "mkv" or FileName[-3:] == "avi" or FileName[-3:] == "mp4":
             self.FormatStr = FileName[:Length-4]
             return 1
         elif FileName[-2:] == "ts":
@@ -1201,5 +1205,47 @@ class Movie:
         else : 
             ErrorLog("2+ result:"+str(self.Number)+"::"+str(self.Copy))
             return TABLE_ERROR
-#end class Movie
+
+
+    def get_torrent(self):
+        if self.Number <= 0: return False
+
+        tFullDirName = os.path.join(self.DirPath,self.DirName) 
+        
+        #从目录下的download.txt找doenloadlink
+        tDownloadTxtFile = os.path.join(tFullDirName,'download.txt')
+        if os.path.isfile(tDownloadTxtFile):
+            try:
+                line = open(tDownloadTxtFile).read()
+            except:
+                ErrorLog("failed to read download txt file:{}".format(tDownloadTxtFile))
+                return False
+            self.hash,self.download_link = line.split('|',1)
+        if self.hash != "" and self.download_link != "": return True
+            
+        #从目录下找torrent文件
+        for tFile in os.listdir(tFullDirName):
+            if tFile[-8:] == '.torrent':
+                self.torrent_file = os.path.join(tFullDirName,tFile)
+            if tFile[-6:] == 'resume':
+                self.resume_file = os.path.join(tFullDirName,tFile)
+        if self.torrent_file != "": return True
+        
+        #从download表中找符合的记录
+        #通过hash找或者number，copy找
+        if self.hash != "":
+            tReturn = select("select downloadlink from download where hash=%s",(self.hash,))
+            if len(tReturn) == 1 and tReturn[0][0] != "":
+                self.download_link = tReturn[0][0]
+                return True
+        else:
+            tReturn = select("select downloadlink,dirname from download where number=%s and copy=%s",(self.Number,self.Copy))
+            if len(tReturn) == 1 and self.DirName == tReturn[0][1] and tReturn[0][0] != "":
+                self.download_link = tReturn[0][0]
+                return True
+
+        if self.torrent_file != "": return True
+        return False
+
+
 

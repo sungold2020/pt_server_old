@@ -1,7 +1,9 @@
 import os
+import time
 import shutil
 import re
 import requests
+import transmissionrpc
 from gen import Gen
 
 from movie import *
@@ -169,6 +171,9 @@ class MyTorrent:
     def set_tags(self,tags=""):
         if self.torrent == None: return False
         else               : return self.torrent.set_tags(tags)
+    def is_root_folder(self):
+        if self.torrent == None: return False
+        else               : return self.torrent.is_root_folder()
 
     def check_files(self,mIsNewDay):
         if self.torrent == None: return False
@@ -324,7 +329,7 @@ class MyTorrent:
             ExecLog("failed to start torrent:"+self.name)
             return False
         if self.rss.rss_name != "":
-            self.rss.downloaded == 1
+            self.rss.downloaded = 1
             if self.rss.update():
                 ExecLog("success to update rss:"+self.name)
                 return True
@@ -456,7 +461,7 @@ class MyTorrent:
             #ExecLog(tPage.error_string)
             return False    
 
-        self.copy_info(tPage.info)
+        self.info = tPage.info
         if self.imdb_id != "" or self.douban_id != "": return True
         else                                         : return False
         
@@ -545,9 +550,6 @@ class MyTorrent:
         if not self.save_torrent_file(DestDirName):
             ExecLog("failed to save torrent file:"+DestDirName)
             return False
-        if not self.insert_download(Number,Copy):
-            ExecLog("failed to insert table download:"+DestDirName)
-            return False
 
         #4 下载poster.jpg文件
         DestFullFile=os.path.join(DestDirName,"poster.jpg")
@@ -567,62 +569,56 @@ class MyTorrent:
         else : ExecLog("success insert table movies")
         
         #6 更新信息至表movies
-        up_sql = "update movies set DoubanID=%s,IMDBID=%s,DownloadLink,HASH=%s where Number=%s and Copy=%s"
+        up_sql = "update movies set DoubanID=%s,IMDBID=%s,DownloadLink=%s,HASH=%s where Number=%s and Copy=%s"
         up_val =(self.douban_id,self.imdb_id,self.download_link,self.hash, Number, Copy)
         if update(up_sql,up_val):
             ExecLog("success update table:"+DirName)
         else:
             ErrorLog("update error:"+DirName+":"+up_sql)
             return False
-        
-        #7 把种子分类设为空    
+        #7 插入download表 
+        if not self.insert_download(Number,Copy,tMovie.DirName):
+            ExecLog("failed to insert table download:"+DestDirName)
+            return False
+
+        #8 把种子分类设为空    
         self.set_category("")
         return True
 
     def move_to_tr(self,mTRLogin):
-    
-        # TODO
+        """
+        根据是否创建子文件夹(is_root_folder)分两种情况：
+        一、创建了子文件夹：例如
+            save_path = '2020-xx-xx xxx"
+            files     =  xxxx.mkv
+                         xxxx.nfo
+            这个时候,在keep目录下创建链接到save_path,tr的save_path指向keep目录
+        二、未创建子文件夹
+            save_path = /BT/book"
+            files     = kindle伴侣/xxx.txt
+                        kindle伴侣/xxx.txt
+            不创建链接，tr的save_path指向同一save_path即可
+        """
 
         if not self.pause(): ExecLog("failed to stop torrent:"+self.name)
         
-        #备份转移种子的torrent文件和fastresume文件
-        tTorrentFile = os.path.join(QB_BACKUP_DIR,qb_torrent.hash+".torrent")
-        tDestTorrentFile = os.path.join(QBTorrentsBackupDir,qb_torrent.hash+".torrent")
-        tResumeFile  = os.path.join(QB_BACKUP_DIR,qb_torrent.hash+".fastresume")
-        tDestResumeFile  = os.path.join(QBTorrentsBackupDir,qb_torrent.hash+".fastresume")
-        try:
-            shutil.copyfile(tTorrentFile,tDestTorrentFile)
-            shutil.copyfile(tResumeFile ,tDestResumeFile)
-        except:
-            #Print(tTorrentFile)
-            #Print(tResumeFile)
-            #Print(tDestTorrentFile)
-            ErrorLog("failed to copy torrent and resume file:"+gTorrentList[i].HASH)
-            return False
-        else: ExecLog("success backup torrent file to :"+QB_BACKUP_DIR)
 
+        tTorrentFile = os.path.join(QB_BACKUP_DIR,self.hash+".torrent")
 
-        #Print(str(gTorrentList[i].IsRootFolder)+'|'+gTorrentList[i].SavedPath+'|'+gTorrentList[i].RootFolder+'|'+gTorrentList[i].DirName)
-        #for file in gTorrentList[i].FileName: Print(file)
-        tNoOfList = FindTorrent(QB,qb_torrent.hash)
-        if tNoOfList < 0 : ErrorLog("not find in torent list:"+qb_torrent.hash); return False
-
-        Print(gTorrentList[tNoOfList].IsRootFolder)
-        Print(gTorrentList[tNoOfList].RootFolder)
-        Print(gTorrentList[tNoOfList].SavedPath)
-        if gTorrentList[tNoOfList].IsRootFolder == True :   tDestSavedPath = os.path.realpath(gTorrentList[tNoOfList].SavedPath)
+        if self.is_root_folder():
+            tDestSavedPath = self.save_path
         else :   #为TR的保存路径创建链接
-            if gTorrentList[tNoOfList].Name[-4:] == '.mkv' : gTorrentList[tNoOfList].Name = gTorrentList[tNoOfList].Name[:-4] #移除.mkv
-            tLink = os.path.join(TRSeedFolderList[0],gTorrentList[tNoOfList].Name) 
+            if self.name[-4:] == '.mkv' : tLink = os.path.join(TR_KEEP_DIR,self.name[:-4])  #移除name中的.mkv后缀
+            else                        : tLink = os.path.join(TR_KEEP_DIR,self.name)
             try:    
-                if not os.path.exists(tLink) : os.symlink(os.path.realpath(gTorrentList[tNoOfList].SavedPath),tLink)
+                if not os.path.exists(tLink) : os.symlink(os.path.realpath(self.save_path),tLink)
             except:
-                ErrorLog("failed create link:ln -s "+os.path.realpath(gTorrentList[tNoOfList].SavedPath)+" "+tLink)
+                ErrorLog("failed create link:ln -s "+os.path.realpath(self.save_path)+" "+tLink)
                 return False            
-            tDestSavedPath = TRSeedFolderList[0]
-        #TR加入种子
+            tDestSavedPath = TR_KEEP_DIR
+
         try:
-            tr_client = transmissionrpc.Client(TR_IP, port=TR_PORT,user=TR_USER,password=TR_PWD)
+            tr_client = transmissionrpc.Client(mTRLogin['host'], port=mTRLogin['port'],user=mTRLogin['username'],password=mTRLogin['password'])
             tr_torrent = tr_client.add_torrent(torrent=tTorrentFile,download_dir=tDestSavedPath,paused=True)
         except ValueError as err:
             Print(err)
@@ -638,31 +634,13 @@ class MyTorrent:
             return False               
         else:
             ExecLog("move torrent to tr:"+tr_torrent.name+'::'+tr_torrent.hashString)
-        #QB设置类别为""
-        try: qb_torrent.set_category("")
-        except: ErrorLog("failed to set category:"+gTorrentList[tNoOfList].Name)
-        else: gTorrentList[tNoOfList].Category = ""
+            time.sleep(5)
+
+        if not self.set_category(""):
+            ErrorLog("failed to set category:"+self.name)
+            return False
 
         return True
-
-    def copy_info(self,tInfo):
-        self.douban_id = tInfo.douban_id
-        self.imdb_id = tInfo.imdb_id
-        self.douban_score = tInfo.douban_score
-        self.imdb_score = tInfo.imdb_score
-        self.douban_link = tInfo.douban_link
-        self.imdb_link = tInfo.imdb_link
-        self.movie_name = tInfo.movie_name
-        self.foreign_name = tInfo.foreign_name
-        self.other_names = tInfo.other_names
-        self.type = tInfo.type     
-        self.nation = tInfo.nation
-        self.year = tInfo.year
-        self.director = tInfo.director
-        self.actors = tInfo.actors
-        self.poster = tInfo.poster
-        self.episodes = tInfo.episodes
-        self.genre = tInfo.genre
 
     def save_torrent_file(self,mDestDir):
 
@@ -696,7 +674,7 @@ class MyTorrent:
         fo.close()
         return True
 
-    def insert_download(self,mNumber,mCopy):
+    def insert_download(self,mNumber,mCopy,mDirName):
         
         tSelectResult = select("select downloadlink,number,copy from download where hash=%s",(self.hash,))
         if tSelectResult == None:
@@ -706,8 +684,8 @@ class MyTorrent:
         if len(tSelectResult) > 0:
             DebugLog("download exists:"+self.hash)
             
-            up_sql = "update download set downloadlink=%s,number=%s,copy=%s where hash=%s"
-            up_val = (self.download_link,mNumber,mCopy,self.hash)
+            up_sql = "update download set downloadlink=%s,number=%s,copy=%s,dirname=%s where hash=%s"
+            up_val = (self.download_link,mNumber,mCopy,mDirName,self.hash)
             if update(up_sql,up_val):
                 DebugLog("update download success")
                 return True
@@ -715,8 +693,8 @@ class MyTorrent:
                 ErrorLog("error:"+up_sql+"::"+self.hash)
                 return False
         else:
-            in_sql = "insert into download(downloadlink,number,copy,hash) values(%s,%s,%s,%s)"
-            in_val = (self.download_link,mNumber,mCopy,self.hash)
+            in_sql = "insert into download(downloadlink,number,copy,dirname,hash) values(%s,%s,%s,%s,%s)"
+            in_val = (self.download_link,mNumber,mCopy,mDirName,self.hash)
             if insert(in_sql,in_val):
                 DebugLog("insert download success")
                 return True

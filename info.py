@@ -1,3 +1,4 @@
+import re
 from gen import Gen
 from log import *
 from database import *
@@ -267,3 +268,126 @@ class Info:
     def spider_detail(self):
         # TODO
         pass
+
+    def get_from_summary(self,mSummary):
+
+        Type = -1
+        Nation = Name = Director = Actors = DoubanScore = DoubanID = DoubanLink = IMDBLink = IMDBScore = IMDBID = ""
+        #mSummary = re.sub(u'\u3000',u' ',mSummary)    #全角空白字符替换为半角空白字符
+        #mSummary = re.sub(u'\xa0', u' ', mSummary)    #
+        mSummary = mSummary.replace('　',' ')
+        mSummary = mSummary.lower()
+        #DebugLog(mSummary)
+        #print(mSummary)
+                
+        if   mSummary.find("国  家")    >= 0: tIndex = mSummary.find("国  家")
+        elif mSummary.find("产  地")    >= 0: tIndex = mSummary.find("产  地")
+        else                                  : tIndex = -1
+        if tIndex >= 0 :
+            Nation = mSummary[tIndex+5:tIndex+20]
+            if Nation.find('\n') >= 0: Nation = Nation[:Nation.find('\n')]
+            if Nation.find('/')  >= 0: Nation = Nation[ :Nation.find('/') ]  #多个国家,以/区隔,取第一个
+            Nation = Nation.strip()
+            if   Nation[-1:] == '国' : Nation = Nation[:-1]  #去除国家最后的国字
+            elif Nation == '香港'    : Nation = '港'
+            elif Nation == '中国香港': Nation = '港'
+            elif Nation == '中国大陆': Nation = '国'
+            elif Nation == '中国台湾': Nation = '台'
+            elif Nation == '日本'    : Nation = '日'
+            else : pass
+            DebugLog("Nation:"+Nation)
+        else: DebugLog("failed find nation")
+        self.nation = Nation
+
+        if Nation == '港' or Nation == '国' or Nation == '台' : tIndex = mSummary.find("片  名")
+        else                                                  : tIndex = mSummary.find("译  名")
+        if tIndex >= 0 :
+            Name = mSummary[tIndex+5:tIndex+100]
+            if Name.find("/")  >= 0 : Name = (Name[ :Name.find("/") ]).strip() 
+            if Name.find('\n') >= 0 : Name = (Name[ :Name.find('\n') ]).strip()
+        else: DebugLog("failed find name"); Name = ""
+        DebugLog("name:"+Name)
+        self.movie_name = Name
+
+        tIndex = mSummary.find("豆瓣链接")
+        if tIndex >= 0 :
+            DoubanLink = mSummary[tIndex+4:]
+            if DoubanLink.find('\n') >= 0 : DoubanLink = (DoubanLink[ :DoubanLink.find('\n') ]).strip()
+            DoubanLink = DoubanLink.strip()
+            if not DoubanLink.startswith('http'): 
+                DebugLog("invalid doubanlink:"+DoubanLink)
+                DoubanLink = ""
+        else: DebugLog("douban link:not find")
+        DoubanID = get_id_from_link(DoubanLink, DOUBAN)
+        DebugLog("DoubanLink:"+DoubanLink)
+        self.douban_id = DoubanID
+        self.douban_link = DoubanLink
+
+        tIndex = mSummary.find("豆瓣链接")
+        if tIndex >= 0 :
+            DoubanLink = mSummary[tIndex+4:]
+            if DoubanLink.find('\n') >= 0 : DoubanLink = (DoubanLink[ :DoubanLink.find('\n') ]).strip()
+            DoubanLink = DoubanLink.strip()
+            if not DoubanLink.startswith('http'): 
+                DebugLog("invalid doubanlink:"+DoubanLink)
+                DoubanLink = ""
+        else: DebugLog("douban link:not find")
+        DoubanID = get_id_from_link(DoubanLink, DOUBAN)
+        DebugLog("DoubanLink:"+DoubanLink)
+        self.douban_id = DoubanID
+        self.douban_link = DoubanLink
+
+        if   mSummary.find("imdb链接")    >= 0: tIndex = mSummary.find("imdb链接")
+        elif mSummary.find('imdb.link')   >= 0: tIndex = mSummary.find("imdb.link")
+        elif mSummary.find('imdb link')   >= 0: tIndex = mSummary.find("imdb link")
+        elif mSummary.find('imdb url')    >= 0: tIndex = mSummary.find('idmb url')           
+        else                                  : tIndex = -1            
+        if tIndex >= 0 :
+            tempstr = mSummary[tIndex:tIndex+200]
+            tIndex = tempstr.find("http")
+            if tIndex >= 0:
+                tempstr = tempstr[tIndex:]
+                if tempstr.find('\n') >= 0 : IMDBLink = (tempstr[ :tempstr.find('\n') ]).strip()
+        IMDBID = get_id_from_link(IMDBLink, IMDB)
+        DebugLog("imdb link:"+IMDBLink)
+        self.imdb_link = IMDBLink
+        self.imdb_id = IMDBID
+
+        tIndex = mSummary.find("豆瓣评分")
+        if tIndex >= 0 :
+            tempstr = mSummary[tIndex+5:tIndex+16]
+            tSearch = re.search("[0-9]\.[0-9]",tempstr)
+            if tSearch : DoubanScore = tSearch.group()
+            else:        DoubanScore = ""
+            DebugLog("douban score:"+DoubanScore)
+        else: DebugLog("douban score:not find")
+        self.douban_score = DoubanScore
+
+        if   mSummary.find("imdb评分")    >= 0: tIndex = mSummary.find("imdb评分")           
+        elif mSummary.find('imdb.rating') >= 0: tIndex = mSummary.find('imdb.rating')
+        elif mSummary.find('imdb rating') >= 0: tIndex = mSummary.find('imdb rating')            
+        else: tIndex = -1               
+        if tIndex >= 0 :
+            tempstr = mSummary[tIndex+6:tIndex+36]
+            tSearch = re.search("[0-9]\.[0-9]",tempstr)
+            if tSearch :  IMDBScore = tSearch.group()
+        DebugLog("imdb score:"+IMDBScore)
+        self.imdb_score = IMDBScore
+
+        tIndex = mSummary.find("类  别") 
+        if tIndex >= 0 and mSummary[tIndex:tIndex+100].find("纪录") >= 0 : Type = RECORD
+        elif mSummary.find("集  数") >= 0                                : Type = TV
+        else                                                               : Type = MOVIE
+        DebugLog("type:"+str(Type))
+        self.type = Type
+
+        tIndex = mSummary.find("导  演")
+        if tIndex >= 0 :
+            Director = mSummary[tIndex+5:tIndex+100]
+            tEndIndex = Director.find('\n')
+            if tEndIndex >= 0 : Director = Director[:tEndIndex]
+            else : Director = ""
+        else :Director = ""
+        Director = Director.strip()
+        DebugLog("director:"+Director)
+        self.director = Director

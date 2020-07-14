@@ -33,6 +33,15 @@ class NexusPage():
             'cookie':'__cfduid=d03b414d2c913ba7f7c4ea7b1ef754edf1592635299; tp=YTM4ZDNjNWZhN2Y1YjNhMmUzZDNmYTJhNTdjZTgwYjlhNTdmNmQyMw%3D%3D'
             },
         {
+            'name':'FRDS',    
+            'error_count':0,
+            'time_interval':0,
+            'url':'https://pt.keepfrds.com/torrents.php',
+            'first_url':'https://pt.keepfrds.com/',
+            'last_url':'&passkey=97f4eab2ad32ebf39ee4889f6328800b',
+            'cookie':'c_secure_uid=MzEzNDI%3D; c_secure_pass=23911bfa87853213d48cf9968963e4bf; c_secure_ssl=eWVhaA%3D%3D; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D; _ga=GA1.2.487776809.1582807782; __cfduid=dfb9be8b9ae90ac0ca0f5706d1b6654e71593262434'
+            },
+        {
             'name':'PTHome',   
             'error_count':0,
             'time_interval':0,
@@ -123,11 +132,10 @@ class NexusPage():
         if not self.site : return False
             
         self.detail_url = self.site['first_url']+'details.php?id='+mTorrentID+'&hit=1'
-        self.Print(self.detail_url)
+        print(self.detail_url)
 
         if self.get_error_count() >= NexusPage.max_error_count:
             ExecLog("reach max error count:"+self.detail_url)
-            #self.Print("error:"+self.error_string)
             return False
         
         # Using Session to keep cookie
@@ -149,122 +157,12 @@ class NexusPage():
         else:
             self.set_error_count(True)
 
-        #self.soup = bs4.BeautifulSoup(res.text,'lxml')
-        SummaryStr = res.text
-
+        self.soup = bs4.BeautifulSoup(res.text,'lxml')
+        tSummary = self.soup.find('div',id='kdescr').get_text()
+        DebugLog(tSummary)
+        #print(SummaryStr)
         tInfo = Info()
-        SummaryStr = re.sub(u'\u3000',u' ',SummaryStr)
-        SummaryStr = re.sub(u'\xa0', u' ', SummaryStr)
-        SummaryStr = re.sub('&nbsp;',' ',  SummaryStr)
-        SummaryStr = SummaryStr.lower()
-        DebugLog(SummaryStr)
-                
-        tIndex = SummaryStr.find("豆瓣评分")
-        if tIndex >= 0 :
-            tempstr = SummaryStr[tIndex+5:tIndex+16]
-            tSearch = re.search("[0-9]\.[0-9]",tempstr)
-            if tSearch : tInfo.douban_score = tSearch.group()
-            else:        tInfo.douban_score = ""
-            DebugLog("douban score:"+tInfo.douban_score)
-        else: DebugLog("douban score:not find")
-        
-        tIndex = SummaryStr.find("豆瓣链接")
-        if tIndex >= 0 :
-            tempstr = SummaryStr[tIndex:]
-            tIndex = tempstr.find("href=")
-            if tIndex >= 0:
-                tempstr = tempstr[tIndex+6:]
-                tIndex = tempstr.find('\"')
-                if tIndex >= 0 : tInfo.douban_link = tempstr[:tIndex]; DebugLog("douban link:"+tInfo.douban_link)
-                else: DebugLog("douban link:error:not find \"")
-            else: DebugLog("douban link:error:not find href=")
-        else: DebugLog("douban link:not find")
-        tInfo.douban_id = get_id_from_link(tInfo.douban_link, DOUBAN)
-        DebugLog("DoubanLink:"+tInfo.douban_link)
-
-        if   SummaryStr.find("imdb评分")    >= 0: tIndex = SummaryStr.find("imdb评分")           
-        elif SummaryStr.find('imdb.rating') >= 0: tIndex = SummaryStr.find('imdb.rating')
-        elif SummaryStr.find('imdb rating') >= 0: tIndex = SummaryStr.find('imdb rating')            
-        else: tIndex = -1               
-        if tIndex >= 0 :
-            tempstr = SummaryStr[tIndex+6:tIndex+36]
-            tSearch = re.search("[0-9]\.[0-9]",tempstr)
-            if tSearch :  tInfo.imdb_score = tSearch.group()
-        DebugLog("imdb score:"+tInfo.imdb_score)
-        
-        if   SummaryStr.find("imdb链接")    >= 0: tIndex = SummaryStr.find("imdb链接")
-        elif SummaryStr.find('imdb.link')   >= 0: tIndex = SummaryStr.find("imdb.link")
-        elif SummaryStr.find('imdb link')   >= 0: tIndex = SummaryStr.find("imdb link")
-        elif SummaryStr.find('imdb url')    >= 0: tIndex = SummaryStr.find('idmb url')           
-        else                                    : tIndex = -1            
-        if tIndex >= 0 :
-            tempstr = SummaryStr[tIndex:tIndex+200]
-            tIndex = tempstr.find("href=")
-            if tIndex >= 0:
-                tempstr = tempstr[tIndex+6:]
-                tIndex = tempstr.find('\"')
-                if tIndex >= 0 : tInfo.imdb_link = tempstr[:tIndex]
-                else:  DebugLog("imdb link:error:not find \"")
-            else:
-                tIndex = tempstr.find('http')
-                if tIndex >= 0:
-                    tempstr = tempstr[tIndex:]
-                    tIndex = tempstr.find('<')
-                    if tIndex >= 0 : tInfo.imdb_link = tempstr[:tIndex] 
-        tInfo.imdb_id = get_id_from_link(tInfo.imdb_link, IMDB)
-        DebugLog("imdb link:"+tInfo.imdb_link)
-
-        if   SummaryStr.find("国  家")    >= 0: tIndex = SummaryStr.find("国  家")
-        elif SummaryStr.find("产  地")    >= 0: tIndex = SummaryStr.find("产  地")
-        else                                  : tIndex = -1
-        if tIndex >= 0 :
-            Nation = SummaryStr[tIndex+5:tIndex+20]
-            if Nation.find('\n') >= 0: Nation = Nation[:Nation.find('\n')]
-            if Nation.find('<')  >= 0: Nation = Nation[ :Nation.find('<') ]
-            if Nation.find('/')  >= 0: Nation = Nation[ :Nation.find('/') ]
-            Nation = Nation.strip()
-            if   Nation[-1:] == '国' : Nation = Nation[:-1]  #去除国家最后的国字
-            elif Nation == '香港'    : Nation = '港'
-            elif Nation == '中国香港': Nation = '港'
-            elif Nation == '中国大陆': Nation = '国'
-            elif Nation == '中国台湾': Nation = '台'
-            elif Nation == '日本'    : Nation = '日'
-            else : pass
-            tInfo.nation = Nation
-            DebugLog("Nation:"+tInfo.nation)
-        else: DebugLog("failed find nation")
-
-        tIndex = SummaryStr.find("类  别") 
-        if tIndex >= 0 and SummaryStr[tIndex:tIndex+100].find("纪录") >= 0 : tInfo.type = RECORD
-        elif SummaryStr.find("集  数") >= 0                                : tInfo.type = TV
-        else                                                               : tInfo.type = MOVIE
-        DebugLog("type:"+str(tInfo.type))
-
-        if tInfo.nation == '港' or tInfo.nation == '国' or tInfo.nation == '台' : tIndex = SummaryStr.find("片  名")
-        else                                                  : tIndex = SummaryStr.find("译  名")
-        if tIndex >= 0 :
-            Name = SummaryStr[tIndex+5:tIndex+100]
-            if   Name.find("/")  >= 0 : Name = (Name[ :Name.find("/") ]).strip() 
-            elif Name.find("<")  >= 0 : Name = (Name[ :Name.find("<") ]).strip() 
-            elif Name.find('\n') >= 0 : Name = (Name[ :Name.find('\n') ]).strip()
-            else: DebugLog("failed find name"); Name = ""
-        else: DebugLog("failed find name"); Name = ""
-        #ExecLog("name:"+Name)
-        if Name.find('<') >= 0 : Name = Name[:Name.find('<')]
-        tInfo.movie_name = Name
-        DebugLog("name:"+tInfo.movie_name)
-        
-        tIndex = SummaryStr.find("导  演")
-        if tIndex >= 0 :
-            Director = SummaryStr[tIndex+5:tIndex+100]
-            tEndIndex = Director.find('\n')
-            if tEndIndex >= 0 : Director = Director[:tEndIndex]
-            else : Director = ""
-            if Director.find("/")  >= 0 : Director = (Director[ :Director.find("/") ]).strip() 
-            if Director.find("<")  >= 0 : Director = (Director[ :Director.find("<") ]).strip() 
-        DebugLog("director:"+Director)
-        tInfo.director = Director
-      
+        tInfo.get_from_summary(tSummary)
         if tInfo.douban_id != "" or tInfo.imdb_id != "": 
             self.info = tInfo
             return True
@@ -341,12 +239,7 @@ class NexusPage():
 
             #if torrent is free:
             if entry.find(class_=NexusPage.free_tag) or entry.find(class_=NexusPage.free_tag2):
-                self.free_torrents.append((True , torrent_id, title, details, download_url))
-            else:
-                self.free_torrents.append((False, torrent_id, title, details, download_url))
-        for free_torrent in self.free_torrents:
-            self.Print("{} {} {} ".format(str(free_torrent[0]).ljust(5),free_torrent[1],free_torrent[2]))
-
+                self.free_torrents.append((torrent_id, title, details, download_url))
         return self.free_torrents
 
     def Print(self,Str):

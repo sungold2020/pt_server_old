@@ -121,30 +121,49 @@ class RSS:
         self.downloaded = 0
 
     def select(self,assign_value=True):
-        if self.HASH == "" or self.rss_name == "": return False
-
-        sel_sql = "select title,download_link,douban_id,imdb_id,downloaded,torrentid,adddate from rss where rssname=%s and HASH=%s"
-        sel_val = (self.rss_name,self.HASH)
-        tSelectResult =  select(sel_sql,sel_val)
-        tSQL = "select title,download_link,torrentid,downloaded,addate from rss where rssname={} and HASH={}".format(self.rss_name,self.HASH)
-        if tSelectResult == None:
-            ErrorLog("failed to exec :"+tSQL)
-            return False
-        if len(tSelectResult) == 0: return False
-        elif len(tSelectResult) > 1: ErrorLog("find 2+record:"+tSQL); return False
-        else: pass
-
-        if assign_value == True:
-            self.title = tSelectResult[0][0]
-            self.download_link = tSelectResult[0][1]
-            self.douban_id = tSelectResult[0][2]
-            self.imdb_id = tSelectResult[0][3]
-            self.torrent_id = tSelectResult[0][4]
-            self.downloaded = tSelectResult[0][5]
-            self.add_date = tSelectResult[0][6]
-
-        return True
-
+        if self.rss_name == "": return False
+        if self.HASH != "":
+            sel_sql = "select title,downloadlink,doubanid,imdbid,downloaded,torrentid,adddate from rss where rssname=%s and HASH=%s"
+            sel_val = (self.rss_name,self.HASH)
+            tSelectResult =  select(sel_sql,sel_val)
+            tSQL = "select title,downloadlink,torrentid,downloaded,addate from rss where rssname={} and HASH={}".format(self.rss_name,self.HASH)
+            if tSelectResult == None:
+                ErrorLog("failed to exec :"+tSQL)
+                return False
+            if len(tSelectResult) == 0: return False
+            elif len(tSelectResult) > 1: ErrorLog("find 2+record:"+tSQL); return False
+            else: pass
+            if assign_value == True:
+                self.title = tSelectResult[0][0]
+                self.download_link = tSelectResult[0][1]
+                self.douban_id = tSelectResult[0][2]
+                self.imdb_id = tSelectResult[0][3]
+                self.torrent_id = tSelectResult[0][4]
+                self.downloaded = tSelectResult[0][5]
+                self.add_date = tSelectResult[0][6]
+            return True
+        elif self.torrent_id != "":
+            sel_sql = "select title,downloadlink,doubanid,imdbid,HASH,downloaded,adddate from rss where rssname=%s and torrentid=%s"
+            sel_val = (self.rss_name,self.torrent_id)
+            tSelectResult =  select(sel_sql,sel_val)
+            tSQL = "select title,download_link,HASH,downloaded,addate from rss where rssname={} and torrentid={}".format(self.rss_name,self.torrent_id)
+            if tSelectResult == None:
+                ErrorLog("failed to exec :"+tSQL)
+                return False
+            if len(tSelectResult) == 0: return False
+            elif len(tSelectResult) > 1: ErrorLog("find 2+record:"+tSQL); return False
+            else: pass
+            if assign_value == True:
+                self.title = tSelectResult[0][0]
+                self.download_link = tSelectResult[0][1]
+                self.douban_id = tSelectResult[0][2]
+                self.imdb_id = tSelectResult[0][3]
+                self.HASH = tSelectResult[0][4]
+                self.downloaded = tSelectResult[0][5]
+                self.add_date = tSelectResult[0][6]
+            return True
+        else: return False
+               
     def insert(self):
         if self.HASH == "" or self.rss_name == "": return None
         

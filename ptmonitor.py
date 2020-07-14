@@ -5,7 +5,9 @@ import time
 import socket
 import os
 import requests
+import feedparser
 import re
+import psutil
 import codecs 
 from bs4 import BeautifulSoup
 import transmissionrpc
@@ -37,12 +39,10 @@ UPLOADTHRESHOLD = 0.03                     #阈值，上传/种子大小的比�
 TORRENT_LIST_BACKUP = "data/pt.txt"  #种子信息备份目录（重要的是每天的上传量）
 
 #配置自己要检查的磁盘/保存路径，看下面是否有文件夹/文件已经不在种子列表，这样就可以转移或者删除了。
-CHECK_DISK_LIST = [ "/media/root/SG8T","/media/root/BT/movies"]
+#CHECK_DISK_LIST = [ "/media/root/SG8T","/media/root/BT/movies"]
+CHECK_DISK_LIST = ["/media/root/BT/movies"]
 #如果有一些文件夹/文件不想总是被检查，可以建一个忽略清单
 IGNORE_FILE = "data/ignore.txt"
-
-
-
 
 TRACKER_LIST_BACKUP = "data/tracker.txt"               
 TrackerDataList = [\
@@ -125,6 +125,10 @@ def read_pt_backup():
         tInfo.genre         =     Genre
 
         tMyTorrent = MyTorrent(tBasicTorrent,tRSS,tInfo,int(AddStatusStr))
+        #if tMyTorrent.client == 'TR':
+        #    tMyTorrent.add_status = STARTED
+        #    if tMyTorrent.spider_status == RETRY: tMyTorrent.spider_status = NOK
+        #    if tMyTorrent.douban_status == RETRY: tMyTorrent.douban_status = NOK
         gTorrentList.append(tMyTorrent)
     #end for 
     
@@ -264,7 +268,7 @@ def check_torrents(mClient):
         if tIndex == -1:
             ExecLog("add new torrent:"+tTorrent.name)
             #tTorrent.title = tTorrent.name #从客户端获取的新种子，title置为torrent.name
-            gTorrentList.append(MyTorrent(tTorrent))
+            gTorrentList.append(MyTorrent(tTorrent,None,None,STARTED))
             #tIndex = -1                   #指向刚加入的种子
             tNumberOfAdded += 1
             #gTorrentList[tIndex].spider_status = RETRY
@@ -339,7 +343,7 @@ def check_torrents(mClient):
         #保存电影到TOBE
         if gTorrentList[tIndex].category == "save" : gTorrentList[tIndex].save_movie()
         
-        #if torrent.category == "转移" : gTorrentList[tIndex].move_to_tr(TR_LOGIN)
+        if gTorrentList[tIndex].category == "转移" : gTorrentList[tIndex].move_to_tr(TR_LOGIN)
         
     #end for torrents 
     
@@ -360,35 +364,6 @@ def check_torrents(mClient):
         return 1
     else :
         return 0
-
-def download_free(RSSName):
-
-    Page = free.NexusPage(RSSName)
-    if not Page.request_page() : 
-        #ExecLog(Page.error_string)
-        return False
-    TaskList = Page.find_free()
-    if len(TaskList) == 0 : return True
-
-    for tTask in TaskList:
-        if tTask[0] == False: continue
-        TorrentID = tTask[1]
-        sel_sql = "select HASH,title,downloadlink,DoubanID,IMDBID,Downloaded from rss where rssname=%s and torrentid=%s"
-        sel_val = (RSSName,TorrentID)
-        SelectResult = select(sel_sql,sel_val)
-        if len(SelectResult) != 1: ExecLog("failed to find torrentid:"+TorrentID); continue
-        ID           = SelectResult[0][0]
-        Title        = SelectResult[0][1]
-        DownloadLink = SelectResult[0][2]
-        DoubanID     = SelectResult[0][3]
-        IMDBID       = SelectResult[0][4]
-        Downloaded   = SelectResult[0][5]
-        if Downloaded == 1 : DebugLog("torrentID have been downloaded:"+TorrentID+"::"+Title); continue
-        gRSSTorrentList.append(RSSTorrent(RSSName,ID,Title,DownloadLink,TOBEADD,DoubanID,IMDBID))
-        ExecLog("find a free torrent:"+Title)
-
-    HandleRSSTorrent()
-    return True
  
 def tracker_data():
     """
@@ -504,23 +479,46 @@ def write_tracker_backup():
     
     return 1
 
+def in_ignore_list(SavedPath,DirName) :
+
+    if SavedPath[-1:] == '/' : SavedPath = SavedPath[:-1]
+    for i in range( len(gPTIgnoreList) ) :
+        if (gPTIgnoreList[i])['Path'] == SavedPath and (gPTIgnoreList[i])['Name'] == DirName:  return True
+
+    return False
+
+def in_torrent_list(SavedPath,DirName):
+    """
+    判断SavedPath+DirName在不在TorrentList
+    """
+    for i in range( len(gTorrentList) ) :
+        tSrcDirName = os.path.join(SavedPath,DirName)
+        FirstFile = os.path.join(gTorrentList[i].save_path,gTorrentList[i].files[0]['name'])
+        tDestFile = os.path.realpath(FirstFile)
+        if tSrcDirName in tDestFile:
+            #DebugLog(os.path.realpath(tSrcDirName))
+            #DebugLog(os.path.realpath(tDestDirName))
+            #DebugLog(gTorrentList[i].Name+"::"+gTorrentList[i].HASH)
+            return True
+    return False
+#end def InTorrentList
 def check_disk(tCheckDiskList):
     """
     对Path下的目录及文件逐个对比TorrentList，并进行标记。
     """
 
-    tDirNameList = []
+    tDirNameList = []   
     for DiskPath in tCheckDiskList:
         DebugLog("begin check:"+DiskPath)
         for file in os.listdir(DiskPath):        
             fullpathfile = os.path.join(DiskPath,file)
             if os.path.isdir(fullpathfile) or os.path.isfile(fullpathfile) :        
                 #一些特殊文件夹忽略
-                if file == 'lost+found' or file[0:6] == '.Trash' :
+                if file == 'lost+found' or file[0:6] == '.Trash' or file[0:4] == '0000' :
                     DebugLog ("ignore some dir:"+file)
                     continue 
             
-                if InPTIgnoreList(DiskPath,file):
+                if in_ignore_list(DiskPath,file):
                     DebugLog ("in Ignore List:"+DiskPath+"::"+file)
                     continue
                 
@@ -529,13 +527,13 @@ def check_disk(tCheckDiskList):
                     for file2 in os.listdir(fullpathfile):
                         fullpathfile2 = os.path.join(fullpathfile,file2)
                         if os.path.isfile( fullpathfile2) : continue
-                        if InPTIgnoreList(fullpathfile,file2):
+                        if in_igore_list(fullpathfile,file2):
                             DebugLog("in Ignore List:"+fullpathfile2)
                             continue
-                        if InTorrentList(fullpathfile,file2): DebugLog(file2+":: find in torrent list")
+                        if in_torrent_list(fullpathfile,file2): DebugLog(file2+":: find in torrent list")
                         else: ExecLog(file2+":: not find in torrent list"); tDirNameList.append({'DirPath':fullpathfile,'DirName':pathfile2})
                 else:
-                    if InTorrentList(DiskPath,file) : DebugLog(file+"::find in torrent list:")
+                    if in_torrent_list(DiskPath,file) : DebugLog(file+"::find in torrent list:")
                     else :                            ExecLog(file+"::not find in torrent list:"); tDirNameList.append({'DirPath':DiskPath,'DirName':file})
             else :
                 ExecLog("Error：not file or dir")
@@ -570,7 +568,7 @@ def backup_torrents():
     if os.system(TRCopyCommand2) == 0 : ExecLog ("success exec:"+TRCopyCommand2)
     else : ExecLog("failed to exec:"+TRCopyCommand2); return False
 
-def keep_torrents(tDirNameList):
+def keep_torrents(tDiskPath):
     """
     输入:待进行保种的目录列表
     1、查找movies表，获取下载链接及hash
@@ -585,40 +583,19 @@ def keep_torrents(tDirNameList):
         ErrorLog("failed to connect tr")
         return False
 
+    tDirNameList = check_disk(tDiskPath)  #检查tDiskPath,获取未保种的目录列表
     for tDirName in tDirNameList:
         ExecLog("begin to keep torrent:"+tDirName['DirPath']+tDirName['DirName'])
         tMovie = movie.Movie(tDirName['DirPath'],tDirName['DirName'])
         if tMovie.CheckDirName() == 0 :
             ExecLog("failed to checkdirname:"+tMovie.DirName)
             continue
-        sel_sql = 'select downloadlink,hash from movies where number = %s and copy = %s'
-        sel_val = (tMovie.Number,tMovie.Copy)
-        SelectResult = (sel_sql,sel_val)
-        if len(SelectResult) != 1: ExecLog("failed to select from movies:{}::{}".format(tMovie.Number,tMovie.Copy)); continue
-        DownloadLink = SelectResult[0][0]
-        HASH         = SelectResult[0][1]
-        if DownloadLink == "" :
-            if HASH != "":
-                #到QB目录查找文件
-                TorrentFile = ""
-                if os.path.isfile( os.path.join(QBTorrentsBackupDir, HASH+'.torrent') ) : 
-                    TorrentFile = os.path.join(QBTorrentsBackupDir, HASH+'.torrent')
-                    DebugLog("find torrent file:"+TorrentFile)
-                else :
-                    #到TR目录查找文件
-                    IsFindTorrentFile = False
-                    for tFile in os.listdir(TRTorrentsBackupDir):
-                        if tFile[-24:] == HASH[:16]+'.torrent': IsFindTorrentFile = True; break
-                    if IsFindTorrentFile == True : 
-                        TorrentFile = tFile
-                        DebugLog("find torrent file:"+TorrentFile)
-                    else:
-                        ExecLog("failed to find torrent file:"+HASH); continue
-            else : ExecLog("downloadlink and hash is null:"+tDirName['DirName']); continue
-
+        if not tMovie.get_torrent(): ExecLog("can't get torrent:"+self.DirName); continue
         try:
-            if DownloadLink != "": tr_torrent = tr_client.add_torrent(DownloadLink,download_dir=TRSeedFolderList[0],paused=True)
-            else: tr_torrent = tr_client.add_torrent(torrent=TorrentFile,download_dir=TRSeedFolderList[0],paused=True)
+            if self.download_link != "": 
+                tr_torrent = tr_client.add_torrent(self.download_link,download_dir=TR_KEEP_DIR,paused=True)
+            elif self.torrent_file != "":
+                tr_torrent = tr_client.add_torrent(torrent=self.torrent_file,download_dir=TR_KEEP_DIR,paused=True)
         except Exception as err:
             Print(err)
             ErrorLog("failed to add torrent:"+TorrentFile+"::"+DownloadLink)
@@ -626,7 +603,7 @@ def keep_torrents(tDirNameList):
         else:
             ExecLog("success add torrent to tr")
         
-        tLink = os.path.join(TRSeedFolderList[0],tr_torrent.name) 
+        tLink = os.path.join(TR_KEEP_DIR,tr_torrent.name) 
         tFullPathDirName = os.path.join(tDirName['DirPath']+tDirName['DirName'])
         if os.path.exists(tLink) : os.remove(tLink)
         try:    
@@ -636,8 +613,7 @@ def keep_torrents(tDirNameList):
         else: ExecLog("create link: ln -s "+tFullPathDirName+" "+tLink)
 
     #把新加入的种子加入列表
-    CheckTorrents(TR)
-
+    check_torrents("TR")
 
 def request_free(mSiteName="",mTimeInterval=-1):
 
@@ -654,74 +630,52 @@ def request_free(mSiteName="",mTimeInterval=-1):
             #ExecLog(tPage.error_string)
             continue
 
-        TaskList = tPage.find_free_torrents()
-        if len(TaskList) == 0 : continue
-
-        for tTask in TaskList:
-            DebugLog("{}|{}|{}|{}|{}".format(tTask[0],tTask[1],tTask[2],tTask[3],tTask[4]))
-            if tTask[0] == False: continue
-            TorrentID = tTask[1]
-            Title = tTask[2]
-            Details = tTask[3]
-            DownloadLink = tTask[4]
+        for tTask in tPage.find_free_torrents():
+            DebugLog("{}|{}|{}|{}".format(tTask[0],tTask[1],tTask[2],tTask[3]))
+            TorrentID = tTask[0]
+            Title = tTask[1]
+            Details = tTask[2]
+            DownloadLink = tTask[3]
 
             if tSite['name'] == 'HDSky':
                 if Title.find("265") >= 0 and Title.find("HDS") >= 0  and Title.find("HDSWEB") == -1 and Title.find("HDSPad") == -1 and Title.find("HDSTV") == -1:
                     DebugLog("find a 265 HDS torrent:"+Title)
-                    pass
                 else: 
                     DebugLog("not 265 HDS torrent,ignore it"+Title)
                     continue
 
-            # 查找rss是否种子已经下载过?
-            sel_sql = "select HASH,title,downloadlink,DoubanID,IMDBID,Downloaded from rss where rssname=%s and torrentid=%s"
-            sel_val = (tPage.site['name'],TorrentID)
-            SelectResult = select(sel_sql,sel_val)
-            if SelectResult == None:
-                ErrorLog("error to select rss with torrentid:"+tPage.site['name']+"::"+TorrentID)
-                continue
-            elif len(SelectResult) == 0:
-                ExecLog("failed to find rss from torrentid:"+tPage.site['name']+"::"+TorrentID)
+            tRSS = RSS("",tPage.site['name'],DownloadLink,Title)
+            if tRSS.select():   #rss记录已经存在
+                if tRSS.downloaded == 1: DebugLog("torrentID have been downloaded:"+TorrentID+"::"+Title); continue
+                tInfo = Info(tRSS.douban_id,tRSS.imdb_id)
+                tTorrent = MyTorrent(rss=tRSS,info=tInfo)
+            else:
+                ExecLog("failed to find rss from torrentid:"+tRSS.rss_name+"::"+tRSS.torrent_id)
                 #if not tPage.request_detail_page(TorrentID):
                 #    ExecLog("failed to request detail")
                 #    continue
-                tTorrentInfo = TorrentInfo(download_link=DownloadLink)
+                tTorrentInfo = TorrentInfo(download_link=tRSS.download_link)
                 if not tTorrentInfo.get_info():
-                    ExecLog("failed to get torrent info from :"+DownloadLink)
+                    ExecLog("failed to get torrent info from :"+tRSS.download_link)
                     continue
-                tRSS = RSS(tTorrentInfo.hash,tPage.site['name'],DownloadLink,Title)
+                tRSS.HASH = tTorrentInfo.hash
                 if not tRSS.insert():
                     ExecLog("failed to insert rss:{}|{}|{}".format(tRSS.HASH,tRSS.name,tRSS.title))
                     continue
                 
                 DebugLog("get a torrent from link:{}|{}".format(tTorrentInfo.hash,tTorrentInfo.name))
-                if get_torrent_index(tTorrentInfo.hash) >= 0:
-                    ExecLog("torrent exists in list:"+tRSS.title)
-                    continue
-                tTorrentList.append(MyTorrent(rss=tRSS))
-            else: 
-                ID           = SelectResult[0][0]
-                Title        = SelectResult[0][1]
-                DownloadLink = SelectResult[0][2]
-                DoubanID     = SelectResult[0][3]
-                IMDBID       = SelectResult[0][4]
-                Downloaded   = SelectResult[0][5]
-                if Downloaded == 1 : DebugLog("torrentID have been downloaded:"+TorrentID+"::"+Title); continue
-                tRSS = RSS(ID,tPage.site['name'],DownloadLink,Title,DoubanID,IMDBID)
-                tInfo = Info(DoubanID,IMDBID)
-                if get_torrent_index(tTorrentInfo.hash) >= 0:
-                    ExecLog("torrent exists in list:"+tRSS.title)
-                    continue
-                tTorrentList.append(MyTorrent(rss=tRSS,info=tInfo))
+                tTorrent= MyTorrent(rss=tRSS)
 
-            ExecLog("find a free torrent:"+Title)
-
+            if get_torrent_index("QB",tTorrent.HASH) >= 0:
+                ExecLog("torrent exists in list:"+tRSS.title)
+                continue
+            ExecLog("add a free torrent:"+Title)
+            tTorrentList.append(MyTorrent(rss=tRSS,info=tInfo))
     return tTorrentList
 
 def request_rss(mRSSName="",mTimeInterval=-2):
     
-    headers = {    
-        'User-Agent': 'Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.82 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.82 Safari/537.36'}
 
     DebugLog("request rss:{}::{}".format(mRSSName,mTimeInterval))
     tTorrentList = []
@@ -734,199 +688,38 @@ def request_rss(mRSSName="",mTimeInterval=-2):
         else: continue
 
         DebugLog("==========begin {}==============".format(RSSName.ljust(10,' ')))
-        DebugLog("URL:"+ url)
-        try: 
-            page = requests.get(url, timeout=60, headers=headers)
-        except Exception as err: 
-            print(err)
-            ExecLog("failed to requests:"+RSSName)
-            continue
-        page.encoding = 'utf-8'
-        page_content = page.text
-        soup = BeautifulSoup(page_content, 'lxml-xml')
-        items = soup.select('rss > channel > item')
-        for i in range(len(items)):
-            Title = items[i].title.string
-            ID    = items[i].guid.string
-            DownloadLink = items[i].enclosure.get('url')
-            #TorrentID    = get_torrent_id(DownloadLink)
-            DebugLog(Title+":"+ID+":"+DownloadLink)
+        parser = feedparser.parse(url)
+        for tEntry in parser.entries:
+            Title = tEntry.title
+            HASH  = tEntry.id
+            Detail = tEntry.links[0].href
+            DownloadLink = tEntry.links[1].href
+            tSummary = ""
+            try:
+                tSummary = BeautifulSoup(tEntry.summary,'lxml').get_text()
+            except Exception as err:
+                pass
+            tInfo = Info()
+            tInfo.get_from_summary(tSummary)
 
-            if RSSName == "HDSky" and Title.find("x265") == -1 : DebugLog("hdsky not x265, ignore it:"+Title); continue
-            #if RSSName == "MTeam" and Title.find("x264") >= 0  : DebugLog("mteam x264, ignore it:"+Title); continue
-
-            Downloaded  = 0
-            OldRSS = 0
-            se_sql = "select Title,downloaded from rss where RSSName=%s and HASH=%s"
-            se_val = (RSSName,ID)  
-            tSelectResult = select(se_sql,se_val)
-            if tSelectResult == None:  
-                ExecLog("failed to select title from rss where rssname={} and HASH={}".format(RSSName,ID))
-                continue
-            elif len(tSelectResult) == 1: 
-                OldRSS = 1
-                Downloaded = tSelectResult[0][1]  #downloaded
-                if Downloaded == 1: #downloaded
-                    DebugLog("old rss downloaded,ignore it:"+Title)
-                    continue
-                else:
-                    DebugLog("old rss undownloaded,accept it:"+Title)
-                    continue
-            elif len(tSelectResult) > 1 : 
-                DebugLog("find 1+ record:{}|{}".format(RSSName,ID))
-                continue
-            else:
-                DebugLog("new rss:{}|{}".format(RSSName,ID))
-
-            Type = -1
-            Nation = Name = Director = Actors = DoubanScore = DoubanID = DoubanLink = IMDBLink = IMDBScore = IMDBID = ""
-            tInfo = None
-            if RSSName == "LeagueHD" or\
-               RSSName == "JoyHD"    or\
-               RSSName == "HDArea"   or\
-               RSSName == "PTSBao"   or\
-               RSSName == "BeiTai"   or\
-               RSSName[:5] == "HDSky"    or\
-               RSSName[:5] == "MTeam"    :
-                SummaryStr = items[i].description.string
-                SummaryStr = re.sub(u'\u3000',u' ',SummaryStr)
-                SummaryStr = re.sub(u'\xa0', u' ', SummaryStr)
-                SummaryStr = re.sub('&nbsp;',' ',  SummaryStr)
-                SummaryStr = SummaryStr.lower()
-                DebugLog(SummaryStr)
-                        
-                tInfo = Info()
-                tIndex = SummaryStr.find("豆瓣评分")
-                if tIndex >= 0 :
-                    tempstr = SummaryStr[tIndex+5:tIndex+16]
-                    tSearch = re.search("[0-9]\.[0-9]",tempstr)
-                    if tSearch : DoubanScore = tSearch.group()
-                    else:        DoubanScore = ""
-                    DebugLog("douban score:"+DoubanScore)
-                else: DebugLog("douban score:not find")
-                tInfo.douban_score = DoubanScore
-                
-                tIndex = SummaryStr.find("豆瓣链接")
-                if tIndex >= 0 :
-                    tempstr = SummaryStr[tIndex:]
-                    tIndex = tempstr.find("href=")
-                    if tIndex >= 0:
-                        tempstr = tempstr[tIndex+6:]
-                        tIndex = tempstr.find('\"')
-                        if tIndex >= 0 : DoubanLink = tempstr[:tIndex]; DebugLog("douban link:"+DoubanLink)
-                        else: DebugLog("douban link:error:not find \"")
-                    else: DebugLog("douban link:error:not find href=")
-                else: DebugLog("douban link:not find")
-                DoubanID = get_id_from_link(DoubanLink, DOUBAN)
-                DebugLog("DoubanLink:"+DoubanLink)
-                tInfo.douban_id = DoubanID
-                tInfo.douban_link = DoubanLink
-
-                if   SummaryStr.find("imdb评分")    >= 0: tIndex = SummaryStr.find("imdb评分")           
-                elif SummaryStr.find('imdb.rating') >= 0: tIndex = SummaryStr.find('imdb.rating')
-                elif SummaryStr.find('imdb rating') >= 0: tIndex = SummaryStr.find('imdb rating')            
-                else: tIndex = -1               
-                if tIndex >= 0 :
-                    tempstr = SummaryStr[tIndex+6:tIndex+36]
-                    tSearch = re.search("[0-9]\.[0-9]",tempstr)
-                    if tSearch :  IMDBScore = tSearch.group()
-                DebugLog("imdb score:"+IMDBScore)
-                tInfo.imdb_score = IMDBScore
-                
-                if   SummaryStr.find("imdb链接")    >= 0: tIndex = SummaryStr.find("imdb链接")
-                elif SummaryStr.find('imdb.link')   >= 0: tIndex = SummaryStr.find("imdb.link")
-                elif SummaryStr.find('imdb link')   >= 0: tIndex = SummaryStr.find("imdb link")
-                elif SummaryStr.find('imdb url')    >= 0: tIndex = SummaryStr.find('idmb url')           
-                else                                    : tIndex = -1            
-                if tIndex >= 0 :
-                    tempstr = SummaryStr[tIndex:tIndex+200]
-                    tIndex = tempstr.find("href=")
-                    if tIndex >= 0:
-                        tempstr = tempstr[tIndex+6:]
-                        tIndex = tempstr.find('\"')
-                        if tIndex >= 0 : IMDBLink = tempstr[:tIndex]
-                        else:  DebugLog("imdb link:error:not find \"")
-                    else:
-                        tIndex = tempstr.find('http')
-                        if tIndex >= 0:
-                            tempstr = tempstr[tIndex:]
-                            tIndex = tempstr.find('<')
-                            if tIndex >= 0 : IMDBLink = tempstr[:tIndex] 
-                IMDBID = get_id_from_link(IMDBLink, IMDB)
-                DebugLog("imdb link:"+IMDBLink)
-                tInfo.imdb_id = IMDBID
-
-                if   SummaryStr.find("国  家")    >= 0: tIndex = SummaryStr.find("国  家")
-                elif SummaryStr.find("产  地")    >= 0: tIndex = SummaryStr.find("产  地")
-                else                                  : tIndex = -1
-                if tIndex >= 0 :
-                    Nation = SummaryStr[tIndex+5:tIndex+20]
-                    if Nation.find('\n') >= 0: Nation = Nation[:Nation.find('\n')]
-                    if Nation.find('<')  >= 0: Nation = Nation[ :Nation.find('<') ]
-                    if Nation.find('/')  >= 0: Nation = Nation[ :Nation.find('/') ]
-                    Nation = Nation.strip()
-                    if   Nation[-1:] == '国' : Nation = Nation[:-1]  #去除国家最后的国字
-                    elif Nation == '香港'    : Nation = '港'
-                    elif Nation == '中国香港': Nation = '港'
-                    elif Nation == '中国大陆': Nation = '国'
-                    elif Nation == '中国台湾': Nation = '台'
-                    elif Nation == '日本'    : Nation = '日'
-                    else : pass
-                    DebugLog("Nation:"+Nation)
-                else: DebugLog("failed find nation")
-                tInfo.nation = Nation
-
-                tIndex = SummaryStr.find("类  别") 
-                if tIndex >= 0 and SummaryStr[tIndex:tIndex+100].find("纪录") >= 0 : Type = RECORD
-                elif SummaryStr.find("集  数") >= 0                                : Type = TV
-                else                                                               : Type = MOVIE
-                DebugLog("type:"+str(Type))
-                tInfo.type = Type
-
-                if Nation == '港' or Nation == '国' or Nation == '台' : tIndex = SummaryStr.find("片  名")
-                else                                                  : tIndex = SummaryStr.find("译  名")
-                if tIndex >= 0 :
-                    Name = SummaryStr[tIndex+5:tIndex+100]
-                    if   Name.find("/")  >= 0 : Name = (Name[ :Name.find("/") ]).strip() 
-                    elif Name.find("<")  >= 0 : Name = (Name[ :Name.find("<") ]).strip() 
-                    elif Name.find('\n') >= 0 : Name = (Name[ :Name.find('\n') ]).strip()
-                    else: DebugLog("failed find name"); Name = ""
-                else: DebugLog("failed find name"); Name = ""
-                #ExecLog("name:"+Name)
-                if Name.find('<') >= 0 : Name = Name[:Name.find('<')]
-                DebugLog("name:"+Name)
-                tInfo.movie_name = Name
-                
-                tIndex = SummaryStr.find("导  演")
-                if tIndex >= 0 :
-                    Director = SummaryStr[tIndex+5:tIndex+100]
-                    tEndIndex = Director.find('\n')
-                    if tEndIndex >= 0 : Director = Director[:tEndIndex]
-                    else : Director = ""
-                    Director = (Director[ :Director.find('<') ]).strip()
-                else :Director = ""
-                DebugLog("director:"+Director)
-                tInfo.director = Director
-
-                tInfo.select() #尝试找下数据库的记录
-                if tInfo.imdb_id != "":
-                    if not tInfo.update_or_insert():
-                        ExecLog("failed to update or insert info:"+tInfo.imdb_id)
-            #end if RSSName ==
+            if RSSName == 'HDSky' and Title.find("x265") == -1: DebugLog("hdsky not x265,ignore it"+Title); continue
             
-            Title = Title.replace('|',',')   #避免Title中出现|分隔符
-            tRSS = RSS(ID,RSSName,DownloadLink,Title,DoubanID,IMDBID)
+            Title = Title.replace('|','')
+            tRSS = RSS(HASH,RSSName,DownloadLink,Title,tInfo.douban_id,tInfo.imdb_id)
+            if tRSS.select():
+                DebugLog("old rss:"+tRSS.title)
+                continue
             if not tRSS.insert():  #记录插入rss数据库
-                ExecLog("failed to insert into rss:{}|{}".format(RSSName,ID))
+                ExecLog("failed to insert into rss:{}|{}".format(RSSName,HASH))
                 continue
             tTorrent = MyTorrent(None,tRSS,tInfo,TO_BE_ADD)
 
             if not WaitFree: 
                 ExecLog("new rss to be add torrent:"+tTorrent.title)
-                ExecLog("doubanID:{}|DoubanScore:{}|IMDBID:{}|IMDBScore:{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(DoubanID,DoubanScore,IMDBID,IMDBScore,Type,Nation,Name,Director))
+                ExecLog("ID:{}/{}|score:{}/{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
                 tTorrentList.append(tTorrent)
             else:
-                DebugLog("doubanID:{}|DoubanScore:{}|IMDBID:{}|IMDBScore:{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(DoubanID,DoubanScore,IMDBID,IMDBScore,Type,Nation,Name,Director))
+                DebugLog("ID:{}/{}|score:{}/{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
 
         #end for Items
     return tTorrentList
@@ -936,7 +729,7 @@ def restart_qb():
     try:
         qb_client = qbittorrentapi.Client(host=QB_LOGIN['host_port'], username=QB_LOGIN['username'], password=QB_LOGIN['password'])
         qb_client.auth_log_in()
-        qb_client.torrents.pause.all()
+        #qb_client.torrents.pause.all()
         qb_client.app_shutdown()
     except:
         ExecLog("failed to stop QB")
@@ -948,6 +741,7 @@ def restart_qb():
     if os.system("/usr/bin/qbittorrent &") == 0 : ExecLog ("success to start qb")
     else : ExecLog("failed to start qb"); return False
     
+    """
     time.sleep(10)
     try:
         qb_client = qbittorrentapi.Client(host=QB_LOGIN['host_port'], username=QB_LOGIN['username'], password=QB_LOGIN['password'])
@@ -963,16 +757,40 @@ def restart_qb():
         if gTorrentList[tIndex].Status == "GOING":  
             try: torrent.resume()
             except: ExecLog("failed to resume:"+torrent.name)
+    """
     return True
-    
-    
+        
+def set_spider_id(RequestList):
+
+    if len(RequestList) != 2: return "invalid number of arguments"
+
+    ExecLog("begin set {} {}".format(tName,tID))
+    tName = RequestList[0]
+    tID   = RequestList[1]
+    tIndexList = []
+    for i in range(len(gTorrentList)):
+        if tName in gTorrentList[i].title or tName in gTorrentList[i].name:
+            ExecLog("find match torrent:"+gTorrentList[i].name)
+            tIndexList.append(i)
+    if len(tIndexList) == 0: return "not find torrent"
+    if len(tIndexList) >= 2: return "2+ torrent found"
+
+    if tID[:2] == 'tt': gTorrentList[i].imdb_id = tID
+    else              : gTorrentList[i].douban_id = tID
+
+    gTorrentList[i].spider_status = RETRY
+    gTorrentList[i].douban_Status = RETRY
+    return "success set {} {}".format(gTorrentList[i].name,tID)
+
+
+
 def handle_task(Request):
     ExecLog("accept request:"+Request)
     RequestList = Request.split()
     Task = RequestList[0].lower(); del RequestList[0]
     if   Task == 'checkdisk': 
         if len(RequestList) > 0 : check_disk(RequestList)
-        else                    : check_disk(CheckDiskList)
+        else                    : check_disk(CHECK_DISK_LIST)
     elif Task == 'rss'      : 
         if len(RequestList) > 0 : 
             for RSSName in RequestList: 
@@ -989,8 +807,9 @@ def handle_task(Request):
         if check_torrents("QB") > 0: write_pt_backup()
     elif Task == 'checktr'      : 
         if check_torrents("TR") > 0: write_pt_backup()
-    elif Task == 'backuptorrent': BackupTorrentFile()
-    elif Task == 'keep'         : KeepTorrents( check_disk(RequestList) )
+    elif Task == 'backuptorrent': backup_torrents()
+    elif Task == 'keep'         : keep_torrents( check_disk(RequestList) )
+    elif Task == 'spider'       : return set_spider_id(RequestList)
     else                        : ExecLog("unknown request task:"+Task) ; return "unknown request task"     
     
     return "completed"
@@ -1047,9 +866,9 @@ if __name__ == '__main__' :
             check_torrents("QB")
             check_torrents("TR")
             write_pt_backup()
-            #CheckDisk(CheckDiskList)
             tracker_data()                   #tracker_data执行要在check_torrents()之后，这样才有新的记录
             backup_torrents()
+            check_disk(CHECK_DISK_LIST)
             #一月备份一次qb，tr,data
             if gToday[8:10] == '01' : os.system("/root/backup.sh"); ExecLog("exec:/root/backup.sh")
         else:
@@ -1058,22 +877,11 @@ if __name__ == '__main__' :
         
         gLastCheckDate = tCurrentTime.strftime("%Y-%m-%d")
         DebugLog("update gLastCheckDate="+gLastCheckDate)        
-        #time.sleep(60)
-        """
-        #转移QB的种子（停止状态，分类为保种）到TR做种
-        tNumber = MoveTorrents()
-        if tNumber > 0 : DebugLog(str(tNumber)+" torrents moved")
-        
-        #将QB分类为save的种子保存到tobe目录
-        SaveTorrents()
-        """
 
-        """
         #检查一下内存占用
         tMem = psutil.virtual_memory()
         DebugLog("memory percent used:"+str(tMem.percent))
-        if tMem.percent >= 95: ExecLog("memory percent used:"+str(tMem.percent)); RestartQB()
-        """
+        if tMem.percent >= 92: ExecLog("memory percent used:"+str(tMem.percent)); restart_qb()
                 
 
         #监听Client是否有任务请求
