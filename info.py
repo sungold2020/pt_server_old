@@ -248,7 +248,7 @@ class Info:
             elif self.episodes > 0          :self.type = TV
             else                            :self.type = MOVIE            
 
-            ExecLog("spider douban:|name:{}|nation:{}|doubanid:{}|imdbid:{}|director:{}|score:{}/{}|".format(
+            ExecLog("spider   douban:{}|{}|{}|{}|{}|{}/{}|".format(
                 self.movie_name,self.nation,self.douban_id,self.imdb_id,self.director,self.douban_score,self.imdb_score))
             self.douban_status = OK
             self.spider_status = OK

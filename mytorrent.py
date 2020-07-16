@@ -324,14 +324,14 @@ class MyTorrent:
         #DebugLog("Size:"+str(tSize))
         if tFreeSize < tSize+1 :ExecLog("diskspace is not enough"); return False
         if  self.resume() and self.set_category("下载"):
-            ExecLog("start download:"+self.name)
+            DebugLog("start download:"+self.name)
         else:
             ExecLog("failed to start torrent:"+self.name)
             return False
         if self.rss.rss_name != "":
             self.rss.downloaded = 1
             if self.rss.update():
-                ExecLog("success to update rss:"+self.name)
+                ExecLog("update rsstable:"+self.name)
                 return True
             else:   
                 ExecLog("failed to update rss:"+self.name+':'+self.HASH)
@@ -416,7 +416,7 @@ class MyTorrent:
                 return self.spider_status
 
         if self.info.select():    #尝试从info表中获取记录
-            ExecLog("find a record from nfo")
+            DebugLog("find a record from nfo")
         if self.spider_status == OK: return self.spider_status
 
         if self.douban_status == RETRY:

@@ -21,6 +21,7 @@ from mytorrent import *
 from log import *
 from ptsite import *
 from torrent_info import TorrentInfo
+from viewed import *
 
 #运行设置############################################################################
 #日志文件
@@ -319,7 +320,7 @@ def check_torrents(mClient):
         #如果种子状态不是STARTED，启动它
         if gTorrentList[tIndex].add_status == TO_BE_START:
             if gTorrentList[tIndex].start_download():
-                ExecLog("start torrent:"+gTorrentList[tIndex].name)
+                ExecLog("start   torrent:"+gTorrentList[tIndex].name)
                 tNumberOfUpdated += 1
                 gTorrentList[tIndex].add_status = STARTED
             else:
@@ -332,13 +333,11 @@ def check_torrents(mClient):
             tReturn = gTorrentList[tIndex].spider_movie_info()
             if tReturn == OK:
                 tNumberOfUpdated += 1
-                ExecLog("success spdier movie info:"+gTorrentList[tIndex].name)
+                ExecLog("spider movieinf:"+gTorrentList[tIndex].name)
             elif tReturn == NOK:
                 tNumberOfUpdated += 1
-                ExecLog("failed to spdier movie info:"+gTorrentList[tIndex].name)
+                ExecLog("failedto spider:"+gTorrentList[tIndex].name)
             else: pass
-            DebugLog("checkqb: end spider movie info:"+gTorrentList[tIndex].name)
-            DebugLog("checkqb: end spider movie info:{}|{}".format(gTorrentList[tIndex].spider_status,gTorrentList[tIndex].douban_status))
 
         #保存电影到TOBE
         if gTorrentList[tIndex].category == "save" : gTorrentList[tIndex].save_movie()
@@ -352,7 +351,7 @@ def check_torrents(mClient):
     while i < len(gTorrentList) :
         if gTorrentList[i].checked == 0 and gTorrentList[i].client == mClient:
             tNumberOfDeleted += 1
-            ExecLog("del torrent, name="+gTorrentList[i].title)
+            ExecLog("delete   torrent:"+gTorrentList[i].title)
             del gTorrentList[i] 
         else:
             i += 1                
@@ -669,7 +668,7 @@ def request_free(mSiteName="",mTimeInterval=-1):
             if get_torrent_index("QB",tTorrent.HASH) >= 0:
                 ExecLog("torrent exists in list:"+tRSS.title)
                 continue
-            ExecLog("add a free torrent:"+Title)
+            ExecLog("free    torrent:"+Title)
             tTorrentList.append(MyTorrent(rss=tRSS,info=tInfo))
     return tTorrentList
 
@@ -715,11 +714,11 @@ def request_rss(mRSSName="",mTimeInterval=-2):
             tTorrent = MyTorrent(None,tRSS,tInfo,TO_BE_ADD)
 
             if not WaitFree: 
-                ExecLog("new rss to be add torrent:"+tTorrent.title)
-                ExecLog("ID:{}/{}|score:{}/{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
+                ExecLog("new rss tobeadd:"+tTorrent.title)
+                ExecLog("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
                 tTorrentList.append(tTorrent)
             else:
-                DebugLog("ID:{}/{}|score:{}/{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
+                DebugLog("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
 
         #end for Items
     return tTorrentList
@@ -782,8 +781,6 @@ def set_spider_id(RequestList):
     gTorrentList[i].douban_Status = RETRY
     return "success set {} {}".format(gTorrentList[i].name,tID)
 
-
-
 def handle_task(Request):
     ExecLog("accept request:"+Request)
     RequestList = Request.split()
@@ -810,6 +807,11 @@ def handle_task(Request):
     elif Task == 'backuptorrent': backup_torrents()
     elif Task == 'keep'         : keep_torrents( check_disk(RequestList) )
     elif Task == 'spider'       : return set_spider_id(RequestList)
+    elif Task == 'view'         : 
+        if len(RequestList) == 1 and RequestList[0] == 'all':
+            return str(update_viewed(False))
+        else:
+            return str(update_viewed(True))
     else                        : ExecLog("unknown request task:"+Task) ; return "unknown request task"     
     
     return "completed"
@@ -836,6 +838,7 @@ if __name__ == '__main__' :
     #if ReadTrackerBackup() == 1:  ExecLog("success ReadTrackerBackup:"+TRACKER_LIST_BACKUP)
     #if ReadRSSTorrentBackup() > 0: ExecLog("success read rss torrent backup:"+RSSTorrentBackupFile)
     
+    socket.setdefaulttimeout(60)
     try:
         Socket = socket.socket()
         HOST = socket.gethostname()

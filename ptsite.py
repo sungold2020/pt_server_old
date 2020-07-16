@@ -143,11 +143,14 @@ class NexusPage():
         s = requests.Session()
         s.cookies.update(cookie_dict)
     
+        tSummary = ""
         try:
             if NexusPage.user_agent: 
                 res = s.get(self.detail_url, headers={'User-Agent':NexusPage.user_agent})
             else:
                 res = s.get(self.detail_url)
+            self.soup = bs4.BeautifulSoup(res.text,'lxml')
+            tSummary = self.soup.find('div',id='kdescr').get_text()
         except Exception as err:
             print(err)
             ExecLog("failed to request from "+self.detail_url)
@@ -157,8 +160,6 @@ class NexusPage():
         else:
             self.set_error_count(True)
 
-        self.soup = bs4.BeautifulSoup(res.text,'lxml')
-        tSummary = self.soup.find('div',id='kdescr').get_text()
         DebugLog(tSummary)
         #print(SummaryStr)
         tInfo = Info()

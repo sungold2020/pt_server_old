@@ -26,7 +26,7 @@ RSS_LIST = [
         'name':'HDSky', 
         'wait_free':False,   
         'time_interval':10,
-        'url':'https://hdsky.me/torrentrss.php?rows=10&tea1=1&tea28=1&icat=1&ismalldescr=1&isize=1&linktype=dl&passkey=c8c158c14e1762b0c93c91ab2ddc689a'
+        'url':'https://hdsky.me/torrentrss.php?rows=10&tea1=1&tea28=1&ismalldescr=1&linktype=dl&passkey=c8c158c14e1762b0c93c91ab2ddc689a'
         },
     {
         'name':'BeiTai',   
