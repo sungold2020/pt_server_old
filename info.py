@@ -1,7 +1,17 @@
 import re
+import requests
+from bs4 import BeautifulSoup
+import json
+
 from gen import Gen
 from log import *
 from database import *
+
+DOUBAN_URL = 'https://movie.douban.com/subject/'
+DOUBAN_VIEWED_URL = 'https://movie.douban.com/people/69057957/collect?start=0&sort=time&rating=all&filter=all&mode=grid'
+DOUBAN_COOKIE='ll="118282"; bid=p0dhpEfEV-4; __utmc=30149280; __utmc=223695111; __yadk_uid=zONgmuQAhUz48FScpbbLwlyp9sWgxc8m; _vwo_uuid_v2=DB07B9A9429A767628851B0838F87F143|70668c6e9c14c93aa7249d070dc6cf07; push_doumail_num=0; __utmv=30149280.21843; __gads=ID=af7d0ac47d706c3b:T=1592790195:S=ALNI_MZPqMSCLzv4tlBWoABDl8fGGwGUBQ; douban-profile-remind=1; ck=ysVQ; __utmz=30149280.1594774078.8.3.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utmz=223695111.1594774078.7.2.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; push_noty_num=0; ap_v=0,6.0; _pk_ref.100001.4cf6=%5B%22%22%2C%22%22%2C1594944611%2C%22https%3A%2F%2Fwww.douban.com%2Fpeople%2F218434462%2F%22%5D; _pk_id.100001.4cf6=e6366f0e1d0169b1.1586329544.8.1594944611.1594774103.; _pk_ses.100001.4cf6=*; __utma=30149280.531319256.1586329544.1594774078.1594944611.9; __utmb=30149280.0.10.1594944611; __utma=223695111.1308861375.1586329544.1594774078.1594944612.8; __utmb=223695111.0.10.1594944612; dbcl2="69057957:e5cX8VrtPiw"'
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36"
+
 MOVIE =  0
 TV    =  1
 RECORD=  2
@@ -14,28 +24,6 @@ MAX_DOUBAN_RETRY_TIMES= 3
 DOUBAN = 1
 IMDB = 2
 
-def get_id_from_link(mLink,tag):
-    """
-    https://movie.douban.com/subject/1233445/***
-    https://www.imdb.com/title/123455/***
-    """
-    if mLink == "": return ""
-    tempstr = mLink.strip(' ')
-    if tempstr[-1:] != '/': tempstr = tempstr+'/'
-    if tag == DOUBAN: 
-        tIndex = mLink.find("douban.com/subject/")
-        if tIndex == -1 : return ""
-        tIndex = tIndex + len("douban.com/subject/")
-        tempstr = tempstr[tIndex:]
-        tIndex2 = tempstr.find('/')
-        return tempstr[:tIndex2]
-    else : 
-        tIndex = mLink.find("imdb.com/title/")
-        if tIndex == -1 : return ""
-        tIndex = tIndex + len("imdb.com/title/")
-        tempstr = tempstr[tIndex:]
-        tIndex2 = tempstr.find('/')
-        return tempstr[:tIndex2]
 
 class Info:
     def __init__(self,mDoubanID="",mIMDBID="",mSpiderStatus=RETRY):
@@ -163,7 +151,8 @@ class Info:
                 "episodes,"
                 "genre,"
                 "spiderstatus,"
-                "doubanstatus"
+                "doubanstatus,"
+                "year"
                 " from info where imdbid = %s")
         sel_val = (self.imdb_id,)
         tSelectResult = select(sel_sql,sel_val)
@@ -192,6 +181,7 @@ class Info:
             self.genre = tSelectResult[0][14]
             self.spider_status = tSelectResult[0][15]
             self.douban_status = tSelectResult[0][16]
+            self.year = tSelectResult[0][17]
 
         return True
 
@@ -231,13 +221,7 @@ class Info:
             if self.year == ""    : self.year = 0
             else                  : self.year = int(self.year)
             
-            if   self.nation[-1:] == '国' : self.nation = self.nation[:-1]  #去除国家最后的国字
-            elif self.nation == '香港'    : self.nation = '港'
-            elif self.nation == '中国香港': self.nation = '港'
-            elif self.nation == '中国大陆': self.nation = '国'
-            elif self.nation == '中国台湾': self.nation = '台'
-            elif self.nation == '日本'    : self.nation = '日'
-            else : pass
+            self.nation = trans_nation(self.nation)
 
             tIndex = self.imdb_score.find('/')
             if tIndex > 0: self.imdb_score = self.imdb_score[:tIndex]
@@ -265,9 +249,6 @@ class Info:
         return self.douban_status
         # TODO 如果有doubanid，尝试自己爬取
 
-    def spider_detail(self):
-        # TODO
-        pass
 
     def get_from_summary(self,mSummary):
 
@@ -288,13 +269,7 @@ class Info:
             if Nation.find('\n') >= 0: Nation = Nation[:Nation.find('\n')]
             if Nation.find('/')  >= 0: Nation = Nation[ :Nation.find('/') ]  #多个国家,以/区隔,取第一个
             Nation = Nation.strip()
-            if   Nation[-1:] == '国' : Nation = Nation[:-1]  #去除国家最后的国字
-            elif Nation == '香港'    : Nation = '港'
-            elif Nation == '中国香港': Nation = '港'
-            elif Nation == '中国大陆': Nation = '国'
-            elif Nation == '中国台湾': Nation = '台'
-            elif Nation == '日本'    : Nation = '日'
-            else : pass
+            Nation = trans_nation(Nation)
             DebugLog("Nation:"+Nation)
         else: DebugLog("failed find nation")
         self.nation = Nation
@@ -391,3 +366,319 @@ class Info:
         Director = Director.strip()
         DebugLog("director:"+Director)
         self.director = Director
+    
+    def douban_detail(self,mDoubanID=""):
+
+        if mDoubanID == "": 
+            if self.douban_id == "":
+                return False
+            else:
+                mDoubanID = self.douban_id
+
+        cookie_dict = {"cookie":DOUBAN_COOKIE}
+        s = requests.Session()
+        s.cookies.update(cookie_dict)
+
+        tUrl = DOUBAN_URL + mDoubanID
+        my_headers = {}
+        my_headers['User-Agent'] = USER_AGENT
+        try:
+            res = s.get(tUrl, headers=my_headers)
+            soup = BeautifulSoup(res.text,'lxml')
+        except Exception as err:
+            print(err)
+            ExecLog("except at get url")
+            return False
+        """
+        text = open("detail2.log").read()
+        soup = BeautifulSoup(text,'lxml')
+        """
+        #print(soup)
+
+        if str(soup).find("异常请求") >= 0: 
+            ExecLog("failed to request douban detail")
+            DebugLog(str(soup))
+            return False
+        if "页面不存在" in soup.title.text:
+            ExecLog("the douban id does not exist:"+mDoubanID)
+            return False
+        
+        #名称/外国名称
+        self.movie_name = soup.title.text.replace("(豆瓣)", "").strip()
+        self.foreign_name = soup.find('span',property="v:itemreviewed").text.replace(self.movie_name, '').strip()
+        print (self.movie_name)
+        print (self.foreign_name)
+
+        #年代
+        year_anchor = soup.find('span',class_='year')
+        self.year = int(year_anchor.text[1:-1]) if year_anchor else 0
+        print (self.year)
+
+
+        info = soup.find('div',id='info')
+        #print (info)
+
+        #其他电影名
+        other_names_anchor = info.find('span',class_='pl',text=re.compile('又名'))
+        self.other_names = other_names_anchor.next_element.next_element if other_names_anchor else ""
+        print(self.other_names)
+
+        #国家/地区
+        nation_anchor = info.find('span',class_='pl',text=re.compile('制片国家/地区'))
+        self.nation = nation_anchor.next_element.next_element
+        if self.nation.find('/') >= 0: self.nation = (self.nation[:self.nation.find('/')]).strip()
+        self.nation = trans_nation(self.nation)
+        print(self.nation)
+
+        #imdb链接和imdb_id
+        imdb_anchor = info.find('a',text=re.compile("tt\d+"))
+        #print (imdb_anchor)
+        self.imdb_id = imdb_anchor.text if imdb_anchor else ""
+        self.imdb_link = imdb_anchor['href'] if imdb_anchor else ""
+        print(self.imdb_id)
+        print(self.imdb_link)
+
+        #类型
+        genre_anchor = info.find_all('span',property='v:genre')
+        #print(genre_anchor)
+        genre_list = []
+        for genre in genre_anchor:
+            genre_list.append(genre.get_text())
+        self.genre = '/'.join(genre_list)
+        print(self.genre)
+
+        #集数
+        episodes_anchor = info.find("span", class_="pl", text=re.compile("集数"))
+        self.episodes = int(episodes_anchor.next_element.next_element) if episodes_anchor else 0  # 集数
+        #print(episodes_anchor)
+        print(self.episodes)
+
+        #type
+        if self.genre.find('纪录') >= 0 : self.type = RECORD
+        elif self.episodes > 1              : self.type = TV
+        else                            : self.type = MOVIE
+        print(self.type)
+
+          
+        json_anchor = soup.find('script',type="application/ld+json")
+        #print('-------------------------')
+        #print (json_anchor.string)
+        json_string = json_anchor.string.replace('\n',' ') if json_anchor else ""
+        json_string = json_string.replace('\t','')
+        data = json.loads(json_string) 
+        #print(data)
+        if data == None:  ExecLog('not find json data'); return False
+
+        tType = data['@type']
+        print (tType)
+
+        #self.movie_name = data['name']
+        #print(self.movie_name)
+
+        #海报
+        self.poster = data['image']
+        print(self.poster)
+
+        #豆瓣评分
+        self.douban_score = data['aggregateRating']['ratingValue']
+        print(self.douban_score)
+
+        #导演和演员
+        def data_join(data,key):
+            tList = []
+            for tData in data:
+                tList.append(tData.get(key))
+            return '/'.join(tList)
+        self.director = data_join(data['director'],'name')
+        self.actors = data_join(data['actor'],'name')
+        print(self.director)
+        print(self.actors)
+    
+        if self.nation != '' and self.movie_name != "" :
+            self.douban_status = OK
+            self.spider_status = OK
+            return True
+        else:
+            self.douban_status = NOK
+            return False
+
+def trans_nation(mNation):
+
+    tNation = mNation.strip()
+    if   tNation[-1:] == '国' : tNation = tNation[:-1]  #去除国家最后的国字
+    elif tNation == '香港'    : tNation = '港'
+    elif tNation == '中国香港': tNation = '港'
+    elif tNation == '中国大陆': tNation = '国'
+    elif tNation == '中国台湾': tNation = '台'
+    elif tNation == '日本'    : tNation = '日'
+    else : pass
+
+    return tNation
+
+def get_id_from_link(mLink,tag):
+    """
+    https://movie.douban.com/subject/1233445/***
+    https://www.imdb.com/title/123455/***
+    """
+    if mLink == "": return ""
+    tempstr = mLink.strip(' ')
+    if tempstr[-1:] != '/': tempstr = tempstr+'/'
+    if tag == DOUBAN: 
+        tIndex = mLink.find("douban.com/subject/")
+        if tIndex == -1 : return ""
+        tIndex = tIndex + len("douban.com/subject/")
+        tempstr = tempstr[tIndex:]
+        tIndex2 = tempstr.find('/')
+        return tempstr[:tIndex2]
+    else : 
+        tIndex = mLink.find("imdb.com/title/")
+        if tIndex == -1 : return ""
+        tIndex = tIndex + len("imdb.com/title/")
+        tempstr = tempstr[tIndex:]
+        tIndex2 = tempstr.find('/')
+        return tempstr[:tIndex2]
+
+
+def find_end_number(mString):
+    #  1-15 / 374
+    mString = mString.strip('\n')
+    mString = mString.strip()
+    #print('-----------------')
+    print(mString)
+    #print('-----------------')
+    
+    tIndex = mString.find('-')
+    if tIndex == -1: 
+        ExecLog("can't find -:"+mString)
+        return -1
+    tStartNumber = mString[:tIndex]
+    if not tStartNumber.isdigit():
+        ExecLog("invalid start number:"+mString)
+        return -1
+
+    mString = mString[tIndex+1:]
+    tIndex = mString.find('/')
+    if tIndex == -1: 
+        ExecLog("can't find /:"+mString)
+        return -1
+    tEndNumber = mString[:tIndex].strip()
+    if not tEndNumber.isdigit():
+        ExecLog("invalid end number:"+mString)
+        return "error"
+    
+    tTotal = mString[tIndex+1:].strip()
+    if not tEndNumber.isdigit():
+        ExecLog("invalid total number:"+mString)
+        return -1
+    
+    if int(tEndNumber) != int(tTotal): return int(tEndNumber)
+    else                   : return 0
+
+def find_douban_id(mItem):
+    try:
+        for a in mItem.find_all('a'):
+            #print(a)
+            #print(a['href'])
+            tDoubanID =  get_id_from_link(a['href'],DOUBAN)
+            if tDoubanID.isdigit():
+                return tDoubanID
+    except Exception as err:
+        print(mItem)
+        print(err)
+        ExecLog("exception at find_douban_id")
+        return ""
+    return ""
+
+def update_viewed(mOnlyFirstPage=True):
+
+    cookie_dict = {"cookie":DOUBAN_COOKIE}
+    s = requests.Session()
+    s.cookies.update(cookie_dict)
+
+    my_headers = {}
+    my_headers['User-Agent'] = USER_AGENT
+    tUrl = DOUBAN_VIEWED_URL
+    while True:
+        try:
+            res = s.get(tUrl, headers=my_headers)
+            soup = BeautifulSoup(res.text,'lxml')
+        except Exception as err:
+            print(err)
+            ExecLog("except at get url")
+            return False
+        """
+        text = open("viewed2.log").read()
+        soup = BeautifulSoup(text,'lxml')
+        #print(soup)
+        """
+
+        try:
+            tSubjectNum = soup.find('span',class_="subject-num").get_text()
+        except Exception as err:
+            print(err)
+            print(soup)
+            ExecLog("except at find subject-num")
+            return False
+        #print(num)
+        tNextStartNum = find_end_number(tSubjectNum)
+        #print(tNextStartNum)
+
+        try:
+            tViewed = soup.find('div',class_="grid-view")
+            tItems = tViewed.find_all('div',class_="item")
+        except Exception as err:
+            print(err)
+            print(soup)
+            ExecLog("except at find grid-view")
+            return False
+        #print(viewed)
+        for item in tItems:
+            #print('----------------------------------------')
+            #print(item)
+            #print('----------------------------------------')
+            try:
+                tTitle = item.find('em').get_text()
+            except Exception as err:
+                print(err)
+                print(item)
+                ExecLog("except at find em")
+                return False
+            tDoubanID = find_douban_id(item)
+            if tDoubanID == "":
+                ExecLog("can't find douban_id:"+tTitle)
+                continue
+            #print("{}:{}".format(tTitle,tDoubanID))
+
+            tReturn = select("select number,copy,dirname,viewed from movies where doubanid=%s",(tDoubanID,))
+            if tReturn == None:
+                ErrorLog("error exec:select number,copy,dirname,viewed from movies where doubanid="+tDoubanID)
+                continue
+            elif len(tReturn) == 0:
+                ExecLog("no record in movies doubanid={}:{}".format(tDoubanID,tTitle))
+                continue
+            else:
+                for tResult in tReturn:
+                    Number = tResult[0]
+                    Copy   = tResult[1]
+                    DirName= tResult[2]
+                    Viewed = tResult[3]
+                    if Viewed == 1: 
+                        DebugLog("viewed=1,ignore it:"+DirName)
+                        continue
+                    if update("update movies set viewed=1 where number=%s and copy=%s",(Number,Copy)):
+                        ExecLog("set viewd=1:"+DirName)
+                    else:
+                        ErrorLog("error exec:update movies set viewed=1 where number={} and copy={}".format(Number,Copy))
+
+
+
+        if mOnlyFirstPage :  return True
+        if tNextStartNum <= 0: return True   
+        tNextStartString = 'start='+str(tNextStartNum)
+        tUrl = site_url.replace('start=0',tNextStartString)
+        print(tUrl)
+        time.sleep(10)
+        
+
+    return True
+

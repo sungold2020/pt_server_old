@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# coding=utf-8
 import bs4
 import requests
 import os
@@ -142,13 +143,40 @@ class NexusPage():
         cookie_dict = {"cookie":self.site['cookie']}
         s = requests.Session()
         s.cookies.update(cookie_dict)
-    
+        
+        # TODO
+        if self.site['name'] == 'FRDS': return False 
+        """
+        myheaders={
+            'user-agent':NexusPage.user_agent,
+            'method':'GET',
+            'path':'/details.php?id=11263&hit=1',
+            'scheme':'https',
+            'authority':'pt.keepfrds.com',
+            'accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+            'accept-encoding':'gzip, deflate, br',
+            'accept-language':'zh-CN,zh;q=0.9',
+            'cache-control':'max-age=0',
+            'cookie':self.site['cookie'],
+            'sec-fetch-dest':'document',
+            'sec-fetch-mode':'navigate',
+            'sec-fetch-site':'none',
+            'sec-fetch-user':'?1',
+            'upgrade-insecure-requests': '1'
+        }
+        """
         tSummary = ""
         try:
             if NexusPage.user_agent: 
                 res = s.get(self.detail_url, headers={'User-Agent':NexusPage.user_agent})
+                #res = requests.get(self.detail_url, headers=myheaders)
             else:
                 res = s.get(self.detail_url)
+            #print('-------p------')
+            #print(res.apparent_encoding)
+            #res.encoding = 'gbk'
+            #res.encoding = 'gb2312'
+            #print(res.text)
             self.soup = bs4.BeautifulSoup(res.text,'lxml')
             tSummary = self.soup.find('div',id='kdescr').get_text()
         except Exception as err:

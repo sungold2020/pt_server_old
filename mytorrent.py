@@ -350,9 +350,9 @@ class MyTorrent:
         for tFile in tFiles:
             if tFile['name'][-4:].lower() == '.nfo' :
                 tNfoFileName = os.path.join(self.save_path,tFile['name'])
-                ExecLog("success find nfo file:"+self.name)
+                DebugLog("find  nfo  file:"+self.name)
                 break
-        if tNfoFileName == "": ExecLog("can't find nfo file:"+self.name); return False
+        if tNfoFileName == "": ExecLog("n_find nfo file:"+self.name); return False
         
         IMDBLink = DoubanLink = ""
         for line in open(tNfoFileName,"rb"):
@@ -402,7 +402,7 @@ class MyTorrent:
                     ExecLog("find id from rss:{}::{}".format(self.douban_id,self.imdb_id))
                 else:
                     if self.get_id_from_nfo():
-                        ExecLog("find id from nfo:{}::{}".format(self.douban_id,self.imdb_id))
+                        ExecLog("get id from nfo:{}|{}:{}".format(self.name,self.douban_id,self.imdb_id))
                     else:
                         # TODO get id from detail
                         if self.spider_detail(): 
@@ -451,8 +451,6 @@ class MyTorrent:
             if self.rss_name == site['name']: 
                 tSite = site
                 break
-            else:
-                continue
         if tSite == None : ExecLog("unknown site name:"+self.rss_name); return False
         DebugLog("find site:{}".format(tSite['name']))
                     

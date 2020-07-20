@@ -21,7 +21,7 @@ from mytorrent import *
 from log import *
 from ptsite import *
 from torrent_info import TorrentInfo
-from viewed import *
+#from viewed import *
 
 #运行设置############################################################################
 #日志文件
@@ -669,7 +669,7 @@ def request_free(mSiteName="",mTimeInterval=-1):
                 ExecLog("torrent exists in list:"+tRSS.title)
                 continue
             ExecLog("free    torrent:"+Title)
-            tTorrentList.append(MyTorrent(rss=tRSS,info=tInfo))
+            tTorrentList.append(tTorrent)
     return tTorrentList
 
 def request_rss(mRSSName="",mTimeInterval=-2):
@@ -874,6 +874,7 @@ if __name__ == '__main__' :
             check_disk(CHECK_DISK_LIST)
             #一月备份一次qb，tr,data
             if gToday[8:10] == '01' : os.system("/root/backup.sh"); ExecLog("exec:/root/backup.sh")
+            if gToday[8:10] == '01' or gToday[8:10] == '15': update_viewed(True)    #半月更新一次viewed
         else:
             if LoopTimes % 5 == 0 : 
                 if check_torrents("QB") > 0 : write_pt_backup()
