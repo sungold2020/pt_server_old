@@ -8,7 +8,6 @@ from bs4 import BeautifulSoup
 from database import *
 from log import *
 
-
 RSS_LIST = [
     {
         'name':'FRDS',  

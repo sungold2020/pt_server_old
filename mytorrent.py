@@ -373,7 +373,7 @@ class MyTorrent:
         self.douban_id = get_id_from_link(DoubanLink,DOUBAN)
         self.imdb_id   = get_id_from_link(IMDBLink,IMDB)
         DebugLog("DoubanLink:{} :: IMDBLink:{}".format(DoubanLink,IMDBLink))
-        ExecLog("find DoubanID:{} :: IMDBID:{}".format(self.douban_id,self.imdb_id))
+        DebugLog("find DoubanID:{} :: IMDBID:{}".format(self.douban_id,self.imdb_id))
         if self.douban_id == "" and self.imdb_id == "": return False
         else                                          : return True
 
@@ -406,7 +406,7 @@ class MyTorrent:
                     else:
                         # TODO get id from detail
                         if self.spider_detail(): 
-                            ExecLog("find id from detail:{}::{}".format(self.douban_id,self.imdb_id))
+                            ExecLog("get id indetail:{}::{}".format(self.douban_id,self.imdb_id))
                         else:
                             DebugLog("failed to get id from nfo")
                             self.spider_status = NOK
@@ -433,7 +433,7 @@ class MyTorrent:
                 pass
 
         # 必要信息已经具备
-        if self.movie_name != "" and self.nation != "" and self.imdb_id != "":
+        if self.movie_name != "" and self.nation != "" and (self.douban_id != "" or self.imdb_id != ""):
             DebugLog("name nation imdbid exist")
             self.spider_status = OK
         else:
@@ -444,11 +444,11 @@ class MyTorrent:
 
     def spider_detail(self):
 
-        if self.torrent_id == "": return False
+        if self.rss_name == "" or self.torrent_id == "": return False
 
         tSite = None
         for site in NexusPage.site_list:
-            if self.rss_name == site['name']: 
+            if self.rss_name in site['name'] or site['name'] in self.rss_name: 
                 tSite = site
                 break
         if tSite == None : ExecLog("unknown site name:"+self.rss_name); return False

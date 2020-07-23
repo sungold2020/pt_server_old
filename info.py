@@ -88,51 +88,141 @@ class Info:
         return insert(in_sql,in_val)
 
     def update(self):
-        if self.imdb_id == "": print("empty imdb id for update info");return False
+        if self.imdb_id == "" and self.douban_id == "": info_log("empty id for update info");return False
 
-        up_sql = ("update info set " 
-                "doubanid=%s,"
-                "doubanscore=%s,"
-                "imdbscore=%s,"
-                "doubanlink=%s,"
-                "imdblink=%s,"
-                "name=%s,"
-                "foreignname=%s,"
-                "othernames=%s,"
-                "type=%s,"
-                "nation=%s,"
-                "year=%s,"
-                "director=%s,"
-                "actors=%s,"
-                "poster=%s,"
-                "episodes=%s,"
-                "genre=%s,"
-                "spiderstatus=%s,"
-                "doubanstatus=%s"
-                " where imdbid=%s")
-        up_val = (
-                self.douban_id,
-                self.douban_score,
-                self.imdb_score,
-                self.douban_link,
-                self.imdb_link,
-                self.movie_name,
-                self.foreign_name,
-                self.other_names,
-                self.type,
-                self.nation,
-                self.year,
-                self.director,
-                self.actors,
-                self.poster,
-                self.episodes,
-                self.genre,
-                self.spider_status,
-                self.douban_status,
-                self.imdb_id)
+        if self.idmbd_id != "" and self.douban_id != "":
+            up_sql = ("update info set " 
+                    "doubanid=%s,"
+                    "imdbid=%s,"
+                    "doubanscore=%s,"
+                    "imdbscore=%s,"
+                    "doubanlink=%s,"
+                    "imdblink=%s,"
+                    "name=%s,"
+                    "foreignname=%s,"
+                    "othernames=%s,"
+                    "type=%s,"
+                    "nation=%s,"
+                    "year=%s,"
+                    "director=%s,"
+                    "actors=%s,"
+                    "poster=%s,"
+                    "episodes=%s,"
+                    "genre=%s,"
+                    "spiderstatus=%s,"
+                    "doubanstatus=%s"
+                    " where doubanid=%s or imdbid=%s")
+            up_val = (
+                    self.douban_id,
+                    self.imdb_id,
+                    self.douban_score,
+                    self.imdb_score,
+                    self.douban_link,
+                    self.imdb_link,
+                    self.movie_name,
+                    self.foreign_name,
+                    self.other_names,
+                    self.type,
+                    self.nation,
+                    self.year,
+                    self.director,
+                    self.actors,
+                    self.poster,
+                    self.episodes,
+                    self.genre,
+                    self.spider_status,
+                    self.douban_status,
+                    self.douban_id,
+                    self.imdb_id)
+        elif self.imdb_id != "":
+            up_sql = ("update info set " 
+                    "doubanid=%s,"
+                    "doubanscore=%s,"
+                    "imdbscore=%s,"
+                    "doubanlink=%s,"
+                    "imdblink=%s,"
+                    "name=%s,"
+                    "foreignname=%s,"
+                    "othernames=%s,"
+                    "type=%s,"
+                    "nation=%s,"
+                    "year=%s,"
+                    "director=%s,"
+                    "actors=%s,"
+                    "poster=%s,"
+                    "episodes=%s,"
+                    "genre=%s,"
+                    "spiderstatus=%s,"
+                    "doubanstatus=%s"
+                    " where imdbid=%s")
+            up_val = (
+                    self.douban_id,
+                    self.douban_score,
+                    self.imdb_score,
+                    self.douban_link,
+                    self.imdb_link,
+                    self.movie_name,
+                    self.foreign_name,
+                    self.other_names,
+                    self.type,
+                    self.nation,
+                    self.year,
+                    self.director,
+                    self.actors,
+                    self.poster,
+                    self.episodes,
+                    self.genre,
+                    self.spider_status,
+                    self.douban_status,
+                    self.imdb_id)
+        else:
+            up_sql = ("update info set " 
+                    "imdbid=%s,"
+                    "doubanscore=%s,"
+                    "imdbscore=%s,"
+                    "doubanlink=%s,"
+                    "imdblink=%s,"
+                    "name=%s,"
+                    "foreignname=%s,"
+                    "othernames=%s,"
+                    "type=%s,"
+                    "nation=%s,"
+                    "year=%s,"
+                    "director=%s,"
+                    "actors=%s,"
+                    "poster=%s,"
+                    "episodes=%s,"
+                    "genre=%s,"
+                    "spiderstatus=%s,"
+                    "doubanstatus=%s"
+                    " where doubanid=%s")
+            up_val = (
+                    self.imdb_id,
+                    self.douban_score,
+                    self.imdb_score,
+                    self.douban_link,
+                    self.imdb_link,
+                    self.movie_name,
+                    self.foreign_name,
+                    self.other_names,
+                    self.type,
+                    self.nation,
+                    self.year,
+                    self.director,
+                    self.actors,
+                    self.poster,
+                    self.episodes,
+                    self.genre,
+                    self.spider_status,
+                    self.douban_status,
+                    self.douban_id)
         return update(up_sql,up_val)
 
     def select(self,assign_value=True):
+        if self.imdb_id == "" and self.douban_id == "": return False
+        return (self.select_by_imdb_id(assign_value) or self.select_by_douban_id(assign_value))
+
+    def select_by_imdb_id(self,assign_value=True):
         if self.imdb_id == "": return False
         sel_sql = ("select  "
                 "doubanid,"
@@ -157,32 +247,89 @@ class Info:
         sel_val = (self.imdb_id,)
         tSelectResult = select(sel_sql,sel_val)
         if tSelectResult == None: 
-            print("error to select from nfo{}::{}".format(self.imdb_id,sel_sql))
+            ErrorLog("error to select from nfo{}::{}".format(self.imdb_id,sel_sql))
             return False
         elif len(tSelectResult) == 0:
             #print("not find nfo in table:"+self.imdb_id)
             return False
+        elif len(tSelectResult) >= 2: 
+            ErrorLog("2+ record select_by_imdb_id from nfo:{}".format(self.imdb_id))
+            return False
         else: pass
         if assign_value == True:
-            self.douban_id = tSelectResult[0][0]
-            self.douban_score = tSelectResult[0][1]
-            self.imdb_score = tSelectResult[0][2]
-            self.douban_link = tSelectResult[0][3]
-            self.imdb_link = tSelectResult[0][4]
-            self.movie_name = tSelectResult[0][5]
-            self.foreign_name = tSelectResult[0][6]
-            self.other_names = tSelectResult[0][7]
-            self.type = tSelectResult[0][8]
-            self.nation = tSelectResult[0][9]
-            self.director = tSelectResult[0][10]
-            self.actors = tSelectResult[0][11]
-            self.poster = tSelectResult[0][12]
-            self.episodes = tSelectResult[0][13]
-            self.genre = tSelectResult[0][14]
-            self.spider_status = tSelectResult[0][15]
-            self.douban_status = tSelectResult[0][16]
-            self.year = tSelectResult[0][17]
+            if tSelectResult[0][0]  != "": self.douban_id     = tSelectResult[0][0]           
+            if tSelectResult[0][1]  != "": self.douban_score  = tSelectResult[0][1]
+            if tSelectResult[0][2]  != "": self.imdb_score    = tSelectResult[0][2]
+            if tSelectResult[0][3]  != "": self.douban_link   = tSelectResult[0][3]
+            if tSelectResult[0][4]  != "": self.imdb_link     = tSelectResult[0][4]
+            if tSelectResult[0][5]  != "": self.movie_name    = tSelectResult[0][5]
+            if tSelectResult[0][6]  != "": self.foreign_name  = tSelectResult[0][6]
+            if tSelectResult[0][7]  != "": self.other_names   = tSelectResult[0][7]
+            if tSelectResult[0][8]  != -1: self.type          = tSelectResult[0][8]
+            if tSelectResult[0][9]  != "": self.nation        = tSelectResult[0][9]
+            if tSelectResult[0][10] != "": self.director      = tSelectResult[0][10]
+            if tSelectResult[0][11] != "": self.actors        = tSelectResult[0][11]
+            if tSelectResult[0][12] != "": self.poster        = tSelectResult[0][12]
+            if tSelectResult[0][13] != -1: self.episodes      = tSelectResult[0][13]
+            if tSelectResult[0][14] != "": self.genre         = tSelectResult[0][14]
+            if tSelectResult[0][15] != -2: self.spider_status = tSelectResult[0][15]
+            if tSelectResult[0][16] != -2: self.douban_status = tSelectResult[0][16]
+            if tSelectResult[0][17] != 0 : self.year          = tSelectResult[0][17]
+        return True
 
+    def select_by_douban_id(self,assign_value=True):
+        if self.douban_id == "": return False
+        sel_sql = ("select  "
+                "imdbid,"
+                "doubanscore,"
+                "imdbscore,"
+                "doubanlink,"
+                "imdblink,"
+                "name,"
+                "foreignname,"
+                "othernames,"
+                "type,"
+                "nation,"
+                "director,"
+                "actors,"
+                "poster,"
+                "episodes,"
+                "genre,"
+                "spiderstatus,"
+                "doubanstatus,"
+                "year"
+                " from info where doubanid = %s")
+        sel_val = (self.douban_id,)
+        tSelectResult = select(sel_sql,sel_val)
+        if tSelectResult == None: 
+            info_log("error to select from nfo{}::{}".format(self.douban_id,sel_sql))
+            return False
+        elif len(tSelectResult) == 0:
+            #print("not find nfo in table:"+self.imdb_id)
+            return False
+        elif len(tSelectResult) >= 2: 
+            ErrorLog("2+ record select_by_douban_id from nfo:{}".format(self.douban_id))
+            return False
+        else: pass
+        if assign_value == True:
+            if tSelectResult[0][0]  != "": self.imdb_id       = tSelectResult[0][0]           
+            if tSelectResult[0][1]  != "": self.douban_score  = tSelectResult[0][1]
+            if tSelectResult[0][2]  != "": self.imdb_score    = tSelectResult[0][2]
+            if tSelectResult[0][3]  != "": self.douban_link   = tSelectResult[0][3]
+            if tSelectResult[0][4]  != "": self.imdb_link     = tSelectResult[0][4]
+            if tSelectResult[0][5]  != "": self.movie_name    = tSelectResult[0][5]
+            if tSelectResult[0][6]  != "": self.foreign_name  = tSelectResult[0][6]
+            if tSelectResult[0][7]  != "": self.other_names   = tSelectResult[0][7]
+            if tSelectResult[0][8]  != -1: self.type          = tSelectResult[0][8]
+            if tSelectResult[0][9]  != "": self.nation        = tSelectResult[0][9]
+            if tSelectResult[0][10] != "": self.director      = tSelectResult[0][10]
+            if tSelectResult[0][11] != "": self.actors        = tSelectResult[0][11]
+            if tSelectResult[0][12] != "": self.poster        = tSelectResult[0][12]
+            if tSelectResult[0][13] != -1: self.episodes      = tSelectResult[0][13]
+            if tSelectResult[0][14] != "": self.genre         = tSelectResult[0][14]
+            if tSelectResult[0][15] != -2: self.spider_status = tSelectResult[0][15]
+            if tSelectResult[0][16] != -2: self.douban_status = tSelectResult[0][16]
+            if tSelectResult[0][17] != 0 : self.year          = tSelectResult[0][17]
         return True
 
     def update_or_insert(self):
@@ -237,11 +384,16 @@ class Info:
             self.douban_status = OK
             self.spider_status = OK
             return self.douban_status
-        else: 
-            # TODO 根据错误的不同
-            ExecLog("gen error:"+tMovieInfo['error'])
-            if tMovieInfo['error'].find("The corresponding resource does not exist") >= 0 or tMovieInfo['error'].find("Can't find this imdb_id") >= 0:
-                self.douban_status = NOK
+        else:
+            DebugLog("gen error:"+tMovieInfo['error'])
+            #if tMovieInfo['error'].find("The corresponding resource does not exist") >= 0 or tMovieInfo['error'].find("Can't find this imdb_id") >= 0:
+            #    self.douban_status = NOK
+            #    return self.douban_status
+            if self.douban_detail(self.douban_id):
+                ExecLog("douban   detail:{}|{}|{}|{}|{}|{}/{}|".format(
+                    self.movie_name,self.nation,self.douban_id,self.imdb_id,self.director,self.douban_score,self.imdb_score))
+                self.douban_status = OK
+                self.spider_status = OK
                 return self.douban_status
             self.douban_retry_times += 1
             if self.douban_retry_times >= MAX_DOUBAN_RETRY_TIMES:
@@ -258,7 +410,7 @@ class Info:
         #mSummary = re.sub(u'\xa0', u' ', mSummary)    #
         mSummary = mSummary.replace('　',' ')
         mSummary = mSummary.lower()
-        #DebugLog(mSummary)
+        #info_log(mSummary)
         #print(mSummary)
                 
         if   mSummary.find("国  家")    >= 0: tIndex = mSummary.find("国  家")
@@ -270,8 +422,8 @@ class Info:
             if Nation.find('/')  >= 0: Nation = Nation[ :Nation.find('/') ]  #多个国家,以/区隔,取第一个
             Nation = Nation.strip()
             Nation = trans_nation(Nation)
-            DebugLog("Nation:"+Nation)
-        else: DebugLog("failed find nation")
+            info_log("Nation:"+Nation)
+        else: info_log("failed find nation")
         self.nation = Nation
 
         if Nation == '港' or Nation == '国' or Nation == '台' : tIndex = mSummary.find("片  名")
@@ -280,8 +432,8 @@ class Info:
             Name = mSummary[tIndex+5:tIndex+100]
             if Name.find("/")  >= 0 : Name = (Name[ :Name.find("/") ]).strip() 
             if Name.find('\n') >= 0 : Name = (Name[ :Name.find('\n') ]).strip()
-        else: DebugLog("failed find name"); Name = ""
-        DebugLog("name:"+Name)
+        else: info_log("failed find name"); Name = ""
+        info_log("name:"+Name)
         self.movie_name = Name
 
         tIndex = mSummary.find("豆瓣链接")
@@ -290,11 +442,11 @@ class Info:
             if DoubanLink.find('\n') >= 0 : DoubanLink = (DoubanLink[ :DoubanLink.find('\n') ]).strip()
             DoubanLink = DoubanLink.strip()
             if not DoubanLink.startswith('http'): 
-                DebugLog("invalid doubanlink:"+DoubanLink)
+                info_log("invalid doubanlink:"+DoubanLink)
                 DoubanLink = ""
-        else: DebugLog("douban link:not find")
+        else: info_log("douban link:not find")
         DoubanID = get_id_from_link(DoubanLink, DOUBAN)
-        DebugLog("DoubanLink:"+DoubanLink)
+        info_log("DoubanLink:"+DoubanLink)
         self.douban_id = DoubanID
         self.douban_link = DoubanLink
 
@@ -304,11 +456,11 @@ class Info:
             if DoubanLink.find('\n') >= 0 : DoubanLink = (DoubanLink[ :DoubanLink.find('\n') ]).strip()
             DoubanLink = DoubanLink.strip()
             if not DoubanLink.startswith('http'): 
-                DebugLog("invalid doubanlink:"+DoubanLink)
+                info_log("invalid doubanlink:"+DoubanLink)
                 DoubanLink = ""
-        else: DebugLog("douban link:not find")
+        else: info_log("douban link:not find")
         DoubanID = get_id_from_link(DoubanLink, DOUBAN)
-        DebugLog("DoubanLink:"+DoubanLink)
+        info_log("DoubanLink:"+DoubanLink)
         self.douban_id = DoubanID
         self.douban_link = DoubanLink
 
@@ -324,7 +476,7 @@ class Info:
                 tempstr = tempstr[tIndex:]
                 if tempstr.find('\n') >= 0 : IMDBLink = (tempstr[ :tempstr.find('\n') ]).strip()
         IMDBID = get_id_from_link(IMDBLink, IMDB)
-        DebugLog("imdb link:"+IMDBLink)
+        info_log("imdb link:"+IMDBLink)
         self.imdb_link = IMDBLink
         self.imdb_id = IMDBID
 
@@ -334,8 +486,8 @@ class Info:
             tSearch = re.search("[0-9]\.[0-9]",tempstr)
             if tSearch : DoubanScore = tSearch.group()
             else:        DoubanScore = ""
-            DebugLog("douban score:"+DoubanScore)
-        else: DebugLog("douban score:not find")
+            info_log("douban score:"+DoubanScore)
+        else: info_log("douban score:not find")
         self.douban_score = DoubanScore
 
         if   mSummary.find("imdb评分")    >= 0: tIndex = mSummary.find("imdb评分")           
@@ -346,14 +498,14 @@ class Info:
             tempstr = mSummary[tIndex+6:tIndex+36]
             tSearch = re.search("[0-9]\.[0-9]",tempstr)
             if tSearch :  IMDBScore = tSearch.group()
-        DebugLog("imdb score:"+IMDBScore)
+        info_log("imdb score:"+IMDBScore)
         self.imdb_score = IMDBScore
 
         tIndex = mSummary.find("类  别") 
         if tIndex >= 0 and mSummary[tIndex:tIndex+100].find("纪录") >= 0 : Type = RECORD
         elif mSummary.find("集  数") >= 0                                : Type = TV
         else                                                               : Type = MOVIE
-        DebugLog("type:"+str(Type))
+        info_log("type:"+str(Type))
         self.type = Type
 
         tIndex = mSummary.find("导  演")
@@ -364,7 +516,7 @@ class Info:
             else : Director = ""
         else :Director = ""
         Director = Director.strip()
-        DebugLog("director:"+Director)
+        info_log("director:"+Director)
         self.director = Director
     
     def douban_detail(self,mDoubanID=""):
@@ -386,8 +538,8 @@ class Info:
             res = s.get(tUrl, headers=my_headers)
             soup = BeautifulSoup(res.text,'lxml')
         except Exception as err:
-            print(err)
-            ExecLog("except at get url")
+            info_log(err)
+            ExecLog("except at get url:"+tUrl)
             return False
         """
         text = open("detail2.log").read()
@@ -396,23 +548,23 @@ class Info:
         #print(soup)
 
         if str(soup).find("异常请求") >= 0: 
-            ExecLog("failed to request douban detail")
-            DebugLog(str(soup))
+            DebugLog("failed to request douban detail")
+            info_log(str(soup))
             return False
         if "页面不存在" in soup.title.text:
-            ExecLog("the douban id does not exist:"+mDoubanID)
+            DebugLog("the douban id does not exist:"+mDoubanID)
             return False
         
         #名称/外国名称
         self.movie_name = soup.title.text.replace("(豆瓣)", "").strip()
         self.foreign_name = soup.find('span',property="v:itemreviewed").text.replace(self.movie_name, '').strip()
-        print (self.movie_name)
-        print (self.foreign_name)
+        info_log (self.movie_name)
+        info_log (self.foreign_name)
 
         #年代
         year_anchor = soup.find('span',class_='year')
         self.year = int(year_anchor.text[1:-1]) if year_anchor else 0
-        print (self.year)
+        info_log (self.year)
 
 
         info = soup.find('div',id='info')
@@ -421,22 +573,22 @@ class Info:
         #其他电影名
         other_names_anchor = info.find('span',class_='pl',text=re.compile('又名'))
         self.other_names = other_names_anchor.next_element.next_element if other_names_anchor else ""
-        print(self.other_names)
+        info_log(self.other_names)
 
         #国家/地区
         nation_anchor = info.find('span',class_='pl',text=re.compile('制片国家/地区'))
         self.nation = nation_anchor.next_element.next_element
         if self.nation.find('/') >= 0: self.nation = (self.nation[:self.nation.find('/')]).strip()
         self.nation = trans_nation(self.nation)
-        print(self.nation)
+        info_log(self.nation)
 
         #imdb链接和imdb_id
         imdb_anchor = info.find('a',text=re.compile("tt\d+"))
-        #print (imdb_anchor)
+        #info_log (imdb_anchor)
         self.imdb_id = imdb_anchor.text if imdb_anchor else ""
         self.imdb_link = imdb_anchor['href'] if imdb_anchor else ""
-        print(self.imdb_id)
-        print(self.imdb_link)
+        info_log(self.imdb_id)
+        info_log(self.imdb_link)
 
         #类型
         genre_anchor = info.find_all('span',property='v:genre')
@@ -445,19 +597,19 @@ class Info:
         for genre in genre_anchor:
             genre_list.append(genre.get_text())
         self.genre = '/'.join(genre_list)
-        print(self.genre)
+        info_log(self.genre)
 
         #集数
         episodes_anchor = info.find("span", class_="pl", text=re.compile("集数"))
         self.episodes = int(episodes_anchor.next_element.next_element) if episodes_anchor else 0  # 集数
         #print(episodes_anchor)
-        print(self.episodes)
+        info_log(self.episodes)
 
         #type
         if self.genre.find('纪录') >= 0 : self.type = RECORD
         elif self.episodes > 1              : self.type = TV
         else                            : self.type = MOVIE
-        print(self.type)
+        info_log(self.type)
 
           
         json_anchor = soup.find('script',type="application/ld+json")
@@ -470,18 +622,18 @@ class Info:
         if data == None:  ExecLog('not find json data'); return False
 
         tType = data['@type']
-        print (tType)
+        info_log (tType)
 
         #self.movie_name = data['name']
         #print(self.movie_name)
 
         #海报
         self.poster = data['image']
-        print(self.poster)
+        info_log(self.poster)
 
         #豆瓣评分
         self.douban_score = data['aggregateRating']['ratingValue']
-        print(self.douban_score)
+        info_log(self.douban_score)
 
         #导演和演员
         def data_join(data,key):
@@ -491,8 +643,8 @@ class Info:
             return '/'.join(tList)
         self.director = data_join(data['director'],'name')
         self.actors = data_join(data['actor'],'name')
-        print(self.director)
-        print(self.actors)
+        info_log(self.director)
+        info_log(self.actors)
     
         if self.nation != '' and self.movie_name != "" :
             self.douban_status = OK
@@ -501,6 +653,30 @@ class Info:
         else:
             self.douban_status = NOK
             return False
+    
+    def get_from_detail(self,soup):
+        """
+        FRDS网站的电影信息不同于其他站，不能从电影简介中获取信息，而需要从html中获取链接
+        """
+        kdouban_anchor = soup.find('div',id='kdouban')
+        site_log("kdouban:{}".format(kdouban_anchor))
+        if kdouban_anchor:
+            douban_link_anchor = kdouban_anchor.find('a',class_='imdbwp__link') 
+            self.douban_link = douban_link_anchor['href']
+        site_log(self.douban_link)
+
+        kimdb_anchor = soup.find('div',id='kimdb')
+        site_log("kimdb:{}".format(kimdb_anchor))
+        if kimdb_anchor:
+            imdb_link_anchor = kimdb_anchor.find('a',class_='imdbwp__link') 
+            self.imdb_link = imdb_link_anchor['href']
+        site_log(self.imdb_link)
+        
+        self.douban_id = get_id_from_link(self.douban_link,DOUBAN)
+        self.imdb_id   = get_id_from_link(self.imdb_link  ,IMDB)
+
+        if self.douban_id != "" or self.imdb_id != "": return True
+        else                                         : return False
 
 def trans_nation(mNation):
 
@@ -544,7 +720,7 @@ def find_end_number(mString):
     mString = mString.strip('\n')
     mString = mString.strip()
     #print('-----------------')
-    print(mString)
+    info_log(mString)
     #print('-----------------')
     
     tIndex = mString.find('-')
@@ -583,8 +759,8 @@ def find_douban_id(mItem):
             if tDoubanID.isdigit():
                 return tDoubanID
     except Exception as err:
-        print(mItem)
-        print(err)
+        info_log(mItem)
+        info_log(err)
         ExecLog("exception at find_douban_id")
         return ""
     return ""
@@ -603,7 +779,7 @@ def update_viewed(mOnlyFirstPage=True):
             res = s.get(tUrl, headers=my_headers)
             soup = BeautifulSoup(res.text,'lxml')
         except Exception as err:
-            print(err)
+            info_log(err)
             ExecLog("except at get url")
             return False
         """
@@ -615,8 +791,8 @@ def update_viewed(mOnlyFirstPage=True):
         try:
             tSubjectNum = soup.find('span',class_="subject-num").get_text()
         except Exception as err:
-            print(err)
-            print(soup)
+            info_log(err)
+            info_log(soup)
             ExecLog("except at find subject-num")
             return False
         #print(num)
@@ -627,8 +803,8 @@ def update_viewed(mOnlyFirstPage=True):
             tViewed = soup.find('div',class_="grid-view")
             tItems = tViewed.find_all('div',class_="item")
         except Exception as err:
-            print(err)
-            print(soup)
+            info_log(err)
+            info_log(soup)
             ExecLog("except at find grid-view")
             return False
         #print(viewed)
@@ -639,8 +815,8 @@ def update_viewed(mOnlyFirstPage=True):
             try:
                 tTitle = item.find('em').get_text()
             except Exception as err:
-                print(err)
-                print(item)
+                info_log(err)
+                info_log(item)
                 ExecLog("except at find em")
                 return False
             tDoubanID = find_douban_id(item)
@@ -663,7 +839,7 @@ def update_viewed(mOnlyFirstPage=True):
                     DirName= tResult[2]
                     Viewed = tResult[3]
                     if Viewed == 1: 
-                        DebugLog("viewed=1,ignore it:"+DirName)
+                        info_log("viewed=1,ignore it:"+DirName)
                         continue
                     if update("update movies set viewed=1 where number=%s and copy=%s",(Number,Copy)):
                         ExecLog("set viewd=1:"+DirName)
@@ -676,7 +852,7 @@ def update_viewed(mOnlyFirstPage=True):
         if tNextStartNum <= 0: return True   
         tNextStartString = 'start='+str(tNextStartNum)
         tUrl = site_url.replace('start=0',tNextStartString)
-        print(tUrl)
+        info_log(tUrl)
         time.sleep(10)
         
 

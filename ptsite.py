@@ -31,7 +31,7 @@ class NexusPage():
             'url':'https://pt.m-team.cc/movie.php',
             'first_url':'https://pt.m-team.cc/',
             'last_url':'&passkey=7044b36a9057090e36138df761ddfc5d&https=1',
-            'cookie':'__cfduid=d03b414d2c913ba7f7c4ea7b1ef754edf1592635299; tp=YTM4ZDNjNWZhN2Y1YjNhMmUzZDNmYTJhNTdjZTgwYjlhNTdmNmQyMw%3D%3D'
+            'cookie':'__cfduid=d2ab7dcc493af25332ed9379243090f4e1595342947; tp=YTM4ZDNjNWZhN2Y1YjNhMmUzZDNmYTJhNTdjZTgwYjlhNTdmNmQyMw%3D%3D'
             },
         {
             'name':'FRDS',    
@@ -40,6 +40,8 @@ class NexusPage():
             'url':'https://pt.keepfrds.com/torrents.php',
             'first_url':'https://pt.keepfrds.com/',
             'last_url':'&passkey=97f4eab2ad32ebf39ee4889f6328800b',
+            'referer': 'https://pt.keepfrds.com/torrents.php',
+            'host': 'pt.keepfrds.com',
             'cookie':'c_secure_uid=MzEzNDI%3D; c_secure_pass=23911bfa87853213d48cf9968963e4bf; c_secure_ssl=eWVhaA%3D%3D; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D; _ga=GA1.2.487776809.1582807782; __cfduid=dfb9be8b9ae90ac0ca0f5706d1b6654e71593262434'
             },
         {
@@ -133,7 +135,7 @@ class NexusPage():
         if not self.site : return False
             
         self.detail_url = self.site['first_url']+'details.php?id='+mTorrentID+'&hit=1'
-        print(self.detail_url)
+        site_log(self.detail_url)
 
         if self.get_error_count() >= NexusPage.max_error_count:
             ExecLog("reach max error count:"+self.detail_url)
@@ -144,41 +146,18 @@ class NexusPage():
         s = requests.Session()
         s.cookies.update(cookie_dict)
         
-        # TODO
-        if self.site['name'] == 'FRDS': return False 
-        """
         myheaders={
-            'user-agent':NexusPage.user_agent,
-            'method':'GET',
-            'path':'/details.php?id=11263&hit=1',
-            'scheme':'https',
-            'authority':'pt.keepfrds.com',
-            'accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-            'accept-encoding':'gzip, deflate, br',
-            'accept-language':'zh-CN,zh;q=0.9',
-            'cache-control':'max-age=0',
             'cookie':self.site['cookie'],
-            'sec-fetch-dest':'document',
-            'sec-fetch-mode':'navigate',
-            'sec-fetch-site':'none',
-            'sec-fetch-user':'?1',
-            'upgrade-insecure-requests': '1'
-        }
-        """
-        tSummary = ""
+            'user-agent': NexusPage.user_agent}
+        if self.site.get('referer'): myheaders['referer'] = self.site.get('referer')
+        if self.site.get('host')   : myheaders['host']    = self.site.get('host')
+        #site_log(myheaders)
+
         try:
-            if NexusPage.user_agent: 
-                res = s.get(self.detail_url, headers={'User-Agent':NexusPage.user_agent})
-                #res = requests.get(self.detail_url, headers=myheaders)
-            else:
-                res = s.get(self.detail_url)
-            #print('-------p------')
-            #print(res.apparent_encoding)
-            #res.encoding = 'gbk'
-            #res.encoding = 'gb2312'
-            #print(res.text)
+            res = s.get(self.detail_url, headers=myheaders)
             self.soup = bs4.BeautifulSoup(res.text,'lxml')
-            tSummary = self.soup.find('div',id='kdescr').get_text()
+            #text = open('frds.log').read()
+            #self.soup = bs4.BeautifulSoup(text,'lxml')
         except Exception as err:
             print(err)
             ExecLog("failed to request from "+self.detail_url)
@@ -188,10 +167,18 @@ class NexusPage():
         else:
             self.set_error_count(True)
 
-        DebugLog(tSummary)
-        #print(SummaryStr)
         tInfo = Info()
-        tInfo.get_from_summary(tSummary)
+
+        if self.site['name'] == 'FRDS': 
+            tInfo.get_from_detail(self.soup)
+        else:
+            tSummary = ""
+            summary_anchor = self.soup.find('div',id='kdescr')
+            if summary_anchor : tSummary = summary_anchor.get_text()
+            else : site_log("not find summary:"+self.detail_url); return False
+            site_log(tSummary)
+            tInfo.get_from_summary(tSummary)
+
         if tInfo.douban_id != "" or tInfo.imdb_id != "": 
             self.info = tInfo
             return True
@@ -245,7 +232,7 @@ class NexusPage():
 
         self.soup = bs4.BeautifulSoup(res.text,'lxml')
 
-        #self.Print(res.text)
+        site_log(res.text)
         self.processed_list = self.soup.select(NexusPage.torrents_class_name)
         if len(self.processed_list) == 0: 
             ExecLog("can not find processed_list "+self.site['name'])

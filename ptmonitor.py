@@ -623,14 +623,14 @@ def request_free(mSiteName="",mTimeInterval=-1):
             tSite = site
         else:
             continue
-        DebugLog("begin request free:"+tSite['name'])
+        site_log("begin request free:"+tSite['name'])
         tPage = NexusPage(tSite)
         if not tPage.request_free_page():
             #ExecLog(tPage.error_string)
             continue
 
         for tTask in tPage.find_free_torrents():
-            DebugLog("{}|{}|{}|{}".format(tTask[0],tTask[1],tTask[2],tTask[3]))
+            site_log("{}|{}|{}|{}".format(tTask[0],tTask[1],tTask[2],tTask[3]))
             TorrentID = tTask[0]
             Title = tTask[1]
             Details = tTask[2]
@@ -638,14 +638,14 @@ def request_free(mSiteName="",mTimeInterval=-1):
 
             if tSite['name'] == 'HDSky':
                 if Title.find("265") >= 0 and Title.find("HDS") >= 0  and Title.find("HDSWEB") == -1 and Title.find("HDSPad") == -1 and Title.find("HDSTV") == -1:
-                    DebugLog("find a 265 HDS torrent:"+Title)
+                    site_log("find a 265 HDS torrent:"+Title)
                 else: 
-                    DebugLog("not 265 HDS torrent,ignore it"+Title)
+                    site_log("not 265 HDS torrent,ignore it"+Title)
                     continue
 
             tRSS = RSS("",tPage.site['name'],DownloadLink,Title)
             if tRSS.select():   #rss记录已经存在
-                if tRSS.downloaded == 1: DebugLog("torrentID have been downloaded:"+TorrentID+"::"+Title); continue
+                if tRSS.downloaded == 1: site_log("torrentID have been downloaded:"+TorrentID+"::"+Title); continue
                 tInfo = Info(tRSS.douban_id,tRSS.imdb_id)
                 tTorrent = MyTorrent(rss=tRSS,info=tInfo)
             else:
@@ -662,7 +662,7 @@ def request_free(mSiteName="",mTimeInterval=-1):
                     ExecLog("failed to insert rss:{}|{}|{}".format(tRSS.HASH,tRSS.name,tRSS.title))
                     continue
                 
-                DebugLog("get a torrent from link:{}|{}".format(tTorrentInfo.hash,tTorrentInfo.name))
+                site_log("get a torrent from link:{}|{}".format(tTorrentInfo.hash,tTorrentInfo.name))
                 tTorrent= MyTorrent(rss=tRSS)
 
             if get_torrent_index("QB",tTorrent.HASH) >= 0:
@@ -676,7 +676,7 @@ def request_rss(mRSSName="",mTimeInterval=-2):
     
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.82 Safari/537.36'}
 
-    DebugLog("request rss:{}::{}".format(mRSSName,mTimeInterval))
+    rss_log("request rss:{}::{}".format(mRSSName,mTimeInterval))
     tTorrentList = []
     for i in range(len(RSS_LIST)):
         if mRSSName.lower() == RSS_LIST[i]['name'].lower() or\
@@ -686,7 +686,7 @@ def request_rss(mRSSName="",mTimeInterval=-2):
             url      = RSS_LIST[i]['url']
         else: continue
 
-        DebugLog("==========begin {}==============".format(RSSName.ljust(10,' ')))
+        rss_log("==========begin {}==============".format(RSSName.ljust(10,' ')))
         parser = feedparser.parse(url)
         for tEntry in parser.entries:
             Title = tEntry.title
@@ -701,12 +701,12 @@ def request_rss(mRSSName="",mTimeInterval=-2):
             tInfo = Info()
             tInfo.get_from_summary(tSummary)
 
-            if RSSName == 'HDSky' and Title.find("x265") == -1: DebugLog("hdsky not x265,ignore it"+Title); continue
+            if RSSName == 'HDSky' and Title.find("x265") == -1: rss_log("hdsky not x265,ignore it"+Title); continue
             
             Title = Title.replace('|','')
             tRSS = RSS(HASH,RSSName,DownloadLink,Title,tInfo.douban_id,tInfo.imdb_id)
             if tRSS.select():
-                DebugLog("old rss:"+tRSS.title)
+                rss_log("old rss:"+tRSS.title)
                 continue
             if not tRSS.insert():  #记录插入rss数据库
                 ExecLog("failed to insert into rss:{}|{}".format(RSSName,HASH))
@@ -718,7 +718,7 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                 ExecLog("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
                 tTorrentList.append(tTorrent)
             else:
-                DebugLog("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
+                rss_log("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
 
         #end for Items
     return tTorrentList
@@ -763,9 +763,9 @@ def set_spider_id(RequestList):
 
     if len(RequestList) != 2: return "invalid number of arguments"
 
-    ExecLog("begin set {} {}".format(tName,tID))
     tName = RequestList[0]
     tID   = RequestList[1]
+    ExecLog("begin set {} {}".format(tName,tID))
     tIndexList = []
     for i in range(len(gTorrentList)):
         if tName in gTorrentList[i].title or tName in gTorrentList[i].name:
@@ -774,6 +774,7 @@ def set_spider_id(RequestList):
     if len(tIndexList) == 0: return "not find torrent"
     if len(tIndexList) >= 2: return "2+ torrent found"
 
+    i = tIndexList[0]
     if tID[:2] == 'tt': gTorrentList[i].imdb_id = tID
     else              : gTorrentList[i].douban_id = tID
 
