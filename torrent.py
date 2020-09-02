@@ -153,7 +153,7 @@ class Torrent:
             return False
         else:
             return True
-
+    
     '''
     def start(self):
         if self.torrent == None: self.error_string = "torrent does not exist"; return False

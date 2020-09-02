@@ -12,6 +12,7 @@ from rss import RSS
 from torrent import *
 from info import *
 from ptsite import *
+from client import PTClient
 
 DOWNLOAD_FOLDER = "/media/root/BT/movies"
 TO_BE_PATH = "/media/root/BT/tobe/"           #保存的电影所在临时目录
@@ -35,13 +36,12 @@ class MyTorrent:
     def __init__(self,torrent=None,rss=None,info=None,add_status=TO_BE_ADD):
         
         self.torrent = torrent if torrent != None else Torrent("QB",None)
-        self.rss = rss      if rss != None else RSS()
+        self.rss = rss      #if rss != None else RSS()
         self.info = info    if info != None else Info()
 
         self.add_status = add_status
         self.checked = 1              #每次检查时用于标记它是否标记到，检查结束后，如果发现Checked为0，说明种子已经被删除。
                                       #新建对象时肯定Checked=1
-        if self.HASH == "" :  self.HASH = self.hash
 
     #------------- begin rss------------------------------
     @property
@@ -50,49 +50,56 @@ class MyTorrent:
         else               : return self.rss.rss_name
     @rss_name.setter
     def rss_name(self,rss_name):
-        self.rss.rssname = rss_name
+        if self.rss == None: ErrorLog("set rss_name,but rss is none")
+        else               : self.rss.rssname = rss_name
     @property
     def HASH(self):
         if self.rss == None: return ""
         else               : return self.rss.HASH
     @HASH.setter
     def HASH(self,HASH):
-        self.rss.HASH = HASH
+        if self.rss == None: ErrorLog("set HASH,but rss is none")
+        else               : self.rss.HASH = HASH
     @property
     def download_link(self):
         if self.rss == None: return ""
         else               : return self.rss.download_link
     @download_link.setter
     def download_link(self,download_link):
-        self.rss.download_link = download_link
+        if self.rss == None: ErrorLog("set download_link,but rss is none")
+        else               : self.rss.download_link = download_link
     @property
     def title(self):
         if self.rss == None: return ""
         else               : return self.rss.title
     @title.setter
     def title(self,title):
-        self.rss.title = title
+        if self.rss == None: ErrorLog("set title,but rss is none")
+        else               : self.rss.title = title
     @property
     def torrent_id(self):
         if self.rss == None: return ""
         else               : return self.rss.torrent_id
     @torrent_id.setter
     def torrent_id(self,torrent_id):
-        self.rss.torrent_id = torrent_id
+        if self.rss == None: ErrorLog("set torrent_id,but rss is none")
+        else               : self.rss.torrent_id = torrent_id
     @property
     def add_date(self):
         if self.rss == None: return ""
         else               : return self.rss.add_date
     @add_date.setter
     def add_date(self,add_date):
-        self.rss.add_date = add_date
+        if self.rss == None: ErrorLog("set add_data,but rss is none")
+        else               : self.rss.add_date = add_date
     @property
     def downloaded(self):
         if self.rss == None: return 0
         else               : return self.rss.downloaded
     @downloaded.setter
     def downloaded(self,downloaded):
-        self.rss.downloaded = downloaded
+        if self.rss == None: ErrorLog("set downloaded,but rss is none")
+        else               : self.rss.downloaded = downloaded
     #-------------------end rss------------------------
 
     #------------------begin torrent-------------------
@@ -186,21 +193,78 @@ class MyTorrent:
     #------------------begin info-------------------
     @property
     def douban_id(self):
-        if self.info == None: return ""
-        else                : return self.info.douban_id
+        if self.info == None: 
+            if self.rss != None:
+                if self.rss.douban_id != "":
+                    ErrorLog("rss.douban_id exist,but info is None:"+self.get_name())
+                    self.info = Info(douban_id=self.rss.douban_id)
+                    return self.rss.douban_id
+            return ""
+        elif self.rss == None:
+            if self.info.douban_id != "":
+                ErrorLog("info.douban_id exist,but rss is None:"+self.get_name())
+            return self.info.douban_id
+        else:
+            if self.rss.douban_id != self.info.douban_id:
+                ErrorLog("diff douban_id in rss and info:{}|{}::{}".format(self.rss.douban_id,self.info.douban_id,self.get_name()))
+                if self.info.douban_id == "": self.info.douban_id = self.rss.douban_id
+                if self.rss.douban_id  == "": self.rss.douban_id  = self.info.douban_id
+            return self.info.douban_id
+
     @douban_id.setter
     def douban_id(self,douban_id):
-        self.info.douban_id = douban_id
-        self.rss.douban_id = douban_id
+        if douban_id == "": return 
+        if self.info == None: 
+            self.info = Info(douban_id)
+        else                : 
+            if self.info.douban_id != "" and self.info.douban_id != douban_id:
+                ErrorLog("diff info.douban_id:{}|{}|{}".format(self.get_name(),douban_id,self.info.douban_id))
+                return
+            self.info.douban_id = douban_id
+                
+        if self.rss != None : 
+            if self.rss.douban_id != "" and self.rss.douban_id != douban_id:
+                ErrorLog("diff rss.douban_id:{}|{}|{}".format(self.get_name(),douban_id,self.rss.douban_id))
+                return
+            self.rss.douban_id = douban_id
 
     @property
     def imdb_id(self):
-        if self.info == None: return ""
-        else                : return self.info.imdb_id
+        if self.info == None: 
+            if self.rss != None:
+                if self.rss.imdb_id != "":
+                    ErrorLog("rss.imdb_id exist,but info is None:"+self.get_name())
+                    self.info = Info(imdb_id=self.rss.imdb_id)
+                    return self.rss.imdb_id
+            return ""
+        elif self.rss == None:
+            if self.info.imdb_id != "":
+                ErrorLog("info.imdb_id exist,but rss is None:"+self.get_name())
+            return self.info.imdb_id
+        else:
+            if self.rss.imdb_id != self.info.imdb_id:
+                ErrorLog("diff imdb_id in rss and info:{}|{}::{}".format(self.rss.imdb_id,self.info.imdb_id,self.get_name()))
+                if self.info.imdb_id == "": self.info.imdb_id = self.rss.imdb_id
+                if self.rss.imdb_id  == "": self.rss.imdb_id  = self.info.imdb_id
+            return self.info.imdb_id
+
     @imdb_id.setter
     def imdb_id(self,imdb_id):
-        self.info.imdb_id = imdb_id
-        self.rss.imdb_id = imdb_id
+        if imdb_id == "": return 
+        imdb_id = trans_imdb_id(imdb_id)
+        if self.info == None: 
+            self.info = Info(imdb_id)
+        else                : 
+            if self.info.imdb_id != "" and self.info.imdb_id != imdb_id:
+                ErrorLog("diff info.imdb_id:{}|{}|{}".format(self.get_name(),imdb_id,self.info.imdb_id))
+                return
+            self.info.imdb_id = imdb_id
+                
+        if self.rss != None : 
+            if self.rss.imdb_id != "" and self.rss.imdb_id != imdb_id:
+                ErrorLog("diff rss.imdb_id:{}|{}|{}".format(self.get_name(),imdb_id,self.rss.imdb_id))
+                return
+            self.rss.imdb_id = imdb_id
 
     @property
     def spider_status(self):
@@ -314,9 +378,18 @@ class MyTorrent:
         if self.info == None: return ""
         else                : return self.info.genre
     #------------------end info--------------------------------
+    def get_name(self):
+        if self.name != "": return self.name
+        else              : return self.title
+    def get_title(self):
+        if self.title != "": return self.title
+        else               : return self.name
+    def get_hash(self):
+        if self.hash != self.HASH and self.hash != "" and self.HASH != "": ErrorLog("error:diff hash and HASH:{}|{}".format(self.hash,self.HASH))
+        return self.hash if self.hash != "" else self.HASH
 
     def start_download(self):
-        if self.torrent == None: ExecLog("torrent does not exist"); return False
+        if self.torrent == None: ErrorLog("torrent does not exist"); return False
         tBTStat =  os.statvfs(DOWNLOAD_FOLDER)
         tFreeSize = (tBTStat.f_bavail * tBTStat.f_frsize) /(1024*1024*1024)
         #DebugLog("free size:"+str(tFreeSize))
@@ -334,12 +407,11 @@ class MyTorrent:
                 ExecLog("update rsstable:"+self.name)
                 return True
             else:   
-                ExecLog("failed to update rss:"+self.name+':'+self.HASH)
+                ErrorLog("failed to update rss:"+self.name+':'+self.HASH)
                 return False
         else: return True
 
     def get_id_from_nfo(self):
-
         if self.progress != 100: 
             ErrorLog("begin to get id from nfo,but torrent have not done.")
             return False
@@ -370,15 +442,18 @@ class MyTorrent:
             if tIndex >= 0 : DoubanLink = line[tIndex:1] 
         self.douban_link = DoubanLink
         self.imdb_link = IMDBLink
-        self.douban_id = get_id_from_link(DoubanLink,DOUBAN)
-        self.imdb_id   = get_id_from_link(IMDBLink,IMDB)
+        douban_id = get_id_from_link(DoubanLink,DOUBAN)
+        imdb_id   = get_id_from_link(IMDBLink,IMDB)
+        if self.rss != None:
+            if not self.rss.update_id(douban_id,imdb_id): return False
+        self.douban_id = douban_id
+        self.imdb_id   = imdb_id
         DebugLog("DoubanLink:{} :: IMDBLink:{}".format(DoubanLink,IMDBLink))
         DebugLog("find DoubanID:{} :: IMDBID:{}".format(self.douban_id,self.imdb_id))
         if self.douban_id == "" and self.imdb_id == "": return False
         else                                          : return True
 
     def get_id_from_rss(self):
-
         sel_sql = "select doubanid,imdbid,rssname from rss where hash=%s"
         sel_val = (self.hash,)
         tReturn = select(sel_sql,sel_val)
@@ -408,18 +483,20 @@ class MyTorrent:
                         if self.spider_detail(): 
                             ExecLog("get id indetail:{}::{}".format(self.douban_id,self.imdb_id))
                         else:
-                            DebugLog("failed to get id from nfo")
+                            DebugLog("failed to get id from detail page")
                             self.spider_status = NOK
                             return self.spider_status
             else: 
                 DebugLog("torrent have not done")
                 return self.spider_status
 
-        if self.info.select():    #尝试从info表中获取记录
-            DebugLog("find a record from nfo")
-        if self.spider_status == OK: return self.spider_status
-
-        if self.douban_status == RETRY:
+        if self.info.select():   DebugLog("find a record from nfo")  #尝试从info表中获取记录
+        if self.spider_status == OK: 
+            if self.rss != None: self.rss.update_id(self.info.douban_id,self.info.imdb_id)
+            DebugLog("spider_status is ok in info table:{}|{}".format(self.info.douban_id,self.info.imdb_id))
+            return self.spider_status
+        
+        if self.info.spider_status == RETRY:
             tReturn = self.info.spider_douban()
             if tReturn == OK: 
                 DebugLog("success to spider douban")
@@ -431,15 +508,22 @@ class MyTorrent:
             else: # NOK
                 DebugLog("failed to spider douban")
                 pass
+        else:
+            DebugLog("ignore it,spider_status is not RETRY")
 
         # 必要信息已经具备
         if self.movie_name != "" and self.nation != "" and (self.douban_id != "" or self.imdb_id != ""):
             DebugLog("name nation imdbid exist")
             self.spider_status = OK
         else:
-            ExecLog("failed to spider movie info")
+            ExecLog("empty name,or nation ,or id")
             self.spider_status = NOK
         self.info.update_or_insert()  #更新或者插入到表info
+        
+        if self.rss == None or not self.rss.update_id(self.info.douban_id,self.info.imdb_id):
+            ExecLog("error:update_id:"+self.name)
+        else:
+            DebugLog("success update id:"+self.name)
         return self.spider_status
 
     def spider_detail(self):
@@ -451,7 +535,7 @@ class MyTorrent:
             if self.rss_name in site['name'] or site['name'] in self.rss_name: 
                 tSite = site
                 break
-        if tSite == None : ExecLog("unknown site name:"+self.rss_name); return False
+        if tSite == None : ErrorLog("unknown site name:"+self.rss_name); return False
         DebugLog("find site:{}".format(tSite['name']))
                     
         tPage = NexusPage(tSite)
@@ -460,6 +544,8 @@ class MyTorrent:
             return False    
 
         self.info = tPage.info
+        if self.rss != None:
+            if not self.rss.update_id(self.info.douban_id,self.info.imdb_id): return False
         if self.imdb_id != "" or self.douban_id != "": return True
         else                                         : return False
         
@@ -486,16 +572,21 @@ class MyTorrent:
             if not self.spider_movie_info():
                 ExecLog("failed to spider movie info")
                 return False
-        if self.movie_name == "" or self.nation == "" or self.imdb_id == "" : ExecLog("empty name or nation or imdbid"); return False
+        DebugLog("{}|{}|{}|{}".format(self.movie_name,self.nation,self.douban_id,self.imdb_id))
+        if self.movie_name == "" or self.nation == "" or (self.douban_id == "" and self.imdb_id == "") : ExecLog("empty name or nation or imdbid"); return False
         
         #2、移入或者更名至tobe目录下的目录文件夹 
         #2.1 组装目标文件夹名需要先获取Number和Copy
         Number = Copy = 0
-        sel_sql = 'select number,copy from movies where imdbid = %s'
-        sel_val = (self.imdb_id,)
+        if self.imdb_id != "":
+            sel_sql = 'select number,copy from movies where imdbid = %s'
+            sel_val = (self.imdb_id,)
+        else:
+            sel_sql = 'select number,copy from movies where doubanid = %s'
+            sel_val = (self.douban_id,)
         SelectResult = select(sel_sql,sel_val)
         if SelectResult == None : 
-            ExecLog("error:select max(number) from movies")
+            ErrorLog("error:select max(number) from movies")
             return False
         elif len(SelectResult) == 0: #说明不存在，需要获取max(number)+1
             sel_sql = 'select max(number) from movies'
@@ -506,13 +597,14 @@ class MyTorrent:
             Copy   = SelectResult[0][1]
         else:
             #多条记录，有可能是正常的，也可能是异常的。先取第一条记录的Number,记录下日志，待手工检查
-            ExecLog("2+ record in movies where imdbid = "+IMDBID)
+            ExecLog("2+ record in movies where imdbid = "+self.imdb_id)
             Number = SelectResult[0][0]
             for i in range(len(SelectResult)):
                 if SelectResult[i][0] != Number: ErrorLog("diff number in case of same imdbid:"+self.imdb_id); break
         
         #2.2 组装新的目标文件夹名
         tTorrentName = re.sub(u"[\u4e00-\u9f50]+","",self.name) #去掉name中的中文字符
+        tTorrentName = re.sub("[,。，·]+","",tTorrentName)       #去掉特殊标点符号
         tTorrentName = tTorrentName.strip()                         #去掉前后空格
         if tTorrentName[:1] == '.': tTorrentName = tTorrentName[1:] #去掉第一个.
         tTorrentName = re.sub(" ",".",tTorrentName)                 #空格替换为.
@@ -551,20 +643,15 @@ class MyTorrent:
 
         #4 下载poster.jpg文件
         DestFullFile=os.path.join(DestDirName,"poster.jpg")
-        try:
-            f=requests.get(self.poster)
-            with open(DestFullFile,"wb") as code:
-                code.write(f.content)
-        except Exception as err:
-            Print(err)
-            ErrorLog("failed to download poster.jpg from:"+self.poster)
-        else : ExecLog("success download jpg file")
-
+        if self.info.download_poster(DestDirName): ExecLog("success download poster file")
+        else                                     : ErrorLog("failed to download poster.jpg from:"+self.poster)
+            
         #5 检查该目录并加入表
-        tMovie = Movie(TO_BE_PATH, DirName)
-        if tMovie.CheckMovie() != 1      :  ErrorLog("failed to check:"+DirName)  #; continue，继续插入表
-        if tMovie.CheckTable("tobe") != 1:  ErrorLog("faied to table:"+DirName); return False
-        else : ExecLog("success insert table movies")
+        tMovie = Movie(TO_BE_PATH, DirName,"tobe")
+        if tMovie.douban_id == "": tMovie.douban_id = self.douban_id
+        if tMovie.imdb_id   == "": tMovie.imdb_id   = self.imdb_id
+        if tMovie.check_movie() != 1: ErrorLog("failed to check:"+DirName)  #; continue，继续插入表
+        else                        : ExecLog("success insert table movies")
         
         #6 更新信息至表movies
         up_sql = "update movies set DoubanID=%s,IMDBID=%s,DownloadLink=%s,HASH=%s where Number=%s and Copy=%s"
@@ -574,16 +661,17 @@ class MyTorrent:
         else:
             ErrorLog("update error:"+DirName+":"+up_sql)
             return False
+        
         #7 插入download表 
-        if not self.insert_download(Number,Copy,tMovie.DirName):
-            ExecLog("failed to insert table download:"+DestDirName)
+        if not self.insert_download(Number,Copy,tMovie.dir_name):
+            ErrorLog("failed to insert table download:"+DestDirName)
             return False
 
         #8 把种子分类设为空    
         self.set_category("")
         return True
 
-    def move_to_tr(self,mTRLogin):
+    def move_to_tr(self):
         """
         根据是否创建子文件夹(is_root_folder)分两种情况：
         一、创建了子文件夹：例如
@@ -598,11 +686,9 @@ class MyTorrent:
             不创建链接，tr的save_path指向同一save_path即可
         """
 
-        if not self.pause(): ExecLog("failed to stop torrent:"+self.name)
-        
+        if not self.pause(): ErrorLog("failed to stop torrent:"+self.name)
 
         tTorrentFile = os.path.join(QB_BACKUP_DIR,self.hash+".torrent")
-
         if self.is_root_folder():
             tDestSavedPath = self.save_path
         else :   #为TR的保存路径创建链接
@@ -615,19 +701,8 @@ class MyTorrent:
                 return False            
             tDestSavedPath = TR_KEEP_DIR
 
-        try:
-            tr_client = transmissionrpc.Client(mTRLogin['host'], port=mTRLogin['port'],user=mTRLogin['username'],password=mTRLogin['password'])
-            tr_torrent = tr_client.add_torrent(torrent=tTorrentFile,download_dir=tDestSavedPath,paused=True)
-        except ValueError as err:
-            Print(err)
-            ErrorLog("failed to add torrent:"+tTorrentFile)
-            return False
-        except  transmissionrpc.TransmissionError as err:
-            Print(err)
-            ErrorLog("failed to add torrent:"+tTorrentFile)
-            return False            
-        except transmissionrpc.HTTPHandlerError as err:
-            Print(err)
+        tTRClient = PTClient("TR")
+        if tTRClient.connect() and tTRClient.add_torrent(torrent_file=tTorrentFile,download_dir=tDestSavedPath,is_paused=True):
             ErrorLog("failed to add torrent:"+tTorrentFile)
             return False               
         else:
@@ -637,16 +712,13 @@ class MyTorrent:
         if not self.set_category(""):
             ErrorLog("failed to set category:"+self.name)
             return False
-
         return True
 
     def save_torrent_file(self,mDestDir):
-
         if self.client == 'QB':
             tTorrentFile = os.path.join(QB_BACKUP_DIR,self.hash+".torrent")
             tResumeFile  = os.path.join(QB_BACKUP_DIR,self.hash+".fastresume")
         else:
-
             tTorrentFile = os.path.join(os.path.join(TR_BACKUP_DIR,'torrents/'),self.name+'.'+self.hash[:16]+'.torrent')
             tResumeFile  = os.path.join(os.path.join(TR_BACKUP_DIR,'resume/'),self.name+'.'+self.hash[:16]+'.resume')
         tDestTorrentFile = os.path.join(mDestDir,self.name+'.'+self.hash[:16]+".torrent")
@@ -666,22 +738,19 @@ class MyTorrent:
             except:
                 print("failed to remove :"+fullFileName)
                 return False
-
-        fo = open(fullFileName,"w+")
+        fo = open(fullFileName,"a+")
         fo.write(self.hash+"|"+self.download_link)
         fo.close()
         return True
 
-    def insert_download(self,mNumber,mCopy,mDirName):
-        
+    def insert_download(self,mNumber,mCopy,mDirName): 
         tSelectResult = select("select downloadlink,number,copy from download where hash=%s",(self.hash,))
         if tSelectResult == None:
             ErrorLog("failed to exec select download")
             return False
 
         if len(tSelectResult) > 0:
-            DebugLog("download exists:"+self.hash)
-            
+            DebugLog("download exists:"+self.hash)    
             up_sql = "update download set downloadlink=%s,number=%s,copy=%s,dirname=%s where hash=%s"
             up_val = (self.download_link,mNumber,mCopy,mDirName,self.hash)
             if update(up_sql,up_val):

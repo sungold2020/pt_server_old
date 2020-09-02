@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # coding=utf-8
 import datetime
+import traceback
 import time
 import os
 
@@ -13,6 +14,7 @@ INFO_LOG_FILE='log/info.log'
 RSS_LOG_FILE='log/rss.log'
 DATABASE_LOG_FILE = 'log/database.log'
 PTSITE_LOG_FILE ='log/site.log'
+MOVIE_LOG_FILE ='log/movie.log'
 
 def info_log(tStr):
     Log(INFO_LOG_FILE,tStr)
@@ -26,20 +28,31 @@ def database_log(tStr):
 def site_log(tStr):
     Log(PTSITE_LOG_FILE,tStr)
 
+def movie_log(tStr):
+    Log(MOVIE_LOG_FILE,tStr)
+
 def Print(Str):
     tCurrentTime = datetime.datetime.now()
     print(tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')+"::" , end='')
     print(Str)
 
-def LogClear(FileName) :
+def LogClear(FileName="") :
+    if FileName == "":
+        if os.path.isfile(INFO_LOG_FILE+".old"):    os.remove(INFO_LOG_FILE+".old")
+        if os.path.isfile(INFO_LOG_FILE)       :    os.rename(INFO_LOG_FILE,INFO_LOG_FILE+".old")
+        if os.path.isfile(RSS_LOG_FILE+".old"):     os.remove(RSS_LOG_FILE+".old")
+        if os.path.isfile(RSS_LOG_FILE)       :     os.rename(RSS_LOG_FILE,RSS_LOG_FILE+".old")
+        if os.path.isfile(PTSITE_LOG_FILE+".old"):  os.remove(PTSITE_LOG_FILE+".old")
+        if os.path.isfile(PTSITE_LOG_FILE)       :  os.rename(PTSITE_LOG_FILE,PTSITE_LOG_FILE+".old")
+
     if os.path.isfile(FileName):
         if os.path.isfile(FileName+".old"):    os.remove(FileName+".old")
         os.rename(FileName,FileName+".old")
       
-def Log(FileName,Str) :
+def Log(FileName,Str,time_flag=True) :
     fo = open(FileName,"a+")
     tCurrentTime = datetime.datetime.now()
-    fo.write(tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')+"::")
+    if time_flag == True: fo.write(tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')+"::")
     fo.write(Str+'\n')
     fo.close()
 
@@ -56,3 +69,4 @@ def ErrorLog(Str):
     Print(Str)
     ExecLog(Str)
     Log(ErrorLogFile,Str)
+    traceback.print_stack()

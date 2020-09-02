@@ -15,29 +15,24 @@ if not tPage.request_detail_page('11252'):
     print("failed to request detail")
 """
 
-temp = {
-        'name':'name',
-        'agent':'agent'}
 
+string='你好,，。'
+#string2 = re.sub(u"[\u4e00-\u9f50]+","",string) #去掉name中的中文字符
+#print(len(string2))
+#print(len(string))
+string = re.sub("[,。，]+","",string)       #去掉特殊标点符号
+print(string)
 
-print( temp.get('name'))
-print( temp.get('host'))
-
-up_val = ("122",1,3)
-temp = "{}".format(up_val)
-print(type(temp))
-print(temp)
-print(up_val[0])
-
-sql='update rss set download=%s where rssname=%s and hash=%s'
-val=(1,'mteam',"xxxx")
-print("error sql:{}|{}".format(sql,val))
-print(len(val))
-i = 0
-for i in range(len(val)):
-    tIndex = sql.find('%s')
-    if tIndex == -1:
-        break
-    sql = sql.replace('%s',str(val[i]),1)
-    print(sql)
-if i != len(val)-1: print("error")
+from client import PTClient
+#from torrent import Torrent
+global gQBClient
+global gTRClient
+gQBClient=PTClient("QB")
+gQBClient.connect()
+gTRClient = PTClient("TR")
+gTRClient.connect()
+for torrent in gQBClient.get_all_torrents():
+    for tracker in torrent.trackers:
+        if tracker['url'].find("http") >= 0 and tracker["status"] != 2:
+            print(torrent.name)
+            print(tracker)

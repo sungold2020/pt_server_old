@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from database import *
 from log import *
+from info import *
 
 RSS_LIST = [
     {
@@ -25,6 +26,8 @@ RSS_LIST = [
         'name':'HDSky', 
         'wait_free':False,   
         'time_interval':10,
+        'includes':['x265','HDS'],
+        'excludes':['HDSWEB','HDSPad','HDSTV'],
         'url':'https://hdsky.me/torrentrss.php?rows=10&tea1=1&tea28=1&ismalldescr=1&linktype=dl&passkey=c8c158c14e1762b0c93c91ab2ddc689a'
         },
     {
@@ -108,20 +111,48 @@ RSS_LIST = [
 
 class RSS:
     def __init__(self,HASH='',rss_name='',download_link='',title='',douban_id="",imdb_id=""):
-        self.HASH          = HASH
+        self._HASH          = HASH
         self.rss_name      = rss_name
         self.download_link = download_link
         self.title         = title
-        self.douban_id = douban_id
-        self.imdb_id = imdb_id
+        self._douban_id = douban_id
+        self._imdb_id = imdb_id
         
         self.torrent_id = self.get_torrent_id(self.download_link)
         self.add_date = datetime.datetime.now().strftime('%Y-%m-%d')
         self.downloaded = 0
 
+    @property
+    def HASH(self):
+        if self._HASH == "": 
+            ErrorLog("error:_HASH is null:"+self.title)
+        return self._HASH
+    @HASH.setter
+    def HASH(self,HASH):
+        if HASH == "": 
+            ErrorLog("error:HASH is null:"+self.title)
+        self._HASH = HASH
+
+    @property
+    def douban_id(self):
+        return self._douban_id
+
+    @douban_id.setter
+    def douban_id(self,douban_id):
+        douban_id = douban_id.strip()
+        if douban_id != "" and not douban_id.isdigit(): ErrorLog("invalid doubanid:"+douban_id); return 
+        self._douban_id = douban_id
+
+    @property
+    def imdb_id(self):
+        return self._imdb_id
+    @imdb_id.setter
+    def imdb_id(self,imdb_id):
+        self._imdb_id = trans_imdb_id(imdb_id)
+
     def select(self,assign_value=True):
         if self.rss_name == "": return False
-        if self.HASH != "":
+        if self._HASH != "":  #通过免费种子加入时，有torrent_id，无HASH
             sel_sql = "select title,downloadlink,doubanid,imdbid,downloaded,torrentid,adddate from rss where rssname=%s and HASH=%s"
             sel_val = (self.rss_name,self.HASH)
             tSelectResult =  select(sel_sql,sel_val)
@@ -171,9 +202,16 @@ class RSS:
         return insert(in_sql,in_val)
 
     def update(self):
-        if self.HASH == "" or self.rss_name == "": return False
-        up_sql = "update rss set title=%s,downloadlink=%s,torrentid=%s,doubanid=%s,imdbid=%s,downloaded=%s,adddate=%s where rssname=%s and HASH=%s"
-        up_val = (self.title,self.download_link,self.torrent_id,self.douban_id,self.imdb_id,self.downloaded,self.add_date,self.rss_name,self.HASH)
+        if self.rss_name == "": return False
+        if self._HASH != "":
+            up_sql = "update rss set title=%s,downloadlink=%s,torrentid=%s,doubanid=%s,imdbid=%s,downloaded=%s,adddate=%s where rssname=%s and HASH=%s"
+            up_val = (self.title,self.download_link,self.torrent_id,self.douban_id,self.imdb_id,self.downloaded,self.add_date,self.rss_name,self.HASH)
+        elif self.torrent_id != "":
+            up_sql = "update rss set title=%s,downloadlink=%s,torrentid=%s,doubanid=%s,imdbid=%s,downloaded=%s,adddate=%s where rssname=%s and torrentid=%s"
+            up_val = (self.title,self.download_link,self.torrent_id,self.douban_id,self.imdb_id,self.downloaded,self.add_date,self.rss_name,self.torrent_id)
+        else:
+            ErrorLog("HASH and torrent_id is null to update:"+self.title)
+            return False
         return update(up_sql,up_val)
 
     def update_or_insert(self):
@@ -181,6 +219,29 @@ class RSS:
 
         if self.select(assign_value=False): return self.update()
         else            : return self.insert()
+
+    def update_id(self,douban_id="",imdb_id=""):
+        """
+        根据输入的id和self的id进行比较更新
+        """
+        tToDoUpdate = False
+        if self.douban_id == "" and douban_id != "":
+            self.douban_id = douban_id
+            tToDoUpdate = True
+        if self.douban_id != "" and douban_id != "" and self.douban_id != douban_id:
+            ErrorLog("error:diff douban_id to update:{}|{}".format(self.douban_id,douban_id))
+            return False
+        imdb_id = trans_imdb_id(imdb_id)
+        if self.imdb_id == "" and imdb_id != "":
+            self.imdb_id = imdb_id
+            tToDoUpdate = True
+        if self.imdb_id != "" and imdb_id != "" and self.imdb_id != imdb_id:
+            ErrorLog("error:diff imdb_id to update:{}|{}".format(self.imdb_id,imdb_id))
+            return False
+
+        if tToDoUpdate == True: return self.update()
+        else                  : return True
+
 
     def get_torrent_id(self,mDownloadLink):
         tTorrentID = ""
@@ -192,3 +253,28 @@ class RSS:
         if tIndex == -1: DebugLog("failed to find torrentid endtag(&):"+mDownloadLink); return ""
         return tTorrentID[:tIndex]
 
+    def filter_by_keywords(self):
+        """
+        根据includes/excludes关键字进行过滤，如果符合规则返回True，否则返回False
+        True: 符合过滤规则，进行下载
+        False：不合符过滤规则，不进行下载
+        """
+        tSite = None
+        for tRSS in RSS_LIST:
+            if tRSS['name'] == self.rss_name:
+                tSite = tRSS
+                break
+        if tSite == None: ErrorLog("unknown rss name:"+self.rss_name); return False
+        
+        tIncludes = tSite.get('includes')   if tSite.get('includes') else []
+        for tInclude in tIncludes:
+            if self.title.find(tInclude) <= 0: 
+                rss_log('not include {},ignore it:{}'.format(tInclude,self.title))
+                return False
+
+        tExcludes = tSite.get('excludes')   if tSite.get('excludes') else []
+        for tExclude in tExcludes:
+            if self.title.find(tExclude) >= 0: 
+                rss_log('include {},ignore it:{}'.format(tExclude,self.title))
+                return False
+        return True

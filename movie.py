@@ -8,6 +8,7 @@ import datetime
 from pathlib import Path
 
 from database import *
+from info import *
 from log import *
 
 SUCCESS           = 1    
@@ -18,347 +19,305 @@ UNKNOWN_FILE_TYPE = -4
 FAILED_MOVE       = -5
 FAILED_RMDIR      = -6
 TABLE_ERROR       = -7
-"""
-修订记录：
-1、2020-03-15:V1.0 ，不足：1、ToBeExec的设定不应该留在movie.py中。2、日志需要重新设定
-2、2020-03-17：V1.1，
-    1、修改日志格式
-    2、新增repack的格式参数
-"""
-
-
-def MoveDirFile(SrcDir,DestDir) :
-    """
-    将SrcDir所有文件移到DestDir目录中
-    返回值：
-    SRC_NOT_DIR
-    DEST_NOT_DIR
-    DEPTH_ERROR
-    UNKNOWN_FILE_TYPE
-    FAILED_MOVE
-    FAILED_RMDIR
-    """
-    if not os.path.isdir(SrcDir) :  return SRC_NOT_DIR
-    if not os.path.isdir(DestDir) : return DEST_NOT_DIR
-    
-    NumberOfFile = 0
-    FileName = []
-    for file in os.listdir(SrcDir):
-        FullPathFile = os.path.join(SrcDir,file)
-        if os.path.isdir(FullPathFile): return DEPTH_ERROR
-        elif os.path.isfile(FullPathFile):
-            NumberOfFile += 1
-            FileName.append(FullPathFile)
-        else: return UNKNOWN_FILE_TYPE
-    
-    #if Movie.ToBeExecRmdir == 0:
-    #    ExecLog("mv from"+SrcDir)
-    #    ExecLog("     to"+DestDir)
-    #    return 1
-        
-    #逐个移动文件到目标文件夹
-    i = 0
-    while i < NumberOfFile :
-        try:
-            shutil.move(FileName[i],DestDir)
-            i += 1
-        except: 
-            return FAILED_MOVE
-    
-    #删除这个空的srcDir
-    try :
-        os.rmdir(SrcDir)
-    except:
-        return FAILED_RMDIR
-
-    return SUCCESS
-    
-#end def MoveDirFile
 
 class Movie:
-    '所有电影/连续剧的基类'
-    Count = 0
-    ErrorCount = 0
-    
     #0表示测试，不执行修改，1表示执行修改
     ToBeExecDirName = True     # DirName名称
     ToBeExecRmdir   = False     # 从子文件夹将内容提上来 删除空子目录
-    #DebugLogFile=""
-    #ExecLogFile=""
-    #ErrorLogFile=""
-    DBUserName="dummy"
-    DBPassword="moonbeam"
-    DBName    ="db_movies"
-     
-    def __init__(self,DirPath,DirName):
-        Movie.Count += 1
-        
-        # 目录名称组成部分
-        self.Number = 0        #-1:error
-        self.Copy = 0          #0表示正本，其他表示不同版本1:3D版，2:加长版
-        self.Nation = ""       #
-        self.Type = 0          #0:Movie 1:TV 2:Record
-        self.Name = ""         #
-        self.Min = 0
-        self.FormatStr = "" 
-        self.DirName = DirName
 
-        self.DirPath = DirPath #确保DirPath结束符不带/
-        self.DirNameToDo = 0   #目录名称是否要修改        
-        self.Collection = 0    #是否为合集
-        self.Number2 = 0       #合集下的第二个数字
-        self.SubMovie = []     #合集下的对象
-        self.SubMovieCount = 0 #合集下的目录数量
+    def __init__(self,dir_path="",dir_name="",disk="",number=0,copy=0):
+        # 目录名称组成部分
+        self.number = number   #-1:error
+        self.copy = copy       #0表示正本，其他表示不同版本1:3D版，2:加长版
+        self.nation = ""       #
+        self.type = MOVIE      #0:Movie 1:TV 2:Record
+        self.name = ""         #
+        self.min = 0
+        self.format_str = "" 
+        self.dir_name = dir_name
+
+        self.disk    = disk
+        self.dir_path = dir_path #确保dir_path结束符不带/
+        self.dir_name_todo = 0   #目录名称是否要修改        
+        self.collection = 0    #是否为合集
+        self.number2 = 0       #合集下的第二个数字
+        self.sub_movie = []     #合集下的对象
+        self.sub_movie_count = 0 #合集下的目录数量
         
         # 目录内容组成部分
-        self.Jpg = 0           #是否有海报图片 
-        self.Nfo = 0           #是否有nfo文件
-        self.NumberOfSP = 0    #花絮等的数量
-        self.NumberOfVideo = 0 #不包含SP开头的视频文件，可能的几种情况
+        self.jpg = 0           #是否有海报图片 
+        self.nfo = 0           #是否有nfo文件
+        self.number_of_SP = 0    #花絮等的数量
+        self.number_of_video = 0 #不包含SP开头的视频文件，可能的几种情况
         # 0 :没有视频文件 
         # -1:有多个视频文件但不在定义的范围内 
         # >1:表示多个合集，可能发生的情况：
         #    1) 在纪录片和电视剧目录下，有效
         #    2) Part1/2,Disk1/2，任何两个文件名之间差别仅存在1个且为数字，有效
         #    3) 其他情况下，把它置为-1
-        self.VideoFileName =[] # 保存video文件名在数组中
-        self.SampleVideo = ""  #
+        self.video_files =[] # 保存video文件名在数组中
+        self.sample_video = ""  #
         
         # 从格式中获取的信息
-        self.EnglishName = ""  #英文片名（也可能是其他语种）
-        self.Year = 0          #年份
-        self.Radio = ""        #分辨率
-        self.Version = ""      #版本，例如CC，DC
-        self.NationVersion = "" #国家版本，如韩版，日版:JPN
-        self.Special = ""     #特别说明，例如rerip
-        self.Source = ""       #来源，如Blu-Ray，Web-DL
-        self.Compress = ""     #压缩算法,如x264
-        self.Audio = ""        #音频格式，如DTS
-        self.Track = ""        #音轨，如2Audio 
-        self.Bit = ""          #色彩精度，10bit,8bit
+        self.english_name = ""  #英文片名（也可能是其他语种）
+        self.year = 0          #年份
+        self.radio = ""        #分辨率
+        self.version = ""      #版本，例如CC，DC
+        self.nation_version = "" #国家版本，如韩版，日版:JPN
+        self.special = ""     #特别说明，例如rerip
+        self.source = ""       #来源，如Blu-Ray，Web-DL
+        self.compress = ""     #压缩算法,如x264
+        self.audio = ""        #音频格式，如DTS
+        self.track = ""        #音轨，如2audio 
+        self.bit = ""          #色彩精度，10bit,8bit
         self.HDR = ""          #HDR
-        self.ZipGroup = ""     #压缩组
+        self.zip_group = ""     #压缩组
         
+        self.deleted  = 0
+        self._imdb_id = ""
+        self._douban_id = ""
+        self.update_time = ""
+        self.check_time = ""
+        self.checked = 1      #
+
         self.hash = ""
         self.torrent_file = ""
         self.resume_file  = ""
         self.download_link = ""
         self.IsError = 0       # 检查完以后是否有错误
-    #end def __init__
-      
-    def CheckDirName(self):
+    @property
+    def douban_id(self):
+        return self._douban_id
+    @douban_id.setter
+    def douban_id(self,douban_id):
+        douban_id = douban_id.strip()
+        if douban_id != "" and not douban_id.isdigit(): ErrorLog("invalid doubanid:"+douban_id); return 
+        self._douban_id = douban_id
+
+    @property
+    def imdb_id(self):
+        return self._imdb_id
+    @imdb_id.setter
+    def imdb_id(self,imdb_id):
+        self._imdb_id = trans_imdb_id(imdb_id)
+
+    def check_dir_name(self):
         """
         #检查该目录名称格式是否合法，并分解出各元素
         # 正确的几种格式如下(包括合集)：
-        # "Number-Nation-Name XXXMin Format"
-        # "Number-Nation-Name Format"
-        # "Number-Nation-Name XXXMin"
-        # "Number-Nation-Name"
-        # "Number-Nation-纪录片/电视剧-Name Format"
-        # "Number-Nation-纪录片/电视剧-Name"
+        # "Number-nation-name XXXMin Format"
+        # "Number-nation-name Format"
+        # "Number-nation-name XXXMin"
+        # "Number-nation-name"
+        # "Number-nation-纪录片/电视剧-name Format"
+        # "Number-nation-纪录片/电视剧-name"
        
         # 合集的正确格式
-        # "Number-Number-Nation-Name Format"
-        # "Number-Number-Nation-Name"
+        # "Number-Number-nation-name Format"
+        # "Number-Number-nation-name"
         # 合集下标记IsCollection=1
        
-        # "Name可以是多个名称，中间加-作为连接符，例如兄弟连-全10集
+        # "name可以是多个名称，中间加-作为连接符，例如兄弟连-全10集
        
         """
        
-        #DebugLog ("begin checkdirname:"+self.DirName)
+        #movie_log ("begin checkdirname:"+self.dir_name)
         # 找出Number
-        FindIndex = self.DirName.find("-")
+        FindIndex = self.dir_name.find("-")
         if FindIndex == -1 :  
-            ErrorLog ("Error Number:" + self.DirName +"::") 
+            ErrorLog ("Error number:" + self.dir_name +"::") 
             self.IsError = 1 ;  return 0
-        NumberStr = self.DirName[0:FindIndex]   
-        Lest = self.DirName[FindIndex+1:]       
+        NumberStr = self.dir_name[0:FindIndex]   
+        Lest = self.dir_name[FindIndex+1:]       
 
         
         if not(NumberStr.isdigit())  :#不是数字的话。
-            ErrorLog ("invld Number1:"+self.DirName +"::"+NumberStr) 
+            ErrorLog ("invld Number1:"+self.dir_name +"::"+NumberStr) 
             self.IsError = 1 ;  return 0
-        self.Number = int(NumberStr)
-        #DebugLog ("Number ="+str(self.Number))
-        #DebugLog ("Lest ="+Lest)
+        self.number = int(NumberStr)
+        #movie_log ("number ="+str(self.number))
+        #movie_log ("Lest ="+Lest)
         
-        #加入NumberStr小于4，则需要补零，至self.DirNameToDo = 1，留给RenameDirName函数去补零
-        if len(NumberStr) < 4: self.DirNameToDo = 1
+        #加入NumberStr小于4，则需要补零，至self.dir_name_todo = 1，留给Renamedir_name函数去补零
+        if len(NumberStr) < 4: self.dir_name_todo = 1
         
-        #继续找Nation或者Number2
+        #继续找nation或者Number2
         FindIndex = Lest.find("-")
         if FindIndex == -1 :  
-            ErrorLog ("Error Nation:" + self.DirName +"::")
+            ErrorLog ("Error nation:" + self.dir_name +"::")
             self.IsError = 1 ;  return 0
-        self.Nation = Lest[0:FindIndex]
+        self.nation = Lest[0:FindIndex]
         Lest = Lest[FindIndex+1:]
-        #DebugLog ("Nation="+self.Nation)
-        #DebugLog ("Lest="+Lest)
+        #movie_log ("nation="+self.nation)
+        #movie_log ("Lest="+Lest)
        
         
-        #如果Nation是数字:
-        #1、是一个0-9的数字，表面是Copy
-        #2、是长度>=4的数字字符，则说明是合集，先找出Number2，然后才是Nation
-        if self.Nation.isdigit() : 
-            #Copy
-            if len(self.Nation) == 1:
-                self.Copy = int(self.Nation)
+        #如果nation是数字:
+        #1、是一个0-9的数字，表面是copy
+        #2、是长度>=4的数字字符，则说明是合集，先找出Number2，然后才是nation
+        if self.nation.isdigit() : 
+            #copy
+            if len(self.nation) == 1:
+                self.copy = int(self.nation)
             #合集
-            elif len(self.Nation) >= 4:
-                self.Number2 = int(self.Nation)
-                if self.Number2 <= self.Number : #合集的第二个数字应该大于第一个
-                    ErrorLog ("Error Number2:"+self.DirName+"::"+self.Nation)
+            elif len(self.nation) >= 4:
+                self.number2 = int(self.nation)
+                if self.number2 <= self.number : #合集的第二个数字应该大于第一个
+                    ErrorLog ("Error number2:"+self.dir_name+"::"+self.nation)
                     self.IsError = 1 ; return 0
-                self.Collection = 1
+                self.collection = 1
             else:
-                ErrorLog ("4- Number2:"+self.DirName+"::"+self.Nation)
+                ErrorLog ("4- number2:"+self.dir_name+"::"+self.nation)
                 self.IsError = 1 ; return 0
                 
-            # 继续找Nation
+            # 继续找nation
             FindIndex = Lest.find("-")
             if FindIndex == -1 :
-                ErrorLog ("Error Nation in Collection:" + self.DirName + "::" + Lest) 
+                ErrorLog ("Error nation in collection:" + self.dir_name + "::" + Lest) 
                 self.IsError = 1 ; return 0
-            self.Nation = Lest[0:FindIndex]
+            self.nation = Lest[0:FindIndex]
             Lest = Lest[FindIndex+1:]
             
-        #判断Nation长度
-        if len(self.Nation) > 5 :
-            ErrorLog ("5+length Nation:" + self.DirName + "::" + Lest) 
+        #判断nation长度
+        if len(self.nation) > 5 :
+            ErrorLog ("5+length nation:" + self.dir_name + "::" + Lest) 
             self.IsError = 1 ; return 0
             
         # 如果前三个字符是电视剧或者纪录片
         if Lest[0:3] == "纪录片" :
-            self.Type = 2
+            self.type = RECORD
         elif Lest[0:3] == "电视剧" :
-            self.Type = 1
+            self.type = TV
         else :
-            self.Type = 0
-        if self.Type > 0:   #电视剧或者纪录片
+            self.type = MOVIE
+        if self.type != MOVIE:   #电视剧或者纪录片
             if Lest[3:4] != "-" :
-                ErrorLog ("Error：not - :"+self.DirName)
+                ErrorLog ("Error：not - :"+self.dir_name)
                 self.IsError = 1 ; return 0
             Lest = Lest[4:]
             
-        #继续找Name
+        #继续找name
         FindIndex = Lest.find(" ")
-        if FindIndex == -1 :  #说明Name后面就空了，没有Min和Format
-            self.Name = Lest
-            #DebugLog ("Name:"+self.Name)
+        if FindIndex == -1 :  #说明name后面就空了，没有min和Format
+            self.name = Lest
+            #movie_log ("name:"+self.name)
             return 1    
-        self.Name = Lest[0:FindIndex]
+        self.name = Lest[0:FindIndex]
         Lest = Lest[FindIndex+1:]
-        #DebugLog ("Name="+self.Name)
-        #DebugLog ("Lest="+Lest)
+        #movie_log ("name="+self.name)
+        #movie_log ("Lest="+Lest)
         
-        #继续找Min
+        #继续找min
         FindIndex = Lest.find("Min")
         if FindIndex == -1 :
-            #DebugLog ("No Min:"+self.DirName)
-            self.FormatStr = Lest
+            #movie_log ("No Min:"+self.dir_name)
+            self.format_str = Lest
             return 1
         else:
             #Min后面没有了format
             if len(Lest) == FindIndex+3 :
-                self.Min = int(Lest[0:FindIndex].lstrip())
-                #DebugLog("no format after Min:"+self.DirName+"::"+str(self.Min))
+                self.min = int(Lest[0:FindIndex].lstrip())
+                #movie_log("no format after Min:"+self.dir_name+"::"+str(self.min))
                 return 1
             #Min后的第一个字符是不是空格，如果不是表示Min可能是格式中的字符，例如Mind
             elif Lest[FindIndex+3:FindIndex+4] != ' ':
-                #DebugLog ("Min之后不是空格:"+Lest[FindIndex+3:FindIndex+4]+"::"+self.DirName)
-                self.FormatStr = Lest
+                #movie_log ("Min之后不是空格:"+Lest[FindIndex+3:FindIndex+4]+"::"+self.dir_name)
+                self.format_str = Lest
             else :
                 MinStr = Lest[0:FindIndex].lstrip() #Min之前的字符为MinStr,并去掉左边的空格符
                 if not MinStr.isdigit() :
-                    ErrorLog ("Invalid Min:"+self.DirName+"::"+MinStr)
+                    ErrorLog ("Invalid Min:"+self.dir_name+"::"+MinStr)
                     self.IsError = 1 ; return 0
-                self.Min = int(MinStr)
-                self.FormatStr = Lest[FindIndex+4:]
-                #DebugLog ("Min="+str(self.Min))
-                #DebugLog ("Format="+self.FormatStr)
+                self.min = int(MinStr)
+                self.format_str = Lest[FindIndex+4:]
+                #movie_log ("Min="+str(self.min))
+                #movie_log ("Format="+self.format_str)
         
-        if len(self.FormatStr) < 15:
+        if len(self.format_str) < 15:
 
-            ErrorLog ("15- Format:"+self.DirName+self.FormatStr)
+            ErrorLog ("15- Format:"+self.dir_name+self.format_str)
             self.IsError = 1; return 0
         
         return 1
-    #end def CheckDirName    
+    #end def check_dir_name    
         
-    def RunTimeFromMkv(self):
+    def runtime_from_mkv(self):
         '''
         前置条件：
-        1、已经执行过CheckDirCont
+        1、已经执行过check_dir_cont
         2、有效的NumberOfViedeo，而且是MKV文件（其他格式暂不支持）
            如果是多个有效的Mkv，则叠加Min
         
         返回的是分钟数，如果为0表示错误
         '''
 
-        if self.NumberOfVideo != 1 :
-            #DebugLog ("not 1 video:"+self.DirName)
+        if self.number_of_video == 0 :
+            #movie_log ("not 1 video:"+self.dir_name)
+            return 0
+        if self.type != MOVIE:
             return 0
 
-        if (self.VideoFileName[0])[-3:] != "mkv" :
-            #DebugLog ("not mkvfile:"+self.DirName)
-            return 0
+        tMin = 0
+        for i in range(self.number_of_video):
+            if (self.video_files[i])[-3:] != "mkv" :
+                #movie_log ("not mkvfile:"+self.dir_name)
+                return 0
 
-        Path = os.path.join(self.DirPath,self.DirName)
-        MkvName = os.path.join(Path,self.VideoFileName[0])
-        RunTimeStr='mkvinfo --ui-language en_US "'+MkvName+'" | grep Duration'
-        DebugLog(RunTimeStr)
-        #DebugLog (RunTimeStr)
-        Line = os.popen(RunTimeStr).read()
-        #DebugLog (Line[:24])
-        Hour=Line[14:16]
-        Min=Line[17:19]
-        #DebugLog (Hour+" "+Min)
-        if not ( Hour.isdigit() and Min.isdigit() ):
-            #DebugLog ("Hour or Min isn't digit"+Hour+":"+Min)
-            return 0
+            Path = os.path.join(self.dir_path,self.dir_name)
+            MkvName = os.path.join(Path,self.video_files[i])
+            RunTimeStr='mkvinfo --ui-language en_US "'+MkvName+'" | grep Duration'
+            movie_log(RunTimeStr)
+            #movie_log (RunTimeStr)
+            Line = os.popen(RunTimeStr).read()
+            #movie_log (Line[:24])
+            Hour=Line[14:16]
+            Min=Line[17:19]
+            #movie_log (Hour+" "+Min)
+            if not ( Hour.isdigit() and Min.isdigit() ):
+                #movie_log ("Hour or Min isn't digit"+Hour+":"+Min)
+                return 0
 
-        MinNumber = int(Hour)*60 + int(Min)
-        #DebugLog ("Min="+str(MinNumber))
-        return MinNumber
-    #End def RunTimeFromMkv 
+            MinNumber = int(Hour)*60 + int(Min)
+            #movie_log ("Min="+str(MinNumber))
+            tMin += MinNumber
+        return tMin
     
-    def FormatFromVideoFile(self):
+    def format_from_video_file(self):
         '''
         前置条件：
-        1、已经执行过CheckDirCont
+        1、已经执行过check_dir_cont
         2、有且只有一个有效的视频文件NumberOfVideo == 1
         
-        成功将把self.FormatStr置为找到的格式，并且返回1
+        成功将把self.format_str置为找到的格式，并且返回1
         否则返回0
         '''  
         
-        if not self.NumberOfVideo == 1 :
-            #DebugLog ("2+Video,don't know how to find format from video")
+        if not self.number_of_video == 1 :
+            #movie_log ("2+Video,don't know how to find format from video")
             return 0
         
-        FileName = self.VideoFileName[0]
+        FileName = self.video_files[0]
         Length = len(FileName)
         if FileName[-3:] == "mkv" or FileName[-3:] == "avi" or FileName[-3:] == "mp4":
-            self.FormatStr = FileName[:Length-4]
+            self.format_str = FileName[:Length-4]
             return 1
         elif FileName[-2:] == "ts":
-            self.FormatStr = FileName[:Length-3]
+            self.format_str = FileName[:Length-3]
             return 1
         else:
             return 0
-    #end def FormatFromVideoFile    
+    #end def format_from_video_file    
     
-    def RenameDirName(self):
+    def rename_dir_name(self):
         """
         前置条件：
-        1、正确执行过CheckDirName,即已经把DirName分解出各元素
-        2、正确执行过CheckDirCont，即该目录下有正确的视频文件，因为需要通过视频文件获取Min和Format
+        1、正确执行过check_dir_name,即已经把DirName分解出各元素
+        2、正确执行过check_dir_cont，即该目录下有正确的视频文件，因为需要通过视频文件获取Min和Format
         
         如果DirName信息不准确或者不完整的话，尝试补充完成并修改
         一、持续检查各个元素，如果缺少尝试补充:
         1、元素出现错误，并且无法补充完成，记录错误日志并返回0
-        2、无错误，也不需要补充修改，DirNameToDo=0，返回1
+        2、无错误，也不需要补充修改，dir_name_todo=0，返回1
         3、无错误，补充修改完成，DirNameTodo = 1 
         二、DirNameTodo =1，尝试修改
         1、如果ToDoExecDirName=1，则进行修改:
@@ -367,103 +326,103 @@ class Movie:
         2、否则，记录执行日志（ToDo）
         """
 
-        #DebugLog("begin RenameDirName")
-        if self.Collection == 1 :
-            ErrorLog("Error:it is collection in RenameDirName:"+self.DirName)
+        #movie_log("begin rename_dir_name")
+        if self.collection == 1 :
+            ErrorLog("Error:it is collection in rename_dir_name:"+self.dir_name)
             self.IsError = 1; return 0
             
-        if self.Number <= 0 or self.Number >= 10000 :
-            ErrorLog("ErrorNumber:"+self.DirName+"::"+str(self.Number))
+        if self.number <= 0 or self.number >= 10000 :
+            ErrorLog("ErrorNumber:"+self.dir_name+"::"+str(self.number))
             self.IsError = 1 ; return 0
                    
-        if  len(self.Nation) ==0 or len(self.Nation) >= 8 :
-            ErrorLog("8+Nation :"+self.DirName+"::"+self.Nation )
+        if  len(self.nation) ==0 or len(self.nation) >= 8 :
+            ErrorLog("8+nation :"+self.dir_name+"::"+self.nation )
             self.IsError = 1; return 0
             
-        if len (self.Name) == 0 or len(self.Name) >= 20 :
-            ErrorLog("20+Name :"+self.DirName+"::"+self.Name )
+        if len (self.name) == 0 or len(self.name) >= 20 :
+            ErrorLog("20+name :"+self.dir_name+"::"+self.name )
             self.IsError = 1; return 0
         
-        #DebugLog (str(self.Min))
-        MinFromMkv = self.RunTimeFromMkv()
-        #DebugLog (str(MinFromMkv))
-        if self.Min == 0 and self.Type == 0:
+        #movie_log (str(self.min))
+        MinFromMkv = self.runtime_from_mkv()
+        #movie_log (str(MinFromMkv))
+        if self.min == 0 and self.type == MOVIE:
             if MinFromMkv == 0:
-                ErrorLog("not Found Min:"+self.DirName)
+                ErrorLog("not Found Min:"+self.dir_name)
                 self.IsError = 1 ; return 0
             else:
-                self.Min = MinFromMkv ; self.DirNameToDo = 1
+                self.min = MinFromMkv ; self.dir_name_todo = 1
 
-        elif MinFromMkv != 0 and abs(self.Min-MinFromMkv) >= 2:
-            self.Min = MinFromMkv ; self.DirNameToDo = 1
-            DebugLog("Min-MinFromMkv >= 2")
+        elif self.type == MOVIE and MinFromMkv != 0 and abs(self.min-MinFromMkv) >= 2:
+            movie_log("Min-MinFromMkv >= 2:{}|{}".format(self.min,MinFromMkv))
+            self.min = MinFromMkv ; self.dir_name_todo = 1
         else:
             pass
             
-        self.FormatStr = self.FormatStr.strip()  #去掉前后空格
-        DebugLog("Current formatstr;"+self.FormatStr)
-        if len(self.FormatStr) == 0:
+        self.format_str = self.format_str.strip()  #去掉前后空格
+        movie_log("Current formatstr;"+self.format_str)
+        if len(self.format_str) == 0:
             #从video 文件名里提取出格式文件
-            if self.FormatFromVideoFile() == 0:
-                ErrorLog("not found Format:"+self.DirName)
+            if self.format_from_video_file() == 0:
+                ErrorLog("not found Format:"+self.dir_name)
                 self.IsError = 1; return 0
-            DebugLog("find Format:"+self.FormatStr)
-            self.DirNameToDo = 1
-        elif len(self.FormatStr) <= 10:
-            ErrorLog("10-Format:"+self.DirName+"::"+self.FormatStr)
+            movie_log("find Format:"+self.format_str)
+            self.dir_name_todo = 1
+        elif len(self.format_str) <= 10:
+            ErrorLog("10-Format:"+self.dir_name+"::"+self.format_str)
             self.IsError = 1; return 0
         else:
-            DebugLog ("correct format"+self.FormatStr)
+            movie_log ("correct format"+self.format_str)
         
-        #如果TODO=0，说明DirName不需要修改
-        if self.DirNameToDo == 0 :
-            DebugLog ("Correct DirName:"+self.DirName)
+        #如果TODO=0，说明dir_name不需要修改
+        if self.dir_name_todo == 0 :
+            movie_log ("Correct dir_name:"+self.dir_name)
             return 1
 
-        SourceDir = os.path.join(self.DirPath,self.DirName)
-        NumberStr = (str(self.Number)).zfill(4)
-        if self.Copy > 0:
-            NumberStr = NumberStr + "-" + str(self.Copy)
+        SourceDir = os.path.join(self.dir_path,self.dir_name)
+        NumberStr = (str(self.number)).zfill(4)
+        if self.copy > 0:
+            NumberStr = NumberStr + "-" + str(self.copy)
         
-        if self.Type == 0:
-            DestDirName = NumberStr+"-"+self.Nation+"-"+self.Name+" "+str(self.Min)+"Min "+self.FormatStr
-        elif self.Type == 1: 
-            DestDirName = NumberStr+"-"+self.Nation+"-电视剧-"+self.Name+" "+self.FormatStr
-        elif self.Type == 2:
-            DestDirName = NumberStr+"-"+self.Nation+"-纪录片-"+self.Name+" "+self.FormatStr
+        if self.type == MOVIE:
+            DestDirName = NumberStr+"-"+self.nation+"-"+self.name+" "+str(self.min)+"Min "+self.format_str
+        elif self.type == TV: 
+            DestDirName = NumberStr+"-"+self.nation+"-电视剧-"+self.name+" "+self.format_str
+        elif self.type == RECORD:
+            DestDirName = NumberStr+"-"+self.nation+"-纪录片-"+self.name+" "+self.format_str
         else:
-            ErrorLog("Error Type:"+self.DirName+"::"+int(self.Type))
+            ErrorLog("Error type:"+self.dir_name+"::"+int(self.type))
             self.IsError = 1; return 0
             
-        DestDir = os.path.join(self.DirPath,DestDirName)
+        DestDir = os.path.join(self.dir_path,DestDirName)
         
-        DebugLog("begin rename dirname:")
+        movie_log("begin rename dirname:")
         if Movie.ToBeExecDirName == True:
             try:
                 os.rename(SourceDir,DestDir)
-                ExecLog("mv "+self.DirName+'\n')
+                ExecLog("mv "+self.dir_name+'\n')
                 ExecLog("   "+DestDirName+'\n')
-                DebugLog ("rename success")
-                self.DirName = DestDirName
+                movie_log ("rename success")
+                self.dir_name = DestDirName
                 return 1
             except:
-                ErrorLog("mv failed:"+self.DirName+'\n')
+                ErrorLog("mv failed:"+self.dir_name+'\n')
                 ErrorLog("          "+DestDirName)
-                DebugLog ("Mv failed:"+SourceDir)
-                DebugLog ("          "+DestDir)
+                movie_log ("Mv failed:"+SourceDir)
+                movie_log ("          "+DestDir)
                 self.IsError = 1 ; return 0
         else:
-            ExecLog("ToDo mv "+self.DirName+'\n')
-            ExecLog("        "+DestDirName+'\n')
+            movie_log("ToDo mv "+self.dir_name+'\n')
+            movie_log("        "+DestDirName+'\n')
             return 1
     
-    #end def RenameDirName
+    #end def rename_dir_name
     
     
-    def CheckDirCont(self) :
+    def check_dir_cont(self) :
         '''
         前置条件:
-        1、执行过CheckDirName，因为需要调用self.IsCollection
+        1、执行过check_dir_name，因为需要调用self.IsCollection
         2、不能是合集，如果是返回错误。
         
         检查目录下的内容，可能有效的几种情况:
@@ -471,17 +430,17 @@ class Movie:
         2、有srt/ info/ SP/的子目录（其他目录非法，报错）
         3、没有子目录
         
-        1、Type为电视剧/纪录片下，目录中可以有多个视频文件
-        2、Type为0，目录中只有一个视频文件
-        3、Type为0，目录中有多个视频文件，但视频文件差别只有一个字符（且为数字），例如Disk1，Disk2
+        1、type为电视剧/纪录片下，目录中可以有多个视频文件
+        2、type为0，目录中只有一个视频文件
+        3、type为0，目录中有多个视频文件，但视频文件差别只有一个字符（且为数字），例如Disk1，Disk2
         4、忽略掉SP开头的视频文件（花絮等）
         5、发现有sample字样的视频文件，仅记录错误日志和标记在SampleVideo，待手工处理。以免误删
         
         6、有JPG海报文件，则拷贝poster/cover.jpg，无则标记Jpg=0，不影响检查和返回值
         '''
 
-        if self.Collection == 1 :
-            ErrorLog("Error:it is collection in CheckCont:"+self.DirName)
+        if self.collection == 1 :
+            ErrorLog("Error:it is collection in CheckCont:"+self.dir_name)
             self.IsError =1; return 0
             
         NumberOfSubDir = 0
@@ -490,14 +449,14 @@ class Movie:
         PostJpg = 0
         SubDirName = ""      #仅当NumberOfSubDir=1才有意义
         JpgFileName = ""
-        for File in os.listdir(os.path.join(self.DirPath,self.DirName)):
-            FullPathFile = os.path.join(os.path.join(self.DirPath,self.DirName),File)
+        for File in os.listdir(os.path.join(self.dir_path,self.dir_name)):
+            FullPathFile = os.path.join(os.path.join(self.dir_path,self.dir_name),File)
             if os.path.isdir(FullPathFile):
                 if File[0:2] == "SP" or File[0:3] == "srt" or File[0:3] == "inf" or File[0:4] == "info" : # 忽略掉特殊文件夹
-                    DebugLog ("it is SP/srt/info DIR:"+File)
+                    movie_log ("it is SP/srt/info DIR:"+File)
                     continue
                 if os.path.islink(FullPathFile) :
-                    DebugLog ("it is a link:"+self.DirName)
+                    movie_log ("it is a link:"+self.dir_name)
                     continue 
                 SubDirName = FullPathFile 
                 NumberOfSubDir += 1
@@ -506,15 +465,15 @@ class Movie:
                 #视频文件
                 if File[-3:] == "avi" or File[-3:] == "mkv" or File[-2:] == "ts" or File[-3:] == "mp4" :
                     if File[0:2] == "SP" :
-                        DebugLog ("find SP video:"+File)
-                        self.NumberOfSP += 1
+                        movie_log ("find SP video:"+File)
+                        self.number_of_SP += 1
                     elif re.search("sample",File,re.I):
-                        DebugLog ("find sample video:"+File+"::"+self.DirName)
-                        ErrorLog("sample video:"+File+"::"+self.DirName)  #仅记录，不做处理，待手工处理
-                        self.SampleVideo = File 
+                        movie_log ("find sample video:"+File+"::"+self.dir_name)
+                        ErrorLog("sample video:"+File+"::"+self.dir_name)  #仅记录，不做处理，待手工处理
+                        self.sample_video = File 
                     else:
-                        self.NumberOfVideo += 1
-                        self.VideoFileName.append(File)
+                        self.number_of_video += 1
+                        self.video_files.append(File)
                 #jpg海报文件
                 elif File[-3:] == "jpg" :
                     if File == "cover.jpg":
@@ -523,27 +482,30 @@ class Movie:
                         PostJpg = 1
                     else :
                         JpgFileName = File
+                #nfo
                 elif File[-3:] == "nfo" :
-                    self.Nfo = 1
+                    self.nfo = 1
+                elif File[-6:] == 'resume' or File[-6:] == 'torrent' or File == 'download.txt':
+                    pass
                 else:
-                    DebugLog ("other type file"+File)
+                    movie_log ("other type file"+File)
             else:
                 ErrorLog("not file or dir :"+FullPathFile)
                 self.IsError = 1; return 0
                 
         if NumberOfSubDir == 1:   #除了srt/info/SP/之外有一个子目录
             if NumberOfFile == 0 :#除了一个子目录外没有其他文件
-                SrcDir  = os.path.join(os.path.join(self.DirPath,self.DirName),SubDirName)
-                DestDir = os.path.join(self.DirPath,self.DirName)
+                SrcDir  = os.path.join(os.path.join(self.dir_path,self.dir_name),SubDirName)
+                DestDir = os.path.join(self.dir_path,self.dir_name)
                 if Movie.ToBeExecRmdir == True :
                     if MoveDirFile(SrcDir,DestDir) == SUCCESS:
                         ExecLog("mv "+SrcDir+" "+DestDir)
-                        return self.CheckDirCont()   #已经移动文件夹成功，再重新检查
+                        return self.check_dir_cont()   #已经移动文件夹成功，再重新检查
                     else:
                         ErrorLog("failed mv "+SrcDir+" "+DestDir)
                         self.IsError = 1; return 0                       
                 else:
-                    ExecLog("todo mv "+SrcDir+" "+DestDir)
+                    movie_log("todo mv "+SrcDir+" "+DestDir)
                     self.IsError = 1; return 0
             else:  #试图删除这个空的子目录，如果不成功，说明不是空的，报错
                 try :
@@ -553,187 +515,183 @@ class Movie:
                     ErrorLog("one not empty subdir:"+SubDirName)
                     self.IsError = 1; return 0
         elif NumberOfSubDir > 1:
-            ErrorLog("1+ subdir:"+self.DirName)
+            ErrorLog("1+ subdir:"+self.dir_name)
             self.IsError = 1; return 0
         else :
-            DebugLog ("no subdir"+self.DirName)
+            movie_log ("no subdir"+self.dir_name)
         
         #检查海报
-        CurrentPath = os.path.join(self.DirPath,self.DirName)
+        CurrentPath = os.path.join(self.dir_path,self.dir_name)
         if PostJpg == 1 :
             if CoverJpg == 0:
                 try :
                     SrcFileName  = os.path.join(CurrentPath,"poster.jpg")
                     DestFileName = os.path.join(CurrentPath,"cover.jpg")
                     shutil.copyfile(SrcFileName,DestFileName)
-                    ExecLog("cp poster.jpg cover.jpg in"+self.DirName)
-                    self.Jpg = 1
+                    ExecLog("cp poster.jpg cover.jpg in"+self.dir_name)
+                    self.jpg = 1
                 except:
-                    ErrorLog("failed cp poster.jpg in"+self.DirName)
+                    ErrorLog("failed cp poster.jpg in"+self.dir_name)
                     self.IsError = 1; return 0
             else:
-                self.Jpg = 1
+                self.jpg = 1
         elif CoverJpg == 1:   #没有poster.jpg但是有cover.jpg 
             try :
                 SrcFileName  = os.path.join(CurrentPath,"cover.jpg")
                 DestFileName = os.path.join(CurrentPath,"poster.jpg")
                 shutil.copyfile(SrcFileName,DestFileName)
-                ExecLog("cp cover.jpg in"+self.DirName)
-                self.Jpg = 1
+                ExecLog("cp cover.jpg in"+self.dir_name)
+                self.jpg = 1
             except:
-                ErrorLog("failed cp cover.jpg in"+self.DirName)
-                DebugLog("failed cp cover.jpg in"+self.DirName)
-                DebugLog(SrcFileName)
-                DebugLog (DestFileName)
+                ErrorLog("failed cp cover.jpg in"+self.dir_name)
+                movie_log("failed cp cover.jpg in"+self.dir_name)
+                movie_log(SrcFileName)
+                movie_log (DestFileName)
                 self.IsError = 1; return 0
         elif JpgFileName != "" : #但是还有其他jpg文件
             try :
                 SrcFileName  = os.path.join(CurrentPath,JpgFileName)
                 DestFileName = os.path.join(CurrentPath,"poster.jpg")
-                DebugLog ("To CP:"+SrcFileName)
-                DebugLog ("      "+DestFileName)
+                movie_log ("To CP:"+SrcFileName)
+                movie_log ("      "+DestFileName)
                 shutil.copyfile(SrcFileName,DestFileName)
-                ExecLog("cp "+JpgFileName+" poster.jpg in"+self.DirName)
+                ExecLog("cp "+JpgFileName+" poster.jpg in"+self.dir_name)
                 DestFileName = os.path.join(CurrentPath,"cover.jpg")
                 shutil.copyfile(SrcFileName,DestFileName)
-                DebugLog ("      "+DestFileName)
-                ExecLog("cp "+JpgFileName+" cover.jpg in"+self.DirName)
-                self.Jpg = 1
+                movie_log ("      "+DestFileName)
+                ExecLog("cp "+JpgFileName+" cover.jpg in"+self.dir_name)
+                self.jpg = 1
             except:
-                ErrorLog("failed cp "+JpgFileName+" in"+self.DirName)
+                ErrorLog("failed cp "+JpgFileName+" in"+self.dir_name)
                 self.IsError = 1; return 0
         else:
-            ErrorLog("no jpg file:"+self.DirName)
-            self.Jpg = 0   #标记，但不返回，不影响后续检查操作
+            ErrorLog("no jpg file:"+self.dir_name)
+            self.jpg = 0   #标记，但不返回，不影响后续检查操作
         #print("check jpg complete")
         
         # 检查视频文件
-        if self.NumberOfVideo == 0:
-            ErrorLog("no video in"+self.DirName)
+        if self.number_of_video == 0:
+            ErrorLog("no video in"+self.dir_name)
             self.IsError = 1 ; return 0
-        elif self.NumberOfVideo == 1:
+        elif self.number_of_video == 1:
             #print("check video complete")
             return 1
         else : #>=2忽略SP/sample外，还有多个视频文件，则需要进一步分析
-            if self.Type == 1 or self.Type == 2 : #电视剧/纪录片
+            if self.type == RECORD or self.type == TV : #电视剧/纪录片
                 pass
             else:
                 #比较多个video名的差别，
                 #如果长度一致，仅有一个字符的差别，且这个字符是数字。则OK，否则报错
                 #先以第一个VideoFileName为比较对象，后面逐个VideoFileName和它比较
-                length = len(self.VideoFileName[0])
-                i = 1
-                while i < self.NumberOfVideo :
-                    if len(self.VideoFileName[i]) != length :
-                        ErrorLog("diff len video:"+self.DirName)
-                        DebugLog ("diff len video:"+self.DirName)
-                        DebugLog ("  1:"+self.VideoFileName[0])
-                        DebugLog ("  2:"+self.VideoFileName[i])
-                        self.NumberOfVideo = -1
-                        self.IsError = 1 ; return 0
-                    
-                    NumberOfDiff = 0 #不同字符的个数
-                    SrcStr  = self.VideoFileName[0]
-                    DestStr = self.VideoFileName[i]
-                    j = 0
-                    while j < length :
-                        SrcChar  = SrcStr[j:j+1]
-                        DestChar = DestStr[j:j+1]
-                        if SrcChar != DestChar:
-                            if SrcChar.isdigit() and DestChar.isdigit():
-                                NumberOfDiff += 1
-                            else :
-                                #有不同的字符，且至少有一个不是数字，报错
-                                ErrorLog("Diff Char Video:"+self.DirName)
-                                DebugLog ("diff Char video:"+self.DirName)
-                                DebugLog ("  1:"+self.VideoFileName[0])
-                                DebugLog ("  2:"+self.VideoFileName[i])  
-                                self.NumberOfVideo = -1
-                                self.IsError = 1 ; return 0
-                        j+=1
-                    
-                    if NumberOfDiff > 1:
-                        ErrorLog("2+ diff video:"+DirName)
-                        DebugLog ("2+diff video:"+DirName)
-                        DebugLog ("  1:"+self.VideoFileName[0])
-                        DebugLog ("  2:"+self.VideoFileName[i])
-                        self.NumberOfVideo = -1
-                        self.IsError = 1 ; return 0
-                    i+=1
+                length = len(self.video_files[0])
+                for i in range(self.number_of_video):
+                    if len(self.video_files[i]) != length :
+                        ErrorLog("diff len video:"+self.dir_name)
+                        movie_log ("diff len video:"+self.dir_name)
+                        movie_log ("  1:"+self.video_files[0])
+                        movie_log ("  2:"+self.video_files[i])
+                        #self.number_of_video = -1
+                        #self.IsError = 1 ; return 0
         #检查视频文件结束
         #print("check video complete")
-    #end def CheckDirCont    
+    #end def check_dir_cont    
         
+    def check_info(self):
+        if self.imdb_id == "" and self.douban_id == "": 
+            if self.get_id_from_table() == False:
+                ExecLog("empty imdb_id and douban_id in:"+self.dir_name)
+                return False
+
+        tInfo = Info(self.douban_id,self.imdb_id)
+        if tInfo.movie_name != "" and (tInfo.director != "" or tInfo.actors != "") and tInfo.nation == "":
+            return True
+
+        if tInfo.spider_douban() != OK :
+            ExecLog("failed to spider_douban:"+self.dir_name)
+            if not tInfo.douban_detail():
+                ExecLog("failed to douban_detail:"+self.dir_name)
+                return False
+
+        tCurrentPath = os.path.join(self.dir_path,self.dir_name)
+        if not os.path.isfile(os.path.join(tCurrentPath,'poster.jpg')):
+            tInfo.download_poster(tCurrentPath)
+
+        return tInfo.update_or_insert()
+
     
-    def CheckMovie(self):
+    def check_movie(self):
         '''
-        在创建一个Movie对象后，执行检查。它将逐个调用selfDirName，CheckDirCont，RenameDirName
+        在创建一个Movie对象后，执行检查。它将逐个调用check_dir_name，check_dir_cont，rename_dir_name
         
-        如果目录是一个合集的话，它将标记Collection，然后创建SubMovie对象，并逐个检查
+        如果目录是一个合集的话，它将标记collection，然后创建SubMovie对象，并逐个检查
         '''
         
-        if self.CheckDirName() == 0 :
-            ErrorLog("failed CheckDirName:"+self.DirName)
+        if self.check_dir_name() == 0 :
+            ErrorLog("failed check_dir_name:"+self.dir_name)
             self.IsError = 1; return 0
         
-        if self.Collection == 1:
-            
-            Movie.Count -= 1    # 这是一个合集目录，不应该计数
-            
-            DebugLog ("Begin Collection"+self.DirName)
-            SubDirPath = os.path.join(self.DirPath,self.DirName)
+        if self.check_info() == False:
+            ErrorLog("failed check_info:"+self.dir_name)
+            #self.IsError = 1; return 0
+
+        if self.collection == 1:
+            movie_log ("Begin collection"+self.dir_name)
+            SubDirPath = os.path.join(self.dir_path,self.dir_name)
             for File in os.listdir(SubDirPath):
                 FullPathFile = os.path.join(SubDirPath,File)
                 if os.path.isdir(FullPathFile):
-                    self.SubMovie.append(Movie(SubDirPath,File))
-                    self.SubMovie[-1].CheckMovie()
-                    self.SubMovieCount += 1
-            DebugLog ("End Collection"+self.DirName)
-            if self.SubMovieCount > 0 :
+                    self.sub_movie.append(Movie(SubDirPath,File,self.disk))
+                    self.sub_movie[-1].check_movie()
+                    self.sub_movie_count += 1
+            movie_log ("End collection"+self.dir_name)
+            if self.sub_movie_count > 0 :
                 return 1
             else:
-                ErrorLog ("empty Collection:"+self.DirName)
+                ErrorLog ("empty collection:"+self.dir_name)
                 self.IsError = 1 ; return 0
-        #end if self.Collection == 1
+        #end if self.collection == 1
         
-        if self.CheckDirCont() == 0 :
-            ErrorLog("failed CheckDirCont:"+self.DirName)
+        if self.check_dir_cont() == 0 :
+            ErrorLog("failed check_dir_cont:"+self.dir_name)
             self.IsError = 1; return 0
             
-        if self.RenameDirName() == 0 :
-            ErrorLog("failed RenameDirName:"+self.DirName)
+        if self.rename_dir_name() == 0 :
+            ErrorLog("failed rename_dir_name:"+self.dir_name)
             self.IsError = 1; return 0
         
-        if self.SplitFormat() == 0:
-            ErrorLog("SplitFormat:"+self.DirName)
+        if self.split_format() == 0:
+            ErrorLog("split_format:"+self.dir_name)
+            self.IsError = 1; return 0
+        if self.check_table() != SUCCESS:
+            ErrorLog("check_table:"+self.dir_name)
             self.IsError = 1; return 0
         return 1
-    #end def CheckMovie
+    #end def check_movie
 
     
-    def SplitFormat(self):
+    def split_format(self):
     
         '''
         对Format进行分析，提取年份，分辨率，压缩算法等
     
         前置条件：
-        FormatStr已经获取，最好在RenameDirName后执行 
+        FormatStr已经获取，最好在rename_dir_name后执行 
         '''
 
         
-        self.FormatStr = self.FormatStr.strip()
-        if len(self.FormatStr) == 0 :
-            ErrorLog ("no format:"+self.DirName)
+        self.format_str = self.format_str.strip()
+        if len(self.format_str) == 0 :
+            ErrorLog ("no format:"+self.dir_name)
             self.IsError = 1; return 0
 
         #尝试进行空格分割
         #SplitSign = ' '
-        FormatList = (self.FormatStr).split()
+        FormatList = (self.format_str).split()
         if len(FormatList) < 3:
             #再尝试进行'.'分割
-            FormatList = (self.FormatStr).split('.')
+            FormatList = (self.format_str).split('.')
             if len(FormatList) < 3:
-                ErrorLog("3- format:"+self.FormatStr)
+                ErrorLog("3- format:"+self.format_str)
                 self.IsError = 1; return 0
             #else :
             #SplitSign = '.'
@@ -743,7 +701,7 @@ class Movie:
         tIndex = tStr.rfind('-')
         if tIndex > 0:
             FormatList[-1] = tStr[:tIndex]
-            self.ZipGroup = tStr[tIndex+1:]
+            self.zip_group = tStr[tIndex+1:]
         
         NumberOfElement=0  #找到了几个关键字
         LastIndex = -1     #找到关键字后要标记出它在FormatList中的索引
@@ -751,7 +709,7 @@ class Movie:
         #beginfrom 1,0 must be englishname
         i=1 ; FormatSign.append(0)
         while i < len(FormatList) :
-            DebugLog ("FormatList:i="+str(i)+"::"+FormatList[i])
+            movie_log ("FormatList:i="+str(i)+"::"+FormatList[i])
             TempStr = FormatList[i].lower()
             TempStr = TempStr.replace(' ','')  #删除空格并把它全部转换为小写，便于比较
             FormatSign.append(0)
@@ -759,8 +717,8 @@ class Movie:
             #年份：
             if (TempStr.isdigit() and int(TempStr) > 1900 and int(TempStr) <= int(datetime.datetime.now().year)):
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                self.Year = int(FormatList[i])
-                DebugLog ("find Year:"+str(self.Year)+"i="+str(i))
+                self.year = int(FormatList[i])
+                movie_log ("find Year:"+str(self.year)+"i="+str(i))
             #版本
             elif TempStr == "cc" or \
                  TempStr == "dc" or \
@@ -773,30 +731,31 @@ class Movie:
                  TempStr == "re-grade" or\
                  TempStr == "cut":
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                if self.Version == "": self.Version = FormatList[i]
-                else:                  self.Version += '-'+FormatList[i]
-                DebugLog ("find Version:"+self.Version+"i="+str(i))
+                if self.version == "": self.version = FormatList[i]
+                else:                  self.version += '-'+FormatList[i]
+                movie_log ("find Version:"+self.version+"i="+str(i))
             #国家版本
             elif TempStr.upper() == "JPN" or \
                  TempStr.upper() == "GBR" or \
                  TempStr.upper() == "KOR" or \
                  TempStr.upper() == "ESP" or \
                  TempStr.upper() == "USA" or \
+                 TempStr.upper() == "NLD" or \
                  TempStr.upper() == "FRA" or \
                  TempStr.upper() == "TW" or \
                  TempStr.upper() == "BFI" or \
                  TempStr.upper() == "TOHO" or \
                  TempStr.upper() == "HK":
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                self.NationVersion = FormatList[i]
-                DebugLog ("find NationVersion:"+self.NationVersion+"i="+str(i))
+                self.nation_version = FormatList[i]
+                movie_log ("find nation_version:"+self.nation_version+"i="+str(i))
             #特别说明，例如rerip
             elif TempStr == "rerip" or \
                  TempStr == "remastered" or\
                  TempStr == "repack":
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                self.Special = FormatList[i]
-                DebugLog ("find Special:"+self.Special+"i="+str(i))
+                self.special = FormatList[i]
+                movie_log ("find special:"+self.special+"i="+str(i))
             #分辨率
             elif TempStr == "720p" or \
                  TempStr == "1080p" or \
@@ -806,12 +765,12 @@ class Movie:
                  re.match("[0-9][0-9][0-9][0-9]x[0-9][0-9][0-9]p",TempStr) is not None or \
                  re.match("[0-9][0-9][0-9][0-9]x[0-9][0-9][0-9][0-9]p",TempStr) is not None:
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                self.Radio = FormatList[i]
-                DebugLog ("find Radio:"+self.Radio+"i="+str(i))
+                self.radio = FormatList[i]
+                movie_log ("find Radio:"+self.radio+"i="+str(i))
             #ignore 2d
             elif TempStr == "2d":   
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                DebugLog ("ignore 2d:"+"i="+str(i))
+                movie_log ("ignore 2d:"+"i="+str(i))
             #来源
             elif TempStr == "bluray" or \
                  TempStr == "blu-ray" or \
@@ -824,18 +783,19 @@ class Movie:
                  TempStr == "nf" or\
                  TempStr == "itunes" or\
                  TempStr == "web-dl" or \
+                 TempStr == "webrip" or \
                  TempStr == "hdtv" :
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                if self.Source == "": self.Source = FormatList[i]
-                else:                 self.Source += '-'+FormatList[i]
-                DebugLog ("find Source:"+self.Source+"i="+str(i))
+                if self.source == "": self.source = FormatList[i]
+                else:                 self.source += '-'+FormatList[i]
+                movie_log ("find source:"+self.source+"i="+str(i))
             #压缩算法
             elif TempStr == "x265.10bit" or \
                  TempStr == "x265 10bit" or \
                  TempStr == "x265-10bit" :
                 NumberOfElement += 2 ; LastIndex = i ; FormatSign[i] = 1
-                self.Compress = "x265" ; self.Bit = "10bit"
-                DebugLog ("find Compress and bit：x265.10bit")
+                self.compress = "x265" ; self.bit = "10bit"
+                movie_log ("find compress and bit：x265.10bit")
             elif TempStr == "x264" or \
                  TempStr == "h264" or \
                  TempStr == "x265" or \
@@ -843,8 +803,8 @@ class Movie:
                  TempStr == "avc" or \
                  TempStr == "hevc" :
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                self.Compress = FormatList[i]
-                DebugLog ("find Compress:"+self.Compress+"i="+str(i))
+                self.compress = FormatList[i]
+                movie_log ("find compress:"+self.compress+"i="+str(i))
             #音频格式
             elif TempStr[0:3] == "dts" or \
                  TempStr[0:6] == "dts-hd" or \
@@ -856,15 +816,17 @@ class Movie:
                  TempStr[0:3] == "dd5" or \
                  TempStr[0:3] == "dda" or \
                  TempStr[0:3] == "ddp" or \
+                 TempStr[0:3] == "dd+" or \
                  TempStr[0:4] == "lpcm" or \
                  TempStr[0:4] == "flac" or \
                  TempStr[0:5] == "atmos" or \
                  TempStr[0:6] == "truehd" or \
+                 TempStr[0:6] == "ddplus" or \
                  TempStr[0:7] == "true-hd" or \
                  TempStr == "dd" :     
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                self.Audio += FormatList[i]
-                DebugLog ("find audio:"+self.Audio+"i="+str(i))
+                self.audio += FormatList[i]
+                movie_log ("find audio:"+self.audio+"i="+str(i))
                 
                 #音频格式比较复杂，后面可能还有信息被分割成下一个组了
                 #所以，需要继续识别后面的组元素是否要加入音频格式
@@ -888,48 +850,48 @@ class Movie:
                        TempStr2 == '6' or \
                        TempStr2 == '7' :
                         i += 1; LastIndex = i; FormatSign.append(1)
-                        self.Audio += FormatList[i]
+                        self.audio += FormatList[i]
                     else : #只要有一个不满足条件就跳出循环
                         break
-                DebugLog ("find Audio-end："+self.Audio)
-            #音轨，如2Audio
+                movie_log ("find audio-end："+self.audio)
+            #音轨，如2audio
             elif TempStr[-5:] == "audio" or TempStr[-6:] == "audios":
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                self.Track = FormatList[i]
-                DebugLog ("find Track"+self.Track+"i="+str(i))
+                self.track = FormatList[i]
+                movie_log ("find track"+self.track+"i="+str(i))
             #色彩精度，10bit
             elif TempStr == "10bit" or TempStr == "8bit" :
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                self.Bit = FormatList[i]
-                DebugLog ("find bit ："+self.Bit+"i="+str(i))
+                self.bit = FormatList[i]
+                movie_log ("find bit ："+self.bit+"i="+str(i))
             elif TempStr == "hdr" or\
                  TempStr == "hdr10" or\
                  TempStr == "hdrplus" or\
                  TempStr == "hdr10plus":
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
                 self.HDR = FormatList[i]
-                DebugLog ("find hdr"+"i="+str(i))
+                movie_log ("find hdr"+"i="+str(i))
             elif TempStr == "mnhd" or\
                  TempStr == "muhd" :
                 NumberOfElement += 1 ; LastIndex = i ; FormatSign[i] = 1
-                if self.ZipGroup == "" : self.ZipGroup = FormatList[i]
-                else :                   self.ZipGroup = FormatList[i]+'-'+self.ZipGroup
-                DebugLog ("ZipGroup:"+self.ZipGroup+" i="+str(i))
+                if self.zip_group == "" : self.zip_group = FormatList[i]
+                else :                   self.zip_group = FormatList[i]+'-'+self.zip_group
+                movie_log ("zip_group:"+self.zip_group+" i="+str(i))
             else :
                 pass 
             
-            if NumberOfElement == 1 and self.EnglishName == "": #第一次识别出关键字，那么之前的就是片名了        
+            if NumberOfElement == 1 and self.english_name == "": #第一次识别出关键字，那么之前的就是片名了        
                 if i == 0: #第一个分割字符就是关键字，说明没有找到片名
-                    ErrorLog("no name:"+self.DirName)
+                    ErrorLog("no name:"+self.dir_name)
                     self.IsError = 1; return 0
                 j=0
                 while j < i:
                     if j != 0 :
-                        self.EnglishName += '.'
-                    self.EnglishName += FormatList[j]
+                        self.english_name += '.'
+                    self.english_name += FormatList[j]
                     FormatSign[j] = 1
                     j += 1   
-                DebugLog ("name="+self.EnglishName)
+                movie_log ("name="+self.english_name)
             i += 1
             
         #end while i < len(FormatList)
@@ -937,17 +899,17 @@ class Movie:
         #识别出的最后关键字为压缩组
         i=LastIndex+1
         while i < len(FormatSign) :
-            if self.ZipGroup == "": self.ZipGroup = FormatList[i]
-            else :                 self.ZipGroup = FormatList[i]+'-'+self.ZipGroup
+            if self.zip_group == "": self.zip_group = FormatList[i]
+            else :                 self.zip_group = FormatList[i]+'-'+self.zip_group
             FormatSign[i] = 1
             i += 1
-        DebugLog ("Group="+self.ZipGroup)
+        movie_log ("Group="+self.zip_group)
         
         #找出所有未识别的元素
         i = 0 ; Error = 0
         while i < len(FormatSign) :
             if FormatSign[i] == 0:
-                DebugLog ("unknown word:"+FormatList[i])
+                movie_log ("unknown word:"+FormatList[i])
                 Error = 1
             i += 1
             
@@ -956,261 +918,219 @@ class Movie:
         
         #重新组装 FormatStr
         String = ""
-        if self.EnglishName != "" : String += self.EnglishName+"."
-        if self.Year != 0         : String += str(self.Year)+"."
-        if self.NationVersion !="": String += self.NationVersion+"."
-        if self.Version != ""     : String += self.Version+"."
-        if self.Radio != ""       : String += self.Radio+"."
-        if self.Special != ""     : String += self.Special+"."
-        if self.Source != ""      : String += self.Source +"."
-        if self.Compress != ""    : String += self.Compress+"."
-        if self.Bit != ""         : String += self.Bit+"."
+        if self.english_name != "" : String += self.english_name+"."
+        if self.year != 0         : String += str(self.year)+"."
+        if self.nation_version !="": String += self.nation_version+"."
+        if self.version != ""     : String += self.version+"."
+        if self.radio != ""       : String += self.radio+"."
+        if self.special != ""     : String += self.special+"."
+        if self.source != ""      : String += self.source +"."
+        if self.compress != ""    : String += self.compress+"."
+        if self.bit != ""         : String += self.bit+"."
         if self.HDR !=  ""        : String += self.HDR+"."
-        if self.Audio != ""       : String += self.Audio+"."
-        if self.Track != ""       : String += self.Track+"."
-        if self.ZipGroup != ""    : String += self.ZipGroup
-        DebugLog("new format:"+String)
-        #self.FormatStr = String
+        if self.audio != ""       : String += self.audio+"."
+        if self.track != ""       : String += self.track+"."
+        if self.zip_group != ""    : String += self.zip_group
+        movie_log("new format:"+String)
+        #self.format_str = String
         return 1
-    #end def SplitFormat()
+    #end def split_format()
     
-    def CheckTable(self,tDisk):
+    def check_table(self):
         """
         进行插入表或者更新
         返回值：
             TABLE_ERROR  错误
         """
-        tCurrentTime = datetime.datetime.now()
-        gCheckTime=tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')
-        if self.Collection == 1:
-            i = 0
-            while i < len(self.SubMovie):
-                if CheckTable(self.SubMovie[i],tDisk) != SUCCESS: return TABLE_ERROR
-                i += 1
+        if self.collection == 1:
+            for i in range(len(self.sub_movie)):
+                if check_table(self.sub_movie[i]) != SUCCESS: return TABLE_ERROR
             return SUCCESS
             
-        if self.Number < 0 or self.Copy < 0 : ErrorLog("Number error:"+str(self.Number)+"::"+str(self.Copy)); return TABLE_ERROR
+        if self.number <= 0 or self.copy < 0 : ErrorLog("number error:"+str(self.number)+"::"+str(self.copy)); return TABLE_ERROR
 
-        #select from movies where Number == self.Number and Copy == self.Copy
-        se_sql = "select \
-            Nation,Type,Name,Min,FormatStr,DirName,Jpg,Nfo,NumberOfSP,NumberOfVideo,EnglishName,Year,Radio,Version,NationVersion,Special,Source,Compress,Audio,Track,Bit,HDR,ZipGroup,Deleted,Disk\
-            from movies where Number=%s and Copy=%s"
-        se_val = (self.Number,self.Copy)    
-        tSelectResult = select(se_sql,se_val)
-        #假如不存在就insert
-        if tSelectResult == None: return TABLE_ERROR
-        if len(tSelectResult) == 0: 
-            Number = self.Number
-            Copy = self.Copy
-            Nation = self.Nation
-            Type = self.Type
-            Name = self.Name
-            Min = self.Min
-            FormatStr = self.FormatStr
-            DirName = self.DirName
-            Jpg = self.Jpg
-            Nfo = self.Nfo
-            NumberOfSP = self.NumberOfSP
-            NumberOfVideo = self.NumberOfVideo
-            EnglishName = self.EnglishName
-            Year = self.Year
-            Radio = self.Radio
-            Version = self.Version
-            NationVersion = self.NationVersion
-            Special = self.Special
-            Source = self.Source
-            Compress = self.Compress
-            Audio = self.Audio
-            Track = self.Track
-            Bit = self.Bit 
-            HDR = self.HDR 
-            ZipGroup = self.ZipGroup
-            Deleted = 0
-            Disk = tDisk
-            UpdateTime = gCheckTime
-            CheckTime = gCheckTime
-            in_sql = "INSERT INTO movies \
-                    (Number,Copy,Nation,Type,Name,Min,FormatStr,DirName,Jpg,Nfo,NumberOfSP,NumberOfVideo,EnglishName,Year,Radio,Version,NationVersion,Special,Source,Compress,Audio,Track,Bit,HDR,ZipGroup,Deleted,Disk,UpdateTime,CheckTime) \
-              VALUES(%s    ,%s  ,%s    ,%s   ,%s ,%s ,%s       ,%s      ,%s,%s ,%s        ,%s           ,%s         ,%s  ,%s   ,%s     ,%s           ,%s     ,%s    ,%s      ,%s   ,%s   ,%s ,%s ,%s      ,%s     ,%s  ,%s        ,%s )"
-            in_val= (Number,Copy,Nation,Type,Name,Min,FormatStr,DirName,Jpg,Nfo,NumberOfSP,NumberOfVideo,EnglishName,Year,Radio,Version,NationVersion,Special,Source,Compress,Audio,Track,Bit,HDR,ZipGroup,Deleted,Disk,UpdateTime,CheckTime)
-            if insert(in_sql,in_val):
-                print("insert movies:"+DirName)
-                DebugLog("insert movies:"+DirName)
+        dbMovie = Movie(number=self.number,copy=self.copy)
+        if dbMovie.select() == False:  #数据库中不存在插入
+            if self.insert():
+                ExecLog("insert movies:"+self.dir_name)
                 return SUCCESS
             else:
-                ErrorLog("insert error:"+DirName)
+                ExecLog("failed to insert movies:"+self.dir_name)
                 return TABLE_ERROR
         #已经存在就update
-        elif len(tSelectResult) == 1:
-            Nation        = self.Nation;        
-            Type          = self.Type;         
-            Name          = self.Name;       
-            Min           = self.Min;        
-            FormatStr     = self.FormatStr;   
-            DirName       = self.DirName;     
-            Jpg           = self.Jpg;     
-            Nfo           = self.Nfo;   
-            NumberOfSP    = self.NumberOfSP;  
-            NumberOfVideo = self.NumberOfVideo;
-            EnglishName   = self.EnglishName;  
-            Year          = self.Year;     
-            Radio         = self.Radio;    
-            Version       = self.Version;  
-            NationVersion = self.NationVersion;
-            Special       = self.Special;  
-            Source        = self.Source;  
-            Compress      = self.Compress;  
-            Audio         = self.Audio;  
-            Track         = self.Track; 
-            Bit           = self.Bit;  
-            HDR           = self.HDR; 
-            ZipGroup      = self.ZipGroup;   
-            Deleted       = 0;        
-            Disk          = tDisk; 
-            UpdateTime    = gCheckTime
-            CheckTime     = gCheckTime
-            Number         = self.Number
-            Copy          = self.Copy
-            
-            tUpdated = 0; tSelect = tSelectResult[0]
-            if Nation        != tSelect[0] : tUpdated += 1
-            if Type          != tSelect[1] : tUpdated += 1
-            if Name          != tSelect[2] : tUpdated += 1
-            if Min           != tSelect[3] : tUpdated += 1
-            if FormatStr     != tSelect[4] : tUpdated += 1
-            if DirName       != tSelect[5] : tUpdated += 1
-            if Jpg           != tSelect[6] : tUpdated += 1
-            if Nfo           != tSelect[7] : tUpdated += 1
-            if NumberOfSP    != tSelect[8] : tUpdated += 1
-            if NumberOfVideo != tSelect[9] : tUpdated += 1
-            if EnglishName   != tSelect[10] : tUpdated += 1
-            if Year          != tSelect[11] : tUpdated += 1
-            if Radio         != tSelect[12] : tUpdated += 1
-            if Version       != tSelect[13] : tUpdated += 1
-            if NationVersion != tSelect[14] : tUpdated += 1
-            if Special       != tSelect[15] : tUpdated += 1
-            if Source        != tSelect[16] : tUpdated += 1
-            if Compress      != tSelect[17] : tUpdated += 1
-            if Audio         != tSelect[18] : tUpdated += 1
-            if Track         != tSelect[19] : tUpdated += 1
-            if Bit           != tSelect[20] : tUpdated += 1
-            if HDR           != tSelect[21] : tUpdated += 1
-            if ZipGroup      != tSelect[22] : tUpdated += 1  
-            if Deleted       != tSelect[23] : tUpdated += 1
-            if Disk          != tSelect[24] : tUpdated += 1        
-
-            if Nation        != tSelect[0] : print("Nation: new="+Nation+"::"+tSelect[0])
-            if Type          != tSelect[1] : print("Type: new="+str(Type)+"::"+str(tSelect[1]))
-            if Name          != tSelect[2] : print("Name: new="+Name+"::"+tSelect[2])
-            if Min           != tSelect[3] : print("Min: new="+str(Min)+"::"+str(tSelect[3]))
-            if FormatStr     != tSelect[4] : print("FormatStr: new="+FormatStr+"::"+tSelect[4])
-            if DirName       != tSelect[5] : print("DirName: new="+DirName+"::"+tSelect[5])
-            if Jpg           != tSelect[6] : print("Jpg: new="+str(Jpg)+"::"+str(tSelect[6]))
-            if Nfo           != tSelect[7] : print("Nfo: new="+str(Nfo)+"::"+str(tSelect[7]))
-            if NumberOfSP    != tSelect[8] : print("NumberOfSP: new="+str(NumberOfSP)+"::"+str(tSelect[8]))
-            if NumberOfVideo != tSelect[9] : print("NumberOfVideo: new="+str(NumberOfVideo)+"::"+str(tSelect[9]))
-            if EnglishName   != tSelect[10] : print("EnglishName: new="+EnglishName+"::"+tSelect[10])
-            if Year          != tSelect[11] : print("Year: new="+str(Year)+"::"+str(tSelect[11]))
-            if Radio         != tSelect[12] : print("Radio: new="+Radio+"::"+tSelect[12])
-            if Version       != tSelect[13] : print("Version: new="+Version+"::"+tSelect[13])
-            if NationVersion != tSelect[14] : print("NationVersion: new="+NationVersion+"::"+tSelect[14])
-            if Special       != tSelect[15] : print("Special: new="+Special+"::"+tSelect[15])
-            if Source        != tSelect[16] : print("Source: new="+Source+"::"+tSelect[16])
-            if Compress      != tSelect[17] : print("Compress: new="+Compress+"::"+tSelect[17])
-            if Audio         != tSelect[18] : print("Audio: new="+Audio+"::"+tSelect[18])
-            if Track         != tSelect[19] : print("Track: new="+Track+"::"+tSelect[19])
-            if Bit           != tSelect[20] : print("Bit: new="+Bit+"::"+tSelect[20])
-            if HDR           != tSelect[21] : print("HDR: new="+HDR+"::"+tSelect[21])
-            if ZipGroup      != tSelect[22] : print("ZipGroup: new="+ZipGroup+"::"+tSelect[22])
-            if Deleted       != tSelect[23] : print("Deleted: new="+str(Deleted)+"::"+str(tSelect[23]))
-            if Disk          != tSelect[24] : print("Disk: new="+Disk+"::"+tSelect[24])        
-            if Name != tSelect[2] :
-                #序号相同，但名字不同，则有可能是序号重复了（小概率是修改名字了），仍然继续更新，但记录错误日志，待手工核实
-                ErrorLog("Warning update New DirName:"+DirName)
-                ErrorLog("               old DirName:"+tSelect[5])
-                #return TABLE_ERROR
-                
-            if tUpdated >= 1:
-                up_sql = "UPDATE movies set \
-                        Nation=%s,\
-                        Type=%s,\
-                        Name=%s,\
-                        Min=%s,\
-                        FormatStr=%s,\
-                        DirName=%s,\
-                        Jpg=%s,\
-                        Nfo=%s,\
-                        NumberOfSP=%s,\
-                        NumberOfVideo=%s,\
-                        EnglishName=%s,\
-                        Year=%s,\
-                        Radio=%s,\
-                        Version=%s,\
-                        NationVersion=%s,\
-                        Special=%s,\
-                        Source=%s,\
-                        Compress=%s,\
-                        Audio=%s,\
-                        Track=%s,\
-                        Bit=%s,\
-                        HDR=%s,\
-                        ZipGroup=%s,\
-                        Deleted=%s,\
-                        Disk=%s,\
-                        UpdateTime=%s,\
-                        CheckTime=%s \
-                        where Number=%s and copy=%s"
-                up_val = (\
-                        Nation,\
-                        Type,\
-                        Name,\
-                        Min,\
-                        FormatStr,\
-                        DirName,\
-                        Jpg,\
-                        Nfo,\
-                        NumberOfSP,\
-                        NumberOfVideo,\
-                        EnglishName,\
-                        Year,\
-                        Radio,\
-                        Version,\
-                        NationVersion,\
-                        Special,\
-                        Source,\
-                        Compress,\
-                        Audio,\
-                        Track,\
-                        Bit,\
-                        HDR,\
-                        ZipGroup,\
-                        Deleted,\
-                        Disk,\
-                        UpdateTime,\
-                        CheckTime,\
-                        Number, Copy)            
-            else:
-                up_sql = "UPDATE movies set CheckTime = %s where Number= %s and Copy = %s"
-                up_val = (CheckTime,Number,Copy)
-            if update(up_sql,up_val):
-                if tUpdated >= 1:
-                    print("update:"+DirName)
-                    DebugLog("update:"+DirName+" ::where Number="+str(Number).zfill(4)+"and Copy="+str(Copy))
+        else:
+            if self.compare_movie(dbMovie):   #和数据库比较,有变化
+                if self.update(): 
+                    ExecLog("update movies:"+self.dir_name)
+                    return SUCCESS
                 else:
-                    DebugLog("update checktime:"+DirName)
+                    ErrorLog("update error:"+self.dir_name)
+                    return TABLE_ERROR
+            else : 
+                update("update movies set checked=1 where number=%s and copy=%s",(self.number,self.copy))
+                movie_log("no change:"+self.dir_name)
                 return SUCCESS
-            else:
-                ErrorLog("update error:"+DirName+":"+up_sql)
-                return TABLE_ERROR
-        else : 
-            ErrorLog("2+ result:"+str(self.Number)+"::"+str(self.Copy))
-            return TABLE_ERROR
 
+    def select(self,assign_value=True):
+        if self.collection == 1 or self.number <= 0: return False
+
+        se_sql = "select \
+            nation,type,name,Min,FormatStr,DirName,Jpg,Nfo,NumberOfSP,NumberOfVideo,englishname,Year,Radio,Version,NationVersion,special,source,compress,audio,track,bit,HDR,ZipGroup,Deleted,disk,IMDBID,DoubanID \
+            from movies where number=%s and copy=%s"
+        se_val = (self.number,self.copy)    
+        tSelectResult = select(se_sql,se_val)
+        if tSelectResult == None or len(tSelectResult) == 0: return False
+        tSelect = tSelectResult[0]
+        if assign_value == True:
+            self.nation        = tSelect[0] 
+            self.type          = tSelect[1] 
+            self.name          = tSelect[2] 
+            self.min           = tSelect[3] 
+            self.format_str     = tSelect[4] 
+            self.dir_name       = tSelect[5] 
+            self.jpg           = tSelect[6] 
+            self.nfo           = tSelect[7] 
+            self.number_of_SP    = tSelect[8]
+            self.number_of_video = tSelect[9] 
+            self.english_name   = tSelect[10]
+            self.year          = tSelect[11]
+            self.radio         = tSelect[12]
+            self.version       = tSelect[13]
+            self.nation_version = tSelect[14]
+            self.special       = tSelect[15]
+            self.source        = tSelect[16]
+            self.compress      = tSelect[17]
+            self.audio         = tSelect[18] 
+            self.track         = tSelect[19] 
+            self.bit           = tSelect[20]
+            self.HDR           = tSelect[21] 
+            self.zip_group      = tSelect[22] 
+            self.deleted       = tSelect[23] 
+            self.disk          = tSelect[24] 
+            self.imdb_id       = tSelect[25] 
+            self.douban_id     = tSelect[26] 
+        return True
+
+    def insert(self):
+        if self.collection == 1 or self.number <= 0 or self.name == "" or self.nation == "" : return False
+
+        tCurrentTime = datetime.datetime.now()
+        tCurrentDateTime = tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')
+        in_sql = "INSERT INTO movies \
+                (number,copy,nation,type,name,min,FormatStr,DirName,Jpg,Nfo,NumberOfSP,NumberOfVideo,englishname,Year,Radio,Version,NationVersion,special,source,compress,audio,track,bit,HDR,ZipGroup,Deleted,disk,UpdateTime,CheckTime,checked,IMDBID,DoubanID) \
+          VALUES(%s    ,%s  ,%s    ,%s   ,%s ,%s ,%s       ,%s      ,%s,%s ,%s        ,%s           ,%s         ,%s  ,%s   ,%s     ,%s           ,%s     ,%s    ,%s      ,%s   ,%s   ,%s ,%s ,%s      ,%s     ,%s  ,%s        ,%s       ,%s     ,%s    ,%s )"
+        in_val= (self.number,self.copy,self.nation,self.type,self.name,self.min,self.format_str,self.dir_name,self.jpg,self.nfo,self.number_of_SP,self.number_of_video,self.english_name,self.year,self.radio,self.version,self.nation_version,self.special,self.source,self.compress,self.audio,self.track,self.bit,self.HDR,self.zip_group,self.deleted,self.disk,tCurrentDateTime,tCurrentDateTime,self.checked,self.imdb_id,self.douban_id)
+        return insert(in_sql,in_val)
+
+    def update(self):
+        if self.collection == 1 or self.number <= 0 or self.name == "" or self.nation == "" : return False
+
+        tCurrentTime = datetime.datetime.now()
+        tCurrentDateTime = tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')
+        up_sql = ("UPDATE movies set "
+                "nation=%s,"
+                "type=%s,"
+                "name=%s,"
+                "Min=%s,"
+                "FormatStr=%s,"
+                "DirName=%s,"
+                "Jpg=%s,"
+                "Nfo=%s,"
+                "NumberOfSP=%s,"
+                "NumberOfVideo=%s,"
+                "englishname=%s,"
+                "Year=%s,"
+                "Radio=%s,"
+                "Version=%s,"
+                "NationVersion=%s,"
+                "special=%s,"
+                "source=%s,"
+                "compress=%s,"
+                "audio=%s,"
+                "track=%s,"
+                "bit=%s,"
+                "HDR=%s,"
+                "ZipGroup=%s,"
+                "Deleted=%s,"
+                "disk=%s,"
+                "updatetime=%s,"
+                "CheckTime=%s,"
+                "checked=%s "
+                "where number=%s and copy=%s")
+        up_val = (
+                self.nation,
+                self.type,
+                self.name,
+                self.min,
+                self.format_str,
+                self.dir_name,
+                self.jpg,
+                self.nfo,
+                self.number_of_SP,
+                self.number_of_video,
+                self.english_name,
+                self.year,
+                self.radio,
+                self.version,
+                self.nation_version,
+                self.special,
+                self.source,
+                self.compress,
+                self.audio,
+                self.track,
+                self.bit,
+                self.HDR,
+                self.zip_group,
+                self.deleted,
+                self.disk,
+                tCurrentDateTime,
+                tCurrentDateTime,
+                self.checked,
+                self.number, self.copy)            
+        if not update(up_sql,up_val): return False
+
+        if self.imdb_id != ""  : update("update movies set imdbid=%s where number=%s and copy=%s",(self.imdb_id,self.number,self.copy))
+        if self.douban_id != "": update("update movies set doubanid=%s where number=%s and copy=%s",(self.douban_id,self.number,self.copy))
+        return True
+
+    def update_or_insert(self):
+        if self.collection == 1 or self.number <= 0: return False
+
+        if self.select(assign_value=False): return self.update()
+        else            : return self.insert()
+
+    def compare_movie(self,tMovie):
+        IsDiff = False
+        if self.nation        != tMovie.nation       : ExecLog("diff nation:{}|{}".format(self.nation,tMovie.nation)); IsDiff = True
+        if self.type          != tMovie.type         : ExecLog("diff type:{}|{}".format(self.type,tMovie.type)); IsDiff = True
+        if self.name          != tMovie.name         : ExecLog("diff name:{}|{}".format(self.name,tMovie.name)); IsDiff = True
+        if self.min           != tMovie.min          : ExecLog("diff min:{}|{}".format(self.min,tMovie.min)); IsDiff = True
+        if self.format_str     != tMovie.format_str    : ExecLog("diff format_str:{}|{}".format(self.format_str,tMovie.format_str)); IsDiff = True
+        if self.dir_name       != tMovie.dir_name      : ExecLog("diff dir_name:{}|{}".format(self.dir_name,tMovie.dir_name)); IsDiff = True
+        if self.english_name   != tMovie.english_name  : ExecLog("diff english_name:{}|{}".format(self.english_name,tMovie.english_name)); IsDiff = True
+        if self.year          != tMovie.year         : ExecLog("diff year:{}|{}".format(self.year,tMovie.year)); IsDiff = True
+        if self.radio         != tMovie.radio        : ExecLog("diff radio:{}|{}".format(self.radio,tMovie.radio)); IsDiff = True
+        if self.version       != tMovie.version      : ExecLog("diff version:{}|{}".format(self.version,tMovie.version)); IsDiff = True
+        if self.nation_version != tMovie.nation_version: ExecLog("diff nation_version:{}|{}".format(self.nation_version,tMovie.nation_version)); IsDiff = True
+        if self.special       != tMovie.special      : ExecLog("diff special:{}|{}".format(self.special,tMovie.special)); IsDiff = True
+        if self.source        != tMovie.source       : ExecLog("diff source:{}|{}".format(self.source,tMovie.source)); IsDiff = True
+        if self.compress      != tMovie.compress     : ExecLog("diff compress:{}|{}".format(self.compress,tMovie.compress)); IsDiff = True
+        if self.audio         != tMovie.audio        : ExecLog("diff audio:{}|{}".format(self.audio,tMovie.audio)); IsDiff = True
+        if self.track         != tMovie.track        : ExecLog("diff track:{}|{}".format(self.track,tMovie.track)); IsDiff = True
+        if self.bit           != tMovie.bit          : ExecLog("diff bit:{}|{}".format(self.bit,tMovie.bit)); IsDiff = True
+        if self.HDR           != tMovie.HDR          : ExecLog("diff HDR:{}|{}".format(self.HDR,tMovie.HDR)); IsDiff = True
+        if self.zip_group      != tMovie.zip_group     : ExecLog("diff zip_group:{}|{}".format(self.zip_group,tMovie.zip_group)); IsDiff = True
+        if self.disk          != tMovie.disk         : ExecLog("diff disk:{}|{}".format(self.disk,tMovie.disk)); IsDiff = True
+        if self.deleted       != tMovie.deleted      : ExecLog("diff deleted:{}|{}".format(self.deleted,tMovie.deleted)); IsDiff = True
+        if self.imdb_id != ""   and self.imdb_id   != tMovie.imdb_id   : ExecLog("diff imdb_id:{}|{}".format(self.imdb_id,tMovie.imdb_id)); IsDiff = True
+        if self.douban_id != "" and self.douban_id != tMovie.douban_id : ExecLog("diff douban_id:{}|{}".format(self.douban_id,tMovie.douban_id)); IsDiff = True
+        
+        return IsDiff
 
     def get_torrent(self):
-        if self.Number <= 0: return False
+        if self.number <= 0: return False
 
-        tFullDirName = os.path.join(self.DirPath,self.DirName) 
+        tFullDirName = os.path.join(self.dir_path,self.dir_name) 
         
         #从目录下的download.txt找doenloadlink
         tDownloadTxtFile = os.path.join(tFullDirName,'download.txt')
@@ -1239,13 +1159,64 @@ class Movie:
                 self.download_link = tReturn[0][0]
                 return True
         else:
-            tReturn = select("select downloadlink,dirname from download where number=%s and copy=%s",(self.Number,self.Copy))
-            if len(tReturn) == 1 and self.DirName == tReturn[0][1] and tReturn[0][0] != "":
+            tReturn = select("select downloadlink,dirname from download where number=%s and copy=%s",(self.number,self.copy))
+            if len(tReturn) == 1 and self.dir_name == tReturn[0][1] and tReturn[0][0] != "":
                 self.download_link = tReturn[0][0]
                 return True
 
         if self.torrent_file != "": return True
         return False
 
+    def get_id_from_table(self):
+        if self.number <= 0: return False
 
+        tSelect = select("select imdbid,doubanid from movies where number=%s and copy=%s",(self.number,self.copy))
+        if tSelect == None or len(tSelect) != 1:
+            return False
+        self.imdb_id = tSelect[0][0]
+        self.douban_id = tSelect[0][1]
+        
+        if self.imdb_id == "" and self.douban_id == "":
+            return False
+        return True
+
+def MoveDirFile(SrcDir,DestDir) :
+    """
+    将SrcDir所有文件移到DestDir目录中
+    返回值：
+    SRC_NOT_DIR
+    DEST_NOT_DIR
+    DEPTH_ERROR
+    UNKNOWN_FILE_TYPE
+    FAILED_MOVE
+    FAILED_RMDIR
+    """
+    if not os.path.isdir(SrcDir) :  return SRC_NOT_DIR
+    if not os.path.isdir(DestDir) : return DEST_NOT_DIR
+    
+    NumberOfFile = 0
+    FileName = []
+    for file in os.listdir(SrcDir):
+        FullPathFile = os.path.join(SrcDir,file)
+        if os.path.isdir(FullPathFile): return DEPTH_ERROR
+        elif os.path.isfile(FullPathFile):
+            NumberOfFile += 1
+            FileName.append(FullPathFile)
+        else: return UNKNOWN_FILE_TYPE
+    
+    #逐个移动文件到目标文件夹
+    while i in range(NumberOfFile):
+        try:
+            shutil.move(FileName[i],DestDir)
+        except: 
+            return FAILED_MOVE
+    
+    #删除这个空的srcDir
+    try :
+        os.rmdir(SrcDir)
+    except:
+        return FAILED_RMDIR
+
+    return SUCCESS
+#end def MoveDirFile
 

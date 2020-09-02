@@ -8,8 +8,10 @@ from log import *
 from database import *
 
 DOUBAN_URL = 'https://movie.douban.com/subject/'
+DOUBAN_SEARCH_URL="https://m.douban.com/search/?query="
 DOUBAN_VIEWED_URL = 'https://movie.douban.com/people/69057957/collect?start=0&sort=time&rating=all&filter=all&mode=grid'
 DOUBAN_COOKIE='ll="118282"; bid=p0dhpEfEV-4; __utmc=30149280; __utmc=223695111; __yadk_uid=zONgmuQAhUz48FScpbbLwlyp9sWgxc8m; _vwo_uuid_v2=DB07B9A9429A767628851B0838F87F143|70668c6e9c14c93aa7249d070dc6cf07; push_doumail_num=0; __utmv=30149280.21843; __gads=ID=af7d0ac47d706c3b:T=1592790195:S=ALNI_MZPqMSCLzv4tlBWoABDl8fGGwGUBQ; douban-profile-remind=1; ck=ysVQ; __utmz=30149280.1594774078.8.3.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utmz=223695111.1594774078.7.2.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; push_noty_num=0; ap_v=0,6.0; _pk_ref.100001.4cf6=%5B%22%22%2C%22%22%2C1594944611%2C%22https%3A%2F%2Fwww.douban.com%2Fpeople%2F218434462%2F%22%5D; _pk_id.100001.4cf6=e6366f0e1d0169b1.1586329544.8.1594944611.1594774103.; _pk_ses.100001.4cf6=*; __utma=30149280.531319256.1586329544.1594774078.1594944611.9; __utmb=30149280.0.10.1594944611; __utma=223695111.1308861375.1586329544.1594774078.1594944612.8; __utmb=223695111.0.10.1594944612; dbcl2="69057957:e5cX8VrtPiw"'
+DOUBAN_COOKIE='"118282"; bid=p0dhpEfEV-4; __utmc=30149280; __utmc=223695111; __yadk_uid=zONgmuQAhUz48FScpbbLwlyp9sWgxc8m; _vwo_uuid_v2=DB07B9A9429A767628851B0838F87F143|70668c6e9c14c93aa7249d070dc6cf07; __utmv=30149280.21843; __gads=ID=af7d0ac47d706c3b:T=1592790195:S=ALNI_MZPqMSCLzv4tlBWoABDl8fGGwGUBQ; douban-profile-remind=1; __utmz=30149280.1594774078.8.3.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utmz=223695111.1594774078.7.2.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utma=30149280.531319256.1586329544.1594944611.1598777833.10; __utmb=30149280.0.10.1598777833; __utma=223695111.1308861375.1586329544.1594944612.1598777833.9; __utmb=223695111.0.10.1598777833; ap_v=0,6.0; _pk_ref.100001.4cf6=%5B%22%22%2C%22%22%2C1598777833%2C%22https%3A%2F%2Fwww.douban.com%2Fpeople%2F218434462%2F%22%5D; _pk_ses.100001.4cf6=*; dbcl2="69057957:QCb/tdaIW6s"; ck=S20Y; push_noty_num=0; push_doumail_num=0; _pk_id.100001.4cf6=e6366f0e1d0169b1.1586329544.9.1598777855.1594944644.'
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36"
 
 MOVIE =  0
@@ -24,12 +26,11 @@ MAX_DOUBAN_RETRY_TIMES= 3
 DOUBAN = 1
 IMDB = 2
 
-
 class Info:
-    def __init__(self,mDoubanID="",mIMDBID="",mSpiderStatus=RETRY):
-        self.douban_id = mDoubanID
-        self.imdb_id = mIMDBID
-        self.spider_status = mSpiderStatus
+    def __init__(self,douban_id="",imdb_id="",spider_status=RETRY):
+        self._douban_id = douban_id
+        self._imdb_id = imdb_id
+        self.spider_status = spider_status
 
         self.douban_score = ""
         self.imdb_score = ""
@@ -53,14 +54,27 @@ class Info:
 
         self.select()
 
+    @property
+    def douban_id(self):
+        return self._douban_id
+    @douban_id.setter
+    def douban_id(self,douban_id):
+        douban_id = douban_id.strip()
+        if douban_id != "" and not douban_id.isdigit(): ErrorLog("invalid doubanid:"+douban_id); return 
+        self._douban_id = douban_id
+
+    @property
+    def imdb_id(self):
+        return self._imdb_id
+    @imdb_id.setter
+    def imdb_id(self,imdb_id):
+        self._imdb_id = trans_imdb_id(imdb_id)
+
     def insert(self):
-        if self.imdb_id == "": return False
+        if self.imdb_id == "" and self.douban_id == "": return False
 
         #查看数据库是否已经存在记录
-        sel_sql = "select name from info where imdbid = %s"
-        sel_val = (self.imdb_id,)
-        tSelectResult = select(sel_sql,sel_val)
-        if tSelectResult == None or len(tSelectResult) == 1: return False
+        if self.select(False): return False
 
         in_sql = ("insert into info"
         "(doubanid,imdbid,doubanscore,imdbscore,doubanlink,imdblink,name,foreignname,othernames,type,nation,year,director,actors,poster,episodes,genre,spiderstatus,doubanstatus)"
@@ -90,7 +104,7 @@ class Info:
     def update(self):
         if self.imdb_id == "" and self.douban_id == "": info_log("empty id for update info");return False
 
-        if self.idmbd_id != "" and self.douban_id != "":
+        if self.imdb_id != "" and self.douban_id != "":
             up_sql = ("update info set " 
                     "doubanid=%s,"
                     "imdbid=%s,"
@@ -333,14 +347,40 @@ class Info:
         return True
 
     def update_or_insert(self):
-        if self.imdb_id == "": return False
+        if self.imdb_id == "" and self.douban_id == "": return False
 
         if self.select(assign_value=False): return self.update()
         else                              : return self.insert()
 
+    def remove_special_char(self):
+        self.director = self.director.replace('|',',')
+        self.actors = self.actors.replace('|',',')
+        self.movie_name = self.movie_name.replace('|',',')
+        self.other_names = self.other_names.replace('|',',')
+        self.foreign_name = self.foreign_name.replace('|',',')
+        self.genre = self.genre.replace('|',',')
+
     def spider_douban(self):
         if self.douban_status != RETRY  : return self.douban_status
 
+        if self.douban_id == "":
+            if not self.get_douban_id_by_imdb_id():
+                ErrorLog("failed to find douban_id from imdb_id:"+self.imdb_id)
+                self.douban_status == NOK
+                return self.douban_status
+
+        if self.douban_detail(self.douban_id):
+            ExecLog("douban   detail:{}|{}|{}|{}|{}|{}/{}|".format(
+                self.movie_name,self.nation,self.douban_id,self.imdb_id,self.director,self.douban_score,self.imdb_score))
+            self.douban_status = OK
+            self.spider_status = OK
+            return self.douban_status
+        self.douban_retry_times += 1
+        if self.douban_retry_times >= MAX_DOUBAN_RETRY_TIMES:
+            self.douban_status = NOK
+        return self.douban_status
+
+        """
         tMovieInfo = {"success":False,"error":""}
         if self.douban_id != "" :   tMovieInfo = Gen({'site':'douban','sid':self.douban_id}).gen(_debug=True)
         elif self.imdb_id != "" :   tMovieInfo = Gen({'site':'douban','sid':self.imdb_id  }).gen(_debug=True)
@@ -379,6 +419,7 @@ class Info:
             elif self.episodes > 0          :self.type = TV
             else                            :self.type = MOVIE            
 
+            self.remove_special_char()
             ExecLog("spider   douban:{}|{}|{}|{}|{}|{}/{}|".format(
                 self.movie_name,self.nation,self.douban_id,self.imdb_id,self.director,self.douban_score,self.imdb_score))
             self.douban_status = OK
@@ -400,6 +441,21 @@ class Info:
                 self.douban_status = NOK
         return self.douban_status
         # TODO 如果有doubanid，尝试自己爬取
+        """
+
+    def download_poster(self,mPath):
+        if self.poster == "": return False
+
+        DestFullFile=os.path.join(mPath,"poster.jpg")
+        try:
+            f=requests.get(self.poster)
+            with open(DestFullFile,"wb") as code:
+                code.write(f.content)
+        except Exception as err:
+            Print(err)
+            ErrorLog("failed to download poster.jpg from:"+self.poster)
+            return False
+        return True
 
 
     def get_from_summary(self,mSummary):
@@ -518,9 +574,56 @@ class Info:
         Director = Director.strip()
         info_log("director:"+Director)
         self.director = Director
-    
-    def douban_detail(self,mDoubanID=""):
 
+        self.remove_special_char()
+        return
+    
+    def get_douban_id_by_imdb_id(self,mIMDBID=""):
+        if mIMDBID == "": 
+            if self.imdb_id == "":
+                return False
+            else:
+                mIMDBID = self.imdb_id
+
+        cookie_dict = {"cookie":DOUBAN_COOKIE}
+        s = requests.Session()
+        s.cookies.update(cookie_dict)
+
+        tUrl = DOUBAN_SEARCH_URL + mIMDBID
+        my_headers = {}
+        my_headers['User-Agent'] = USER_AGENT
+        try:
+            res = s.get(tUrl, headers=my_headers)
+            soup = BeautifulSoup(res.text,'lxml')
+        except Exception as err:
+            print(err)
+            ErrorLog("except at get url:"+tUrl)
+            return False
+        """
+        text = open("detail2.log").read()
+        soup = BeautifulSoup(text,'lxml')
+        """
+        #print(soup)
+
+        if str(soup).find("异常请求") >= 0: 
+            ErrorLog("failed to request douban search")
+            ErrorLog(res.text)
+            return False
+        
+        tDoubanID = ""
+        for item in  soup.find_all('a'):
+            if item["href"].find("movie/subject") >= 0:
+                tDoubanID2 = get_id_from_link(item['href'],DOUBAN)
+                if tDoubanID == "": 
+                    tDoubanID = tDoubanID2
+                elif tDoubanID2 != tDoubanID:
+                    ErrorLog("find different douban_id:{}|{}".format(tDoubanID,tDoubanID2))
+                    return False
+                else: pass
+        if tDoubanID != "": self.douban_id = tDoubanID; return True
+        else              : return False
+
+    def douban_detail(self,mDoubanID=""):
         if mDoubanID == "": 
             if self.douban_id == "":
                 return False
@@ -538,8 +641,8 @@ class Info:
             res = s.get(tUrl, headers=my_headers)
             soup = BeautifulSoup(res.text,'lxml')
         except Exception as err:
-            info_log(err)
-            ExecLog("except at get url:"+tUrl)
+            print(err)
+            ErrorLog("except at get url:"+tUrl)
             return False
         """
         text = open("detail2.log").read()
@@ -548,11 +651,11 @@ class Info:
         #print(soup)
 
         if str(soup).find("异常请求") >= 0: 
-            DebugLog("failed to request douban detail")
-            info_log(str(soup))
+            ErrorLog("failed to request douban detail")
+            ErrorLog(res.text)
             return False
         if "页面不存在" in soup.title.text:
-            DebugLog("the douban id does not exist:"+mDoubanID)
+            ErrorLog("the douban id does not exist:"+mDoubanID)
             return False
         
         #名称/外国名称
@@ -564,7 +667,7 @@ class Info:
         #年代
         year_anchor = soup.find('span',class_='year')
         self.year = int(year_anchor.text[1:-1]) if year_anchor else 0
-        info_log (self.year)
+        info_log (str(self.year))
 
 
         info = soup.find('div',id='info')
@@ -603,26 +706,32 @@ class Info:
         episodes_anchor = info.find("span", class_="pl", text=re.compile("集数"))
         self.episodes = int(episodes_anchor.next_element.next_element) if episodes_anchor else 0  # 集数
         #print(episodes_anchor)
-        info_log(self.episodes)
+        info_log(str(self.episodes))
 
         #type
         if self.genre.find('纪录') >= 0 : self.type = RECORD
         elif self.episodes > 1              : self.type = TV
         else                            : self.type = MOVIE
-        info_log(self.type)
+        info_log(str(self.type))
 
           
         json_anchor = soup.find('script',type="application/ld+json")
         #print('-------------------------')
         #print (json_anchor.string)
         json_string = json_anchor.string.replace('\n',' ') if json_anchor else ""
-        json_string = json_string.replace('\t','')
+
+        #json_string = "".join(i  for i in json_string if 31<ord(i)<127)
+        json_string = "".join(i  for i in json_string if 31<ord(i))
+         
+        #json_string = json_string.replace('\t','')
+        #json_string = re.sub('[\x00-\x09|\x0b-\x0c|\x0e-\x1f]','',json_string)
+        info_log(json_string)
         data = json.loads(json_string) 
         #print(data)
         if data == None:  ExecLog('not find json data'); return False
 
         tType = data['@type']
-        info_log (tType)
+        info_log (str(tType))
 
         #self.movie_name = data['name']
         #print(self.movie_name)
@@ -646,6 +755,7 @@ class Info:
         info_log(self.director)
         info_log(self.actors)
     
+        self.remove_special_char()
         if self.nation != '' and self.movie_name != "" :
             self.douban_status = OK
             self.spider_status = OK
@@ -678,6 +788,21 @@ class Info:
         if self.douban_id != "" or self.imdb_id != "": return True
         else                                         : return False
 
+def trans_imdb_id(mIMDBID):
+    if mIMDBID == "": return ""
+    tNewIMDBID = mIMDBID.lower().strip()
+    if not tNewIMDBID.startswith('tt'): ErrorLog("invalid imdb_id:"+mIMDBID); return ""
+    if not tNewIMDBID[2:].isdigit(): ErrorLog("invalid imdb_id:"+mIMDBID); return ""
+    #if len(tNewIMDBID) <= 8: ErrorLog("invalid imdb_id:"+mIMDBID); return ""
+    tID = tNewIMDBID[2:]
+    #if len(tID) >= 8: 
+    tNumber = int(tID) 
+    tID = str(tNumber)
+    if len(tID) < 7: tID = tID.zfill(7)
+    tNewIMDBID = 'tt'+tID
+    if tNewIMDBID != mIMDBID: ExecLog("warning:diff imdb_id after trans:{}|{}".format(mIMDBID,tNewIMDBID)) 
+    return tNewIMDBID
+
 def trans_nation(mNation):
 
     tNation = mNation.strip()
@@ -694,15 +819,20 @@ def trans_nation(mNation):
 def get_id_from_link(mLink,tag):
     """
     https://movie.douban.com/subject/1233445/***
+    https://www.douban.com/movie/subject/1233445/***
     https://www.imdb.com/title/123455/***
     """
     if mLink == "": return ""
     tempstr = mLink.strip(' ')
+    tempstr = tempstr.replace("\r","")
     if tempstr[-1:] != '/': tempstr = tempstr+'/'
     if tag == DOUBAN: 
-        tIndex = mLink.find("douban.com/subject/")
-        if tIndex == -1 : return ""
-        tIndex = tIndex + len("douban.com/subject/")
+        if   mLink.find("douban.com/subject/") >= 0:
+            tIndex = mLink.find("douban.com/subject/") + len("douban.com/subject/")
+        elif mLink.find("movie/subject/") >= 0:
+            tIndex = mLink.find("movie/subject/") + len("movie/subject/")
+        else:
+            return ""
         tempstr = tempstr[tIndex:]
         tIndex2 = tempstr.find('/')
         return tempstr[:tIndex2]
@@ -759,8 +889,8 @@ def find_douban_id(mItem):
             if tDoubanID.isdigit():
                 return tDoubanID
     except Exception as err:
-        info_log(mItem)
-        info_log(err)
+        print(mItem)
+        print(err)
         ExecLog("exception at find_douban_id")
         return ""
     return ""
@@ -779,7 +909,7 @@ def update_viewed(mOnlyFirstPage=True):
             res = s.get(tUrl, headers=my_headers)
             soup = BeautifulSoup(res.text,'lxml')
         except Exception as err:
-            info_log(err)
+            print(err)
             ExecLog("except at get url")
             return False
         """
@@ -791,8 +921,8 @@ def update_viewed(mOnlyFirstPage=True):
         try:
             tSubjectNum = soup.find('span',class_="subject-num").get_text()
         except Exception as err:
-            info_log(err)
-            info_log(soup)
+            print(err)
+            print(soup)
             ExecLog("except at find subject-num")
             return False
         #print(num)
@@ -803,8 +933,8 @@ def update_viewed(mOnlyFirstPage=True):
             tViewed = soup.find('div',class_="grid-view")
             tItems = tViewed.find_all('div',class_="item")
         except Exception as err:
-            info_log(err)
-            info_log(soup)
+            print(err)
+            print(soup)
             ExecLog("except at find grid-view")
             return False
         #print(viewed)
@@ -815,8 +945,8 @@ def update_viewed(mOnlyFirstPage=True):
             try:
                 tTitle = item.find('em').get_text()
             except Exception as err:
-                info_log(err)
-                info_log(item)
+                print(err)
+                print(item)
                 ExecLog("except at find em")
                 return False
             tDoubanID = find_douban_id(item)
@@ -846,8 +976,6 @@ def update_viewed(mOnlyFirstPage=True):
                     else:
                         ErrorLog("error exec:update movies set viewed=1 where number={} and copy={}".format(Number,Copy))
 
-
-
         if mOnlyFirstPage :  return True
         if tNextStartNum <= 0: return True   
         tNextStartString = 'start='+str(tNextStartNum)
@@ -855,6 +983,5 @@ def update_viewed(mOnlyFirstPage=True):
         info_log(tUrl)
         time.sleep(10)
         
-
     return True
 

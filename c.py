@@ -5,42 +5,36 @@ import re
 import sys
 import shutil
 import datetime
-import socket
+from connect import *
 
+sys_argv = sys.argv
+del sys_argv[0]
+Task = sys.argv[0]
+command=' '.join(sys_argv)
 
-#command="hello world2"
-del sys.argv[0]
-command=' '.join(sys.argv)
-
-s = socket.socket()
-host = socket.gethostname()
-port = 12346
-try:
-    s.connect((host,port))
-except Exception as err:
-    print(err)
-    exit()
-print("connect success")
+gSocket = Socket(socket_type=CLIENT)
+if not gSocket.init(): print("failed to connect"); exit()
+print(gSocket.host)
+print(gSocket.port)
 
 # 发送请求
-try:
-    s.send(bytes(command,encoding="utf-8"))
-except Exception as err:
-    print(err)
-    exit()
-else:
+if gSocket.send(command):
     print("send:")
     print("     "+command)
+    pass
+else:
+    exit()
 
 #接收返回
-try:
-    data = s.recv(1024)
-except Exception as err:
-    print("recv error")
-    print(err)
-else:
-    string = str(data,encoding="utf8")
-    print("recv:")
-    print("     "+string)
+reply = gSocket.receive()
+print("recv:")
+print("     "+reply)
 
-s.close()
+
+if Task == 'spider':
+    if reply == "2+ matching torrent":
+        while True:
+            receive = gSocket.receive()
+            if receive == 'end': exit()
+            choose = input(receive)
+            gSocket.send(choose)

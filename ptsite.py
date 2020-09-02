@@ -27,11 +27,11 @@ class NexusPage():
         {
             'name':'MTeam',    
             'error_count':0,
-            'time_interval':10,
+            'time_interval':15,
             'url':'https://pt.m-team.cc/movie.php',
             'first_url':'https://pt.m-team.cc/',
             'last_url':'&passkey=7044b36a9057090e36138df761ddfc5d&https=1',
-            'cookie':'__cfduid=d2ab7dcc493af25332ed9379243090f4e1595342947; tp=YTM4ZDNjNWZhN2Y1YjNhMmUzZDNmYTJhNTdjZTgwYjlhNTdmNmQyMw%3D%3D'
+            'cookie':'__cfduid=d6e1d0fef6c7cf6f43935dacc4b5bda5b1597982934; tp=MzIzYWNhMmZhZjQzZDU5ZWM5ZmUwMzc4YmIyY2NiMDU3YWMxOTZjNw%3D%3D'
             },
         {
             'name':'FRDS',    
@@ -74,7 +74,8 @@ class NexusPage():
         {
             'name':'HDHome',   
             'error_count':0,
-            'time_interval':0,
+            'time_interval':30,
+            'includes':['x265','HDH'],
             'url':'https://hdhome.org/torrents.php',
             'first_url':'https://hdhome.org/',
             'last_url':'&passkey=93581f449716e0adedc71620f78513d2',
@@ -115,7 +116,16 @@ class NexusPage():
             'first_url':'https://www.joyhd.net/',
             'last_url':'&passkey=a770594966a29653632f94dce676f3b8',
             'cookie':'PHPSESSID=1b4ngj5fbahu34998vc6jqcl93; t-se=1; login-se=1; c_secure_uid=MTgzOTQ%3D; c_secure_pass=1e9bf921616e2c4680cb2bf8950ccf69; c_secure_ssl=eWVhaA%3D%3D; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D'
-            }
+            },
+        {
+            'name':'BeiTai',    
+            'error_count':0,
+            'time_interval':0,
+            'url':'https://www.beitai.pt/torrents.php',
+            'first_url':'https://www.beitai.pt/',
+            'last_url':'&passkey=e193420544db01e767e2a214f30ec049',
+            'cookie':'c_secure_uid=MzI0Nw%3D%3D; c_secure_pass=7cddc5c333dfd4d14e445633343fd9d0; c_secure_ssl=eWVhaA%3D%3D; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D; __cfduid=ddfc65f35daa548ada5a996821ef0a96f1595507049'
+            }            
     ]
 
     free_tag = 'pro_free'
@@ -123,11 +133,10 @@ class NexusPage():
     torrents_class_name = '.torrentname'
     FreeDebugFile = "log/free.debug"
 
-    max_error_count = 5
+    #max_error_count = 5
 
     def __init__(self,mSite):
         self.site = mSite
-        #self.error_string = ""
         self.detail_url = ""
         self.info = None
 
@@ -137,9 +146,9 @@ class NexusPage():
         self.detail_url = self.site['first_url']+'details.php?id='+mTorrentID+'&hit=1'
         site_log(self.detail_url)
 
-        if self.get_error_count() >= NexusPage.max_error_count:
-            ExecLog("reach max error count:"+self.detail_url)
-            return False
+        #if self.get_error_count() >= NexusPage.max_error_count:
+        #    ExecLog("reach max error count:"+self.detail_url)
+        #    return False
         
         # Using Session to keep cookie
         cookie_dict = {"cookie":self.site['cookie']}
@@ -154,7 +163,8 @@ class NexusPage():
         #site_log(myheaders)
 
         try:
-            res = s.get(self.detail_url, headers=myheaders)
+            res = s.get(self.detail_url, headers=myheaders,timeout=60)
+            site_log(res.text)
             self.soup = bs4.BeautifulSoup(res.text,'lxml')
             #text = open('frds.log').read()
             #self.soup = bs4.BeautifulSoup(text,'lxml')
@@ -170,7 +180,8 @@ class NexusPage():
         tInfo = Info()
 
         if self.site['name'] == 'FRDS': 
-            tInfo.get_from_detail(self.soup)
+            if not tInfo.get_from_detail(self.soup) :
+                ExecLog("failed to get from detail:"+self.detail_url)
         else:
             tSummary = ""
             summary_anchor = self.soup.find('div',id='kdescr')
@@ -188,8 +199,16 @@ class NexusPage():
     def set_error_count(self,is_success):
         for i in range(len(NexusPage.site_list)):
             if NexusPage.site_list[i]['name'] == self.site['name']:
-                if is_success: NexusPage.site_list[i]['error_count']  = 0
-                else         : NexusPage.site_list[i]['error_count'] += 1
+                if is_success: 
+                    if NexusPage.site_list[i]['error_count']  == 0: return True
+                    NexusPage.site_list[i]['time_interval'] = NexusPage.site_list[i]['time_interval'] / NexusPage.site_list[i]['error_count']
+                    NexusPage.site_list[i]['error_count']  = 0
+                    ExecLog("reset {}.time_interval = {}".format(self.site['name'],NexusPage.site_list[i]['time_interval']))
+                else         : 
+                    if NexusPage.site_list[i]['time_interval']  >= 120: return True
+                    NexusPage.site_list[i]['error_count'] += 1
+                    NexusPage.site_list[i]['time_interval'] = NexusPage.site_list[i]['time_interval'] * NexusPage.site_list[i]['error_count']
+                    ExecLog("set {}.time_interval = {}".format(self.site['name'],NexusPage.site_list[i]['time_interval']))
                 return True
         ExecLog("not find site name in site_list:"+self.site['name'])
         #self.Print("error:"+self.error_string)
@@ -203,13 +222,12 @@ class NexusPage():
         return -1
 
     def request_free_page(self):
-
         if not self.site : return False
 
-        if self.get_error_count() >= NexusPage.max_error_count:
-            ExecLog("reach max error count:"+self.site['name'])
-            #self.Print("error:"+self.error_string)
-            return False
+        #if self.get_error_count() >= NexusPage.max_error_count:
+        #    ExecLog("reach max error count:"+self.site['name'])
+        #    #self.Print("error:"+self.error_string)
+        #    return False
 
         self.processed_list = []
         
@@ -229,10 +247,13 @@ class NexusPage():
             #self.Print("error:"+self.error_string)
             self.set_error_count(False)
             return False
-
         self.soup = bs4.BeautifulSoup(res.text,'lxml')
-
         site_log(res.text)
+        """
+        text = open('hdhome.txt').read()
+        self.soup = bs4.BeautifulSoup(text,'lxml')
+        """
+
         self.processed_list = self.soup.select(NexusPage.torrents_class_name)
         if len(self.processed_list) == 0: 
             ExecLog("can not find processed_list "+self.site['name'])
@@ -247,17 +268,61 @@ class NexusPage():
         self.free_torrents = []
         # Check free and add states
         for entry in self.processed_list:            
+            douban_link = douban_id = douban_score = imdb_link = imdb_id = imdb_score = ""
+            items = entry.find_all('a')
+            for item in items:
+                if item['href'].find('movie.douban.com') >= 0:
+                    douban_link = item['href']
+                    douban_score = item.get_text()
+                    douban_id = get_id_from_link(douban_link,DOUBAN)
+                if item['href'].find('www.imdb.com') >= 0:
+                    imdb_link = item['href']
+                    imdb_id = get_id_from_link(imdb_link,IMDB)
+                    imdb_score = item.get_text()
             details = entry.a['href']
             torrent_id = re.search(pattern, details).group(1)
             title = (entry.get_text()).strip()
             if title[-1:] == '\n': title = title[:-1] #删除\n
             download_url = self.site['first_url']+'download.php?id='+torrent_id+self.site['last_url']
-
-            #if torrent is free:
-            if entry.find(class_=NexusPage.free_tag) or entry.find(class_=NexusPage.free_tag2):
-                self.free_torrents.append((torrent_id, title, details, download_url))
+            if entry.find(class_=NexusPage.free_tag) or entry.find(class_=NexusPage.free_tag2): free = True
+            else                                                                              : free = False
+            if not self.filter_by_keywords(title): continue
+            torrent = {
+                    'free':free,
+                    'torrent_id':torrent_id,
+                    'title':title,
+                    'details':details,
+                    'download_link':download_url,
+                    'douban_link':douban_link,
+                    'douban_id':douban_id,
+                    'douban_score':douban_score,
+                    'imdb_link':imdb_link,
+                    'imdb_id':imdb_id,
+                    'imdb_score':imdb_score
+                    }
+            self.free_torrents.append(torrent)
         return self.free_torrents
 
+    def filter_by_keywords(self,Title):
+        """
+        根据includes/excludes关键字进行过滤，如果符合规则返回True，否则返回False
+        True: 符合过滤规则，进行下载
+        False：不合符过滤规则，不进行下载
+        """
+    
+        tIncludes = self.site.get('includes')   if self.site.get('includes') else []
+        for tInclude in tIncludes:
+            if Title.find(tInclude) <= 0: 
+                site_log('not include {},ignore it:{}'.format(tInclude,Title))
+                return False
+
+        tExcludes = self.site.get('excludes')   if self.site.get('excludes') else []
+        for tExclude in tExcludes:
+            if Title.find(tExclude) >= 0: 
+                site_log('include {},ignore it:{}'.format(tExclude,Title))
+                return False
+        return True
+        
     def Print(self,Str):
         fo = open(NexusPage.FreeDebugFile,"a+")
         tCurrentTime = datetime.datetime.now()
