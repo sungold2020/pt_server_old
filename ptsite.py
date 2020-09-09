@@ -179,21 +179,24 @@ class NexusPage():
 
         tInfo = Info()
 
-        if self.site['name'] == 'FRDS': 
-            if not tInfo.get_from_detail(self.soup) :
-                ExecLog("failed to get from detail:"+self.detail_url)
-        else:
-            tSummary = ""
-            summary_anchor = self.soup.find('div',id='kdescr')
-            if summary_anchor : tSummary = summary_anchor.get_text()
-            else : site_log("not find summary:"+self.detail_url); return False
-            site_log(tSummary)
-            tInfo.get_from_summary(tSummary)
+        #FRDS 详情页格式有些不一样
+        if self.site['name'] == 'FRDS' and tInfo.get_from_detail(self.soup) : 
+            self.info = tInfo
+            DebugLog("success to get from detail:"+self.detail_url); return True
+
+        tSummary = ""
+        summary_anchor = self.soup.find('div',id='kdescr')
+        if summary_anchor : tSummary = summary_anchor.get_text()
+        else : site_log("not find summary:"+self.detail_url); return False
+        site_log(tSummary)
+        tInfo.get_from_summary(tSummary)
 
         if tInfo.douban_id != "" or tInfo.imdb_id != "": 
             self.info = tInfo
+            DebugLog("success to get from detail:"+self.detail_url)
             return True
         else : 
+            ExecLog("failed to get from detail:"+self.detail_url)
             return False
 
     def set_error_count(self,is_success):

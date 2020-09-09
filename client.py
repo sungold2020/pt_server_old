@@ -141,7 +141,7 @@ def get_hash(torrent_file=None,download_link=None):
 def download_torrent_file(download_link):
     DestFullFile=os.path.abspath("data/temp.torrent")
     try:
-        f=requests.get(download_link)
+        f=requests.get(download_link,timeout=120)
         with open(DestFullFile,"wb") as code:
             code.write(f.content)
     except Exception as err:

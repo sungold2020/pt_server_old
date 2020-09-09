@@ -46,10 +46,8 @@ def handle_task(Request,mConnect=None):
     elif Task == 'free'     :
         if len(RequestList) > 0 : gTorrents.request_free(RequestList[0])
         else                    : gTorrents.request_free('MTeam')
-    elif Task == 'checkqb'      : 
-        if gTorrents.check_torrents("QB") > 0: gTorrents.write_pt_backup()
-    elif Task == 'checktr'      : 
-        if gTorrents.check_torrents("TR") > 0: gTorrents.write_pt_backup()
+    elif Task == 'checkqb'      : gTorrents.check_torrents("QB") 
+    elif Task == 'checktr'      : gTorrents.check_torrents("TR") 
     elif Task == 'backuptorrent': gTorrents.backup_torrents()
     elif Task == 'keep'         : gTorrents.keep_torrents( check_disk(RequestList) )
     elif Task == 'spider'       : return gTorrents.set_spider_id(RequestList,mConnect)
@@ -59,6 +57,7 @@ def handle_task(Request,mConnect=None):
     elif Task == 'tobeadd'      : to_be_add_torrents(mConnect)
     elif Task == 'lowupload'    : return gTorrents.print_low_upload()
     elif Task == 'torrents'     : return gTorrents.query_torrents(RequestList)
+    elif Task == "del"          : return gTorrents.request_del_torrent(RequestList[0] if len(RequestList) == 1 else "")
     else                        : ExecLog("unknown request task:"+Task) ; return "unknown request task"     
     
     return "completed"
@@ -131,10 +130,10 @@ if __name__ == '__main__' :
             if gToday[8:10] == '01' : os.system("/root/backup.sh"); ExecLog("exec:/root/backup.sh")
             if gToday[8:10] == '01' or gToday[8:10] == '15': update_viewed(True)    #半月更新一次viewed
         else:
-            if LoopTimes % 5 == 0 : 
-                if gTorrents.check_torrents("QB") > 0 : gTorrents.write_pt_backup()
+            if LoopTimes % 5 == 0 : gTorrents.check_torrents("QB") 
         
-        gLastCheckDate = datetime.datetime.now().strftime("%Y-%m-%d")
+        #gLastCheckDate = datetime.datetime.now().strftime("%Y-%m-%d")
+        gLastCheckDate = gToday
         gTorrents.last_check_date = gLastCheckDate
         DebugLog("update gLastCheckDate="+gLastCheckDate)        
 

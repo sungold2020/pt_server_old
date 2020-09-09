@@ -7,7 +7,9 @@ SERVER = 1
 CLIENT = 0
 class Socket:
     def __init__(self,port=PTPORT,host="",socket_type=SERVER):
-        self.host = host if host != "" else socket.gethostname()
+        #self.host = host if host != "" else socket.gethostname()
+        self.host = "192.168.31.45"
+        print(host)
         self.port = port
         self.type = socket_type
 

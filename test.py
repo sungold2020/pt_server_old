@@ -20,7 +20,6 @@ print(mytorrent.torrent_id)
 list = ["ddd"]
 if "" in list:
     print("correct")
-from torrent_info import *
 downloadlink='https://pt.keepfrds.com/download.php?id=11489&passkey=97f4eab2ad32ebf39ee4889f6328800b'
 #tTorrent = TorrentInfo(torrent_file='/root/pt/data/temp.torrent')
 #tTorrent = TorrentInfo(download_link = downloadlink)
@@ -39,7 +38,11 @@ client = transmissionrpc.Client(TR_LOGIN['host'], port=TR_LOGIN['port'],user=TR_
 torrent = client.add_torrent(download_link,download_dir='/dev/null',paused=True)
 print (torrent)
 """
-tclient.connect()
-for torrent in tclient.get_all_torrents():
-    print(torrent.client)
-    print(torrent.name)
+
+download_link=" https://pt.m-team.cc/download.php?id=427572&passkey=7044b36a9057090e36138df761ddfc5d&https=1"
+download_link="https://pt.keepfrds.com/download.php?id=11509&passkey=97f4eab2ad32ebf39ee4889f6328800b"
+string =""
+a,b,c = string.split('|',2)
+print(a)
+print(b)
+print(c)

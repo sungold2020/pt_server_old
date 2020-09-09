@@ -17,6 +17,7 @@ from log import *
 from ptsite import *
 #from torrent_info import TorrentInfo
 from client import PTClient
+from client import get_hash
 
 
 #连续NUMBEROFDAYS上传低于UPLOADTHRESHOLD，并且类别不属于'保种'的种子，会自动停止。
@@ -76,7 +77,7 @@ class Torrents:
 
     def del_torrent(self,mClient,mHASH):
         for i in range(len(self.torrent_list)):
-            if self.torrent_list[i].hash == mHASH and self.torrent_list[i].client == mClient: 
+            if self.torrent_list[i].get_hash() == mHASH and self.torrent_list[i].client == mClient: 
                 del self.torrent_list[i]
                 self.write_pt_backup()
                 return True
@@ -276,7 +277,7 @@ class Torrents:
                     ExecLog(self.torrent_list[tIndex].name+" have not done more than 1 day") 
                             
             #如果种子状态不是STARTED，启动它
-            if self.torrent_list[tIndex].add_status == TO_BE_START:
+            if self.torrent_list[tIndex].add_status == TO_BE_START and self.torrent_list[tIndex].status == "STOP":
                 if self.torrent_list[tIndex].start_download():
                     ExecLog("start   torrent:"+self.torrent_list[tIndex].name)
                     tNumberOfUpdated += 1
@@ -309,7 +310,7 @@ class Torrents:
                 ExecLog("delete  torrent:"+self.torrent_list[i].title)
                 #del self.torrent_list[i] 
                 self.del_torrent(self.torrent_list[i].client,self.torrent_list[i].hash)
-            else:i += 1                
+            i += 1                
      
         DebugLog("complete check_torrents  from "+mClient)
         if tNumberOfAdded > 0   : DebugLog(str(tNumberOfAdded).zfill(4)+" torrents added")
@@ -588,7 +589,7 @@ class Torrents:
                         ExecLog("failed to get torrent info from :"+tRSS.download_link)
                         continue
                     """
-                    tRSS.HASH = get_hash(tRSS.download_link)
+                    tRSS.HASH = get_hash(download_link=tRSS.download_link)
                     if tRSS.HASH == "": ExecLog("failed to get hash from "+tRSS.download_link); continue
                     if not tRSS.insert():
                         ExecLog("failed to insert rss:{}|{}|{}".format(tRSS.HASH,tRSS.rss_name,tRSS.title))
@@ -615,7 +616,7 @@ class Torrents:
 
     def request_rss(self,mRSSName="",mTimeInterval=-2):
         
-        rss_log("request rss:{}::{}".format(mRSSName,mTimeInterval))
+        DebugLog("request rss:{}::{}".format(mRSSName,mTimeInterval))
         for i in range(len(RSS_LIST)):
             if mRSSName.lower() == RSS_LIST[i]['name'].lower() or\
                     (RSS_LIST[i]['time_interval'] != 0 and (mTimeInterval % RSS_LIST[i]['time_interval']) == 0) :
@@ -740,6 +741,7 @@ class Torrents:
         tReply = ""
         for i in range(len(self.torrent_list)):
             if self.torrent_list[i].client in tClientList:
+                tReply += self.torrent_list[i].client+'|'
                 tReply += self.torrent_list[i].get_hash()+'|'
                 tReply += str(self.torrent_list[i].add_status)+'|'
                 tReply += self.torrent_list[i].get_name()+'|'
@@ -758,4 +760,40 @@ class Torrents:
                 tReply += self.torrent_list[i].nation+'\n'
         return tReply
 
+
+    def request_set_id(self,mRequestStr):
+        """
+        client|hash|doubanid|imdbid
+        """
+        tClient,tHASH,tDoubanID,tIMDBID = mRequestStr.split('|',3)
+        if tHASH == "" or (tIMDBID == "" and tDoubanID == ""): return "False,empty hash or empty id"
+        for i in range(len(self.torrent_list)):
+            if tClient == self.torrent_list[i].client and tHASH == self.torrent_list[i].hash:
+                self.torrent_list[i].douban_id = tDoubanID
+                self.torrent_list[i].imdb_id   = tIMDBID
+                return "Success"
+        return "False, not find matched torrent"
+
+    def request_del_torrent(self,mRequestStr):
+        """
+        client|hash|is_delete_file
+        """
+        try:
+            tClient,tHASH,tIsDeleteFileStr = mRequestStr.split('|',2)
+        except Exception as err:
+            print(err)
+            ExecLog("failed to split:"+mRequestStr)
+            return "error requeststr:"+mRequestStr
+        DebugLog("to del {}|{}".format(tClient,tHASH))
+        tIsDeleteFile = (tIsDeleteFileStr.lower() == "true")
+
+        tIndex = self.get_torrent_index(tClient,tHASH)
+        if tIndex == -1: return "False, not find matched torrent"
+        tAddStatus = self.torrent_list[tIndex].add_status 
+        if not self.del_torrent(tClient,tHASH): return "False, not find matched torrent"
+        if tAddStatus != TO_BE_ADD:
+            tPTClient = PTClient(tClient)
+            if not (tPTClient.connect() and tPTClient.del_torrent(tHASH,is_delete_file=tIsDeleteFile)): 
+                return "False, can't delete torrent in "+tClient
+        return "Success"
 

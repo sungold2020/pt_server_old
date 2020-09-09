@@ -12,6 +12,7 @@ del sys_argv[0]
 Task = sys.argv[0]
 command=' '.join(sys_argv)
 
+#gSocket = Socket(12346,"192.168.31.45",socket_type=CLIENT)
 gSocket = Socket(socket_type=CLIENT)
 if not gSocket.init(): print("failed to connect"); exit()
 print(gSocket.host)
