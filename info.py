@@ -234,10 +234,11 @@ class Info:
 
     def select(self,assign_value=True):
         if self.imdb_id == "" and self.douban_id == "": return False
-        return (self.select_by_imdb_id(assign_value) or self.select_by_douban_id(assign_value))
+        return (self.select_by_douban_id(assign_value) or self.select_by_imdb_id(assign_value))
 
     def select_by_imdb_id(self,assign_value=True):
         if self.imdb_id == "": return False
+        DebugLog("select from info:"+self.imdb_id);
         sel_sql = ("select  "
                 "doubanid,"
                 "doubanscore,"
@@ -293,6 +294,7 @@ class Info:
 
     def select_by_douban_id(self,assign_value=True):
         if self.douban_id == "": return False
+        DebugLog("select from info:"+self.douban_id);
         sel_sql = ("select  "
                 "imdbid,"
                 "doubanscore,"
@@ -448,7 +450,7 @@ class Info:
 
         DestFullFile=os.path.join(mPath,"poster.jpg")
         try:
-            f=requests.get(self.poster)
+            f=requests.get(self.poster,timeout=120)
             with open(DestFullFile,"wb") as code:
                 code.write(f.content)
         except Exception as err:
@@ -593,7 +595,7 @@ class Info:
         my_headers = {}
         my_headers['User-Agent'] = USER_AGENT
         try:
-            res = s.get(tUrl, headers=my_headers)
+            res = s.get(tUrl, headers=my_headers,timeout=120)
             soup = BeautifulSoup(res.text,'lxml')
         except Exception as err:
             print(err)
@@ -638,7 +640,7 @@ class Info:
         my_headers = {}
         my_headers['User-Agent'] = USER_AGENT
         try:
-            res = s.get(tUrl, headers=my_headers)
+            res = s.get(tUrl, headers=my_headers,timeout=120)
             soup = BeautifulSoup(res.text,'lxml')
         except Exception as err:
             print(err)
@@ -906,7 +908,7 @@ def update_viewed(mOnlyFirstPage=True):
     tUrl = DOUBAN_VIEWED_URL
     while True:
         try:
-            res = s.get(tUrl, headers=my_headers)
+            res = s.get(tUrl, headers=my_headers,timeout=120)
             soup = BeautifulSoup(res.text,'lxml')
         except Exception as err:
             print(err)

@@ -2,6 +2,8 @@ import datetime
 import time
 import os
 
+TRACKER_NOT_WORK = 0
+TRACKER_WORKING  = 1
 class Torrent:
     def __init__(self,mClient="QB",mTorrent=None):
         self.client  = mClient
@@ -86,6 +88,26 @@ class Torrent:
         if   self.client == "TR": return self.torrent.totalSize
         elif self.client == "QB": return self.torrent.total_size
         else                  : return 0
+    @property
+    def tracker_status(self):
+        if self.torrent == None: return ""
+        if self.client == "QB":
+            for tracker in self.torrent.trackers:
+                if tracker.get('url').startswith('http'):
+                    if tracker.get('status') != 2: return TRACKER_NOT_WORK
+                    else                         : return TRACKER_WORKING
+            return TRACKER_NOT_WORK
+        elif self.client == "TR":
+            # TODO
+            return TRACKER_NOT_WORK
+        else:
+            return TRACKER_NOT_WORK
+    @property
+    def torrent_status(self):
+        if   self.status == "STOP": return "STOP"
+        elif self.tracker_status == TRACKER_WORKING: return "GOING"
+        else: return "NOT WORK"
+
     @property
     def files(self):
         if self.torrent == None: return []

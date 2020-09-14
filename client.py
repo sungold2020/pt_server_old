@@ -90,13 +90,16 @@ class PTClient:
             return None
 
     def del_torrent(self,mHASH,is_delete_file=False):
+        print(self.type+'|'+mHASH)
+        if mHASH == None or mHASH == "": return False
         if mHASH == "": return False
         try:
             if   self.type == "TR": return self.client.remove_torrent(mHASH,delete_data=is_delete_file)
-            elif self.type == "QB": self.client.torrents_delete(delete_files=is_delete_file,torrent_hashes=mHASH)
+            elif self.type == "QB": self.client.torrents_delete(is_delete_file,mHASH)
             else                  : return False
         except Exception as err:
             print(err)
+            print("error:delete torrent")
             return False
         else:
             return True
@@ -126,6 +129,21 @@ class PTClient:
         time.sleep(300)
         if not self.start(): return False
         return True
+
+    def set_category(self,mHASH,mCategory):
+        if   self.type == "QB":
+            try:
+                self.client.torrents_setCategory(mCategory,mHASH)
+            except Exception as err:
+                print(err)
+                return False
+            else:
+                return True
+        elif self.type == "TR":
+            return False
+        else:
+            return False
+        
 
 def get_hash(torrent_file=None,download_link=None):
     tTRClient = PTClient("TR")

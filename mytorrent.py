@@ -26,6 +26,7 @@ TR_BACKUP_DIR = "/root/.config/transmission"
 QB_TORRENTS_BACKUP_DIR = "data/qb_backup"   
 TR_TORRENTS_BACKUP_DIR = "data/tr_backup"   
 
+MANUAL      = -1
 TO_BE_ADD   =  0
 TO_BE_START =  1
 STARTED     =  2
@@ -128,8 +129,17 @@ class MyTorrent:
         else               : return self.torrent.progress
     @property
     def status(self):
-        if self.torrent == None: return ""
+        if self.torrent == None: return "UNKNOWN"
         else               : return self.torrent.status
+    @property
+    def tracker_status(self):
+        if self.torrent == None: return "UNKNOWN"
+        else               : return self.torrent.tracker_status
+    @property
+    def torrent_status(self):
+        if self.torrent == None: return "UNKNOWN"
+        else               : return self.torrent.torrent_status
+
     @property
     def category(self):
         if self.torrent == None: return ""
@@ -219,14 +229,16 @@ class MyTorrent:
         else                : 
             if self.info.douban_id != "" and self.info.douban_id != douban_id:
                 ErrorLog("diff info.douban_id:{}|{}|{}".format(self.get_name(),douban_id,self.info.douban_id))
-                return
+                #return
             self.info.douban_id = douban_id
+            DebugLog("info:{}:{}".format(self.name,self.info.douban_id))
                 
         if self.rss != None : 
             if self.rss.douban_id != "" and self.rss.douban_id != douban_id:
                 ErrorLog("diff rss.douban_id:{}|{}|{}".format(self.get_name(),douban_id,self.rss.douban_id))
-                return
+                #return
             self.rss.douban_id = douban_id
+            DebugLog("rss:{}:{}".format(self.name,self.info.douban_id))
 
     @property
     def imdb_id(self):
@@ -257,14 +269,16 @@ class MyTorrent:
         else                : 
             if self.info.imdb_id != "" and self.info.imdb_id != imdb_id:
                 ErrorLog("diff info.imdb_id:{}|{}|{}".format(self.get_name(),imdb_id,self.info.imdb_id))
-                return
+                #return
             self.info.imdb_id = imdb_id
+            DebugLog("info:{}:{}".format(self.name,self.info.imdb_id))
                 
         if self.rss != None : 
             if self.rss.imdb_id != "" and self.rss.imdb_id != imdb_id:
                 ErrorLog("diff rss.imdb_id:{}|{}|{}".format(self.get_name(),imdb_id,self.rss.imdb_id))
-                return
+                #return
             self.rss.imdb_id = imdb_id
+            DebugLog("rss:{}:{}".format(self.name,self.rss.imdb_id))
 
     @property
     def spider_status(self):
@@ -390,6 +404,12 @@ class MyTorrent:
 
     def start_download(self):
         if self.torrent == None: ErrorLog("torrent does not exist"); return False
+        if self.rss.rss_name != "":
+            self.rss.downloaded = 1
+            if self.rss.update():
+                ExecLog("update rsstable:"+self.name)
+            else:   
+                ErrorLog("failed to update rss:"+self.name+':'+self.HASH)
         tBTStat =  os.statvfs(DOWNLOAD_FOLDER)
         tFreeSize = (tBTStat.f_bavail * tBTStat.f_frsize) /(1024*1024*1024)
         #DebugLog("free size:"+str(tFreeSize))
@@ -398,18 +418,10 @@ class MyTorrent:
         if tFreeSize < tSize+1 :ExecLog("diskspace is not enough"); return False
         if  self.resume() and self.set_category("下载"):
             DebugLog("start download:"+self.name)
+            return True
         else:
             ExecLog("failed to start torrent:"+self.name)
             return False
-        if self.rss.rss_name != "":
-            self.rss.downloaded = 1
-            if self.rss.update():
-                ExecLog("update rsstable:"+self.name)
-                return True
-            else:   
-                ErrorLog("failed to update rss:"+self.name+':'+self.HASH)
-                return False
-        else: return True
 
     def get_id_from_nfo(self):
         if self.progress != 100: 
@@ -490,7 +502,8 @@ class MyTorrent:
                 DebugLog("torrent have not done")
                 return self.spider_status
 
-        if self.info.select():   DebugLog("find a record from nfo")  #尝试从info表中获取记录
+        DebugLog("select from info:{}|{}".format(self.info.douban_id,self.info.imdb_id))
+        if self.info.select():   DebugLog("find a record from nfo:"+self.info.douban_id+'|'+self.info.imdb_id)  #尝试从info表中获取记录
         if self.spider_status == OK: 
             if self.rss != None: self.rss.update_id(self.info.douban_id,self.info.imdb_id)
             DebugLog("spider_status is ok in info table:{}|{}".format(self.info.douban_id,self.info.imdb_id))

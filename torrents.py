@@ -303,14 +303,11 @@ class Torrents:
         #end for torrents 
         
         #最后，找出没有Checked标志的种子列表，进行删除操作。
-        i = 0; tLength = len(self.torrent_list)
-        while i < len(self.torrent_list) :
-            if self.torrent_list[i].checked == 0 and self.torrent_list[i].client == mClient:
+        for torrent in self.torrent_list:
+            if torrent.checked == 0 and torrent.client == mClient:
                 tNumberOfDeleted += 1
-                ExecLog("delete  torrent:"+self.torrent_list[i].title)
-                #del self.torrent_list[i] 
-                self.del_torrent(self.torrent_list[i].client,self.torrent_list[i].hash)
-            i += 1                
+                ExecLog("delete  torrent:"+torrent.title)
+                self.del_torrent(torrent.client,torrent.get_hash())
      
         DebugLog("complete check_torrents  from "+mClient)
         if tNumberOfAdded > 0   : DebugLog(str(tNumberOfAdded).zfill(4)+" torrents added")
@@ -748,14 +745,20 @@ class Torrents:
                 tReply += self.torrent_list[i].rss_name+'|'
                 tReply += self.torrent_list[i].download_link+'|'
                 tReply += str(self.torrent_list[i].progress)+'|'
-                tReply += str(self.torrent_list[i].status)+'|'
+                tReply += str(self.torrent_list[i].torrent_status)+'|'
                 tReply += self.torrent_list[i].category+'|'
                 tReply += str(self.torrent_list[i].total_size)+'|'
                 tReply += self.torrent_list[i].add_datetime+'|'
                 tReply += self.torrent_list[i].douban_id+'|'
                 tReply += self.torrent_list[i].imdb_id+'|'
-                tReply += self.torrent_list[i].douban_score+'|'
-                tReply += self.torrent_list[i].imdb_score+'|'
+                if self.torrent_list[i].douban_score == "":
+                    tReply += 'n/a'+'|'
+                else:
+                    tReply += self.torrent_list[i].douban_score+'|'
+                if self.torrent_list[i].imdb_score == "":
+                    tReply += 'n/a'+'|'
+                else:
+                    tReply += self.torrent_list[i].imdb_score+'|'
                 tReply += self.torrent_list[i].movie_name+'|'
                 tReply += self.torrent_list[i].nation+'\n'
         return tReply
@@ -769,10 +772,35 @@ class Torrents:
         if tHASH == "" or (tIMDBID == "" and tDoubanID == ""): return "False,empty hash or empty id"
         for i in range(len(self.torrent_list)):
             if tClient == self.torrent_list[i].client and tHASH == self.torrent_list[i].hash:
-                self.torrent_list[i].douban_id = tDoubanID
-                self.torrent_list[i].imdb_id   = tIMDBID
+                if tDoubanID != "": self.torrent_list[i].douban_id = tDoubanID
+                if tIMDBID   != "": self.torrent_list[i].imdb_id   = tIMDBID
+                self.torrent_list[i].spider_status = RETRY
+                self.torrent_list[i].douban_status = RETRY
+                self.write_pt_backup()
                 return "Success"
         return "False, not find matched torrent"
+
+    def request_set_category(self,mRequestStr):
+        """
+        client|hash|category
+        """
+        try:
+            tClient,tHASH,tCategory = mRequestStr.split('|',2)
+        except Exception as err:
+            print(err)
+            ExecLog("failed to split:"+mRequestStr)
+            return "error requeststr:"+mRequestStr
+        DebugLog("to set_cateory {}|{}|{}".format(tClient,tHASH,tCategory))
+        client = PTClient(tClient)
+        if not client.connect():
+            ExecLog("failed to connect "+tClient)
+            return "failed to connect "+tClient
+        if client.set_category(tHASH,tCategory):
+            return "Success"
+        else:
+            return "failed to set category"
+
+
 
     def request_del_torrent(self,mRequestStr):
         """
@@ -790,10 +818,14 @@ class Torrents:
         tIndex = self.get_torrent_index(tClient,tHASH)
         if tIndex == -1: return "False, not find matched torrent"
         tAddStatus = self.torrent_list[tIndex].add_status 
+        tTitle     = self.torrent_list[tIndex].get_title()
         if not self.del_torrent(tClient,tHASH): return "False, not find matched torrent"
         if tAddStatus != TO_BE_ADD:
             tPTClient = PTClient(tClient)
-            if not (tPTClient.connect() and tPTClient.del_torrent(tHASH,is_delete_file=tIsDeleteFile)): 
+            if not tPTClient.connect():
+                return "False,can't connect to qb"
+            if not tPTClient.del_torrent(tHASH,is_delete_file=tIsDeleteFile): 
                 return "False, can't delete torrent in "+tClient
+        ExecLog("del  torrent:"+tTitle+'|'+tHASH)
         return "Success"
 

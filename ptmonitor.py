@@ -50,7 +50,8 @@ def handle_task(Request,mConnect=None):
     elif Task == 'checktr'      : gTorrents.check_torrents("TR") 
     elif Task == 'backuptorrent': gTorrents.backup_torrents()
     elif Task == 'keep'         : gTorrents.keep_torrents( check_disk(RequestList) )
-    elif Task == 'spider'       : return gTorrents.set_spider_id(RequestList,mConnect)
+    elif Task == 'set_id'       : return gTorrents.request_set_id(RequestList[0] if len(RequestList) == 1 else "")
+    elif Task == 'set_category' : return gTorrents.request_set_category(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == 'view'         : 
         if len(RequestList) == 1 and RequestList[0] == 'all': return str(update_viewed(False))
         else                                                : return str(update_viewed(True))
@@ -58,10 +59,19 @@ def handle_task(Request,mConnect=None):
     elif Task == 'lowupload'    : return gTorrents.print_low_upload()
     elif Task == 'torrents'     : return gTorrents.query_torrents(RequestList)
     elif Task == "del"          : return gTorrents.request_del_torrent(RequestList[0] if len(RequestList) == 1 else "")
+    elif Task == 'log'          : return get_log()
     else                        : ExecLog("unknown request task:"+Task) ; return "unknown request task"     
     
     return "completed"
 
+def get_log():
+    Command = "tail -n 500 /root/pt/log/pt.log > log/temp.log"
+    #ExecLog("exec:"+QBCopyCommand)
+    if os.system(Command) == 0 : ExecLog ("success exec:"+Command)
+    with open('log/temp.log', 'r') as f1:
+        logStr  = f1.read()
+    return '\n'.join(logStr)
+     
 def backup_torrents():
     """
     把QB和TR的torrents备份到相应目录

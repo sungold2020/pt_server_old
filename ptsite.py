@@ -163,7 +163,7 @@ class NexusPage():
         #site_log(myheaders)
 
         try:
-            res = s.get(self.detail_url, headers=myheaders,timeout=60)
+            res = s.get(self.detail_url, headers=myheaders,timeout=120)
             site_log(res.text)
             self.soup = bs4.BeautifulSoup(res.text,'lxml')
             #text = open('frds.log').read()
@@ -241,9 +241,9 @@ class NexusPage():
     
         try:
             if NexusPage.user_agent: 
-                res = s.get(self.site['url'], headers={'User-Agent':NexusPage.user_agent})
+                res = s.get(self.site['url'], headers={'User-Agent':NexusPage.user_agent},timeout=120)
             else:
-                res = s.get(self.site['url'])
+                res = s.get(self.site['url'],timeout=120)
         except Exception as err:
             print(err)
             ExecLog("failed to request from "+self.site['url'])

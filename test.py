@@ -41,8 +41,31 @@ print (torrent)
 
 download_link=" https://pt.m-team.cc/download.php?id=427572&passkey=7044b36a9057090e36138df761ddfc5d&https=1"
 download_link="https://pt.keepfrds.com/download.php?id=11509&passkey=97f4eab2ad32ebf39ee4889f6328800b"
-string =""
-a,b,c = string.split('|',2)
-print(a)
-print(b)
-print(c)
+
+"""
+import qbittorrentapi
+
+try:
+    client = qbittorrentapi.Client(host='localhost:8989', username='admin', password='adminadmin')
+    client.auth_log_in()
+    client.torrents_delete(True,'d63b454fcdf172cf2e33f7847671f8418936d5dd');
+except Exception as err:
+    print(err)
+else:
+    print("success")
+"""
+from client import *
+client = PTClient('QB')
+client.connect()
+for torrent in client.get_all_torrents():
+    if torrent.torrent_status != "GOING" : print("{}:{}".format(torrent.name,torrent.torrent_status))
+
+import os
+Command = "tail -n 500 /root/pt/log/pt.log > log/temp.log"
+#ExecLog("exec:"+QBCopyCommand)
+if os.system(Command) == 0 : ExecLog ("success exec:"+Command)
+with open('log/temp.log', 'r') as f1:
+    logStr  = f1.readlines()
+
+print(logStr)
+

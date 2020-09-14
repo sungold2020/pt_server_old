@@ -230,14 +230,16 @@ class RSS:
             tToDoUpdate = True
         if self.douban_id != "" and douban_id != "" and self.douban_id != douban_id:
             ErrorLog("error:diff douban_id to update:{}|{}".format(self.douban_id,douban_id))
-            return False
+            tToDoUpdate = True
+            #return False
         imdb_id = trans_imdb_id(imdb_id)
         if self.imdb_id == "" and imdb_id != "":
             self.imdb_id = imdb_id
             tToDoUpdate = True
         if self.imdb_id != "" and imdb_id != "" and self.imdb_id != imdb_id:
             ErrorLog("error:diff imdb_id to update:{}|{}".format(self.imdb_id,imdb_id))
-            return False
+            tToDoUpdate = True
+            #return False
 
         if tToDoUpdate == True: return self.update()
         else                  : return True
