@@ -54,18 +54,11 @@ except Exception as err:
 else:
     print("success")
 """
-from client import *
-client = PTClient('QB')
-client.connect()
-for torrent in client.get_all_torrents():
-    if torrent.torrent_status != "GOING" : print("{}:{}".format(torrent.name,torrent.torrent_status))
-
-import os
-Command = "tail -n 500 /root/pt/log/pt.log > log/temp.log"
-#ExecLog("exec:"+QBCopyCommand)
-if os.system(Command) == 0 : ExecLog ("success exec:"+Command)
-with open('log/temp.log', 'r') as f1:
-    logStr  = f1.readlines()
-
-print(logStr)
-
+from torrents import *
+gTorrents = Torrents()
+#gTorrents.check_torrents("TR")
+"""
+for i in range(len(gTorrents.torrent_list)):
+    tTorrent = gTorrents.torrent_list[i]
+    tTorrent.set_tag()
+  """  

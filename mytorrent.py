@@ -3,8 +3,7 @@ import time
 import shutil
 import re
 import requests
-import transmissionrpc
-from gen import Gen
+#from gen import Gen
 
 from movie import *
 from log import *
@@ -43,6 +42,7 @@ class MyTorrent:
         self.add_status = add_status
         self.checked = 1              #每次检查时用于标记它是否标记到，检查结束后，如果发现Checked为0，说明种子已经被删除。
                                       #新建对象时肯定Checked=1
+        if self.douban_id == "" and self.spider_status == RETRY: self.spider_detail()
 
     #------------- begin rss------------------------------
     @property
@@ -154,8 +154,8 @@ class MyTorrent:
         else               : return self.torrent.save_path
     @property
     def add_datetime(self):
-        if self.torrent == None: return ""
-        else               : return self.torrent.add_datetime
+        if self.torrent.torrent != None: return self.torrent.add_datetime
+        else                           : return self.rss.add_datetime
     @property
     def tracker(self):
         if self.torrent == None: return ""
@@ -166,8 +166,10 @@ class MyTorrent:
         else               : return self.torrent.uploaded
     @property
     def total_size(self):
-        if self.torrent == None: return 0
-        else               : return self.torrent.total_size
+        if self.torrent.torrent != None: return self.torrent.total_size
+        elif self.rss != None  : return self.rss.total_size
+        else: return 0
+
     @property
     def files(self):
         if self.torrent == None: return []
@@ -282,7 +284,7 @@ class MyTorrent:
 
     @property
     def spider_status(self):
-        if self.info == None: return 0
+        if self.info == None: return RETRY
         else                : return self.info.spider_status
     @spider_status.setter
     def spider_status(self,spider_status):
@@ -346,7 +348,7 @@ class MyTorrent:
 
     @property
     def douban_status(self):
-        if self.info == None: return ""
+        if self.info == None: return RETRY
         else                : return self.info.douban_status
     @douban_status.setter
     def douban_status(self,douban_status):
@@ -402,6 +404,19 @@ class MyTorrent:
         if self.hash != self.HASH and self.hash != "" and self.HASH != "": ErrorLog("error:diff hash and HASH:{}|{}".format(self.hash,self.HASH))
         return self.hash if self.hash != "" else self.HASH
 
+    def set_tag(self):
+        if self.client == "QB":
+            tTracker = self.tracker
+            if tTracker.find("keepfrds") >= 0 :
+                if self.tags != 'frds' : self.set_tags('frds')
+            elif tTracker.find("m-team") >= 0 :
+                if self.tags != 'mteam': self.set_tags('mteam')
+            elif tTracker.find("hdsky") >= 0 :
+                if self.tags != 'hdsky': self.set_tags('hdsky')
+            elif tTracker == "" : pass
+            else:
+                if self.tags != 'other': self.set_tags('other')		
+	
     def start_download(self):
         if self.torrent == None: ErrorLog("torrent does not exist"); return False
         if self.rss.rss_name != "":
@@ -781,6 +796,7 @@ class MyTorrent:
             else:
                 ErrorLog("error:"+up_sql+"::"+self.hash)
                 return False
+
 
 
 

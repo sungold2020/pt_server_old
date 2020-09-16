@@ -18,6 +18,7 @@ from ptsite import *
 #from torrent_info import TorrentInfo
 from client import PTClient
 from client import get_hash
+import threading 
 
 
 #连续NUMBEROFDAYS上传低于UPLOADTHRESHOLD，并且类别不属于'保种'的种子，会自动停止。
@@ -33,6 +34,7 @@ TR_KEEP_DIR='/media/root/BT/keep/'   #TR种子缺省保存路径
 class Torrents:
     def __init__(self):
         self.torrent_list = []
+        self.lock = threading.RLock()
         self.tracker_data_list = [
                 {'name':'FRDS'     ,'keyword':'frds'     ,'date_data':[]},
                 {'name':'MTeam'    ,'keyword':'m-team'   ,'date_data':[]},
@@ -65,24 +67,66 @@ class Torrents:
             ExecLog("last_check_date = "+self.last_check_date)
         if self.read_tracker_backup():
             ExecLog("read tracker backup from :"+TRACKER_LIST_BACKUP)
-        
+
     def get_torrent_index(self,mClient,mHASH):
         for i in range(len(self.torrent_list)) :
             if self.torrent_list[i].client == mClient and (mHASH == self.torrent_list[i].hash or mHASH == self.torrent_list[i].HASH): return i
         return -1   
 
-    def add_torrent(self,mTorrent):
+    def append_list(self,mTorrent):
+        self.lock.acquire() 
         self.torrent_list.append(mTorrent)
+        self.lock.release()
         self.write_pt_backup()
 
-    def del_torrent(self,mClient,mHASH):
+
+    def del_list(self,mClient,mHASH):
+        self.lock.acquire()
         for i in range(len(self.torrent_list)):
             if self.torrent_list[i].get_hash() == mHASH and self.torrent_list[i].client == mClient: 
                 del self.torrent_list[i]
                 self.write_pt_backup()
+                self.lock.release()
                 return True
+        self.lock.release()
         return False
 
+    def add_torrent(self,mClient,mHASH):
+        self.lock.acquire()
+        i = self.get_torrent_index(mClient,mHASH)
+        if i == -1: 
+            self.lock.release()
+            return "not find matched torrent"
+        tPTClient = PTClient(mClient)
+        if not tPTClient.connect(): return "failed to connect "+mClient
+        if tPTClient.add_torrent(download_link=self.torrent_list[i].download_link,is_paused=True):
+            ExecLog("add new torrent:"+self.torrent_list[i].title)
+            self.torrent_list[i].add_status = TO_BE_START
+            self.lock.release()
+            return "Success"
+        else:
+            ErrorLog("failed to add torrent:"+self.torrent_list[i].title)
+            self.lock.release()
+            return "failed to add torrent"
+
+
+    def reset_checked(self,mClient,tPTClient):
+        tNumberOfAdded=0
+        self.lock.acquire();
+        for i in range( len(self.torrent_list) ):
+            if self.torrent_list[i].client == mClient: self.torrent_list[i].checked = 0
+            if self.torrent_list[i].client == mClient and self.torrent_list[i].add_status == TO_BE_ADD: 
+                self.torrent_list[i].checked = 1
+                if tPTClient.add_torrent(download_link=self.torrent_list[i].download_link,is_paused=True):
+                    tNumberOfAdded += 1
+                    ExecLog("add new torrent:"+self.torrent_list[i].title)
+                    self.torrent_list[i].add_status = TO_BE_START
+                    #time.sleep(60)
+                else:
+                    ErrorLog("failed to add torrent:"+self.torrent_list[i].title)
+        self.lock.release()
+        return tNumberOfAdded
+            
     def read_pt_backup(self):
         """
         读取备份目录下的pt.txt，用于恢复种子记录数据，仅当初始化启动时调用
@@ -91,7 +135,8 @@ class Torrents:
         if not os.path.isfile(TORRENT_LIST_BACKUP): ExecLog(TORRENT_LIST_BACKUP+" does not exist"); return 0
             
         for line in open(TORRENT_LIST_BACKUP):
-            Client,HASH,Name,SiteName,Title,DownloadLink,AddStatusStr,DoubanID,IMDBID,SpiderStatusStr,DoubanStatusStr,DoubanScore,IMDBScore,DoubanLink,IMDBLink,MovieName,ForeignName,OtherNames,TypeStr,Nation,Director,Actors,Poster,EpisodesStr,Genre,tDateDataStr = line.split('|',25)
+            #Client,HASH,Name,SiteName,Title,DownloadLink,AddStatusStr,DoubanID,IMDBID,SpiderStatusStr,DoubanStatusStr,DoubanScore,IMDBScore,DoubanLink,IMDBLink,MovieName,ForeignName,OtherNames,TypeStr,Nation,Director,Actors,Poster,EpisodesStr,Genre,tDateDataStr = line.split('|',25)
+            Client,HASH,Name,SiteName,Title,DownloadLink,AddStatusStr,addDateTime,DoubanID,IMDBID,SpiderStatusStr,DoubanStatusStr,DoubanScore,IMDBScore,DoubanLink,IMDBLink,MovieName,ForeignName,OtherNames,TypeStr,Nation,Director,Actors,Poster,EpisodesStr,Genre,tDateDataStr = line.split('|',26)
             if tDateDataStr [-1:] == '\n' :  tDateDataStr = tDateDataStr[:-1]  #remove '\n'
             tDateDataList = tDateDataStr.split(',')
             DateData = []
@@ -104,7 +149,8 @@ class Torrents:
             tBasicTorrent = Torrent(Client,None)
             tBasicTorrent.date_data = DateData
 
-            tRSS = RSS(HASH,SiteName,DownloadLink,Title,DoubanID,IMDBID)
+            tRSS = RSS(HASH,SiteName,DownloadLink,Title,DoubanID,IMDBID,addDateTime)
+            if int(AddStatusStr) <= TO_BE_ADD: tRSS.get_torrent_info() #TODO 临时，带处理好size后删除
             
             tInfo = Info(DoubanID,IMDBID,int(SpiderStatusStr))
             tInfo.douban_status = int(DoubanStatusStr)
@@ -158,10 +204,12 @@ class Torrents:
                 DebugLog("backup pt file:"+tLastDayFileName)
         else : LogClear(TORRENT_LIST_BACKUP)        
 
+        self.lock.acquire()
         try : 
             fo = open(TORRENT_LIST_BACKUP,"w")
         except: 
             ErrorLog("Error:open ptbackup file to write："+TORRENT_LIST_BACKUP)
+            self.lock.release()
             return False
             
         for i in range(len(self.torrent_list)):
@@ -177,6 +225,7 @@ class Torrents:
             tStr +=     self.torrent_list[i].title+'|'
             tStr +=     self.torrent_list[i].download_link+'|'
             tStr += str(self.torrent_list[i].add_status)+'|'
+            tStr +=     self.torrent_list[i].add_datetime+'|'
             tStr +=     self.torrent_list[i].douban_id+'|'
             tStr +=     self.torrent_list[i].imdb_id+'|'
             tStr += str(self.torrent_list[i].spider_status)+'|'
@@ -200,7 +249,8 @@ class Torrents:
       
         fo.close()
         ExecLog("{} torrents writed:".format(len(self.torrent_list)))
-        return 1    
+        self.lock.release()
+        return True    
        
     def check_torrents(self,mClient):
         """
@@ -225,61 +275,42 @@ class Torrents:
             return -1
 
         #先把检查标志复位,并对待加入的种子进行加入
-        for i in range( len(self.torrent_list) ):
-            if self.torrent_list[i].client == mClient: self.torrent_list[i].checked = 0
-            if self.torrent_list[i].client == mClient and self.torrent_list[i].add_status == TO_BE_ADD: 
-                self.torrent_list[i].checked = 1
-                if tPTClient.add_torrent(download_link=self.torrent_list[i].download_link,is_paused=True):
-                    tNumberOfAdded += 1
-                    ExecLog("add new torrent:"+self.torrent_list[i].title)
-                    self.torrent_list[i].add_status = TO_BE_START
-                    #time.sleep(60)
-                else:
-                    ErrorLog("failed to add torrent:"+self.torrent_list[i].title)
-
+        tNumberOfAdded += self.reset_checked(mClient,tPTClient)
+		
         # 开始逐个获取torrent并检查
-        for tTorrent in tPTClient.get_all_torrents(): 
-            tIndex = self.get_torrent_index(mClient,tTorrent.hash)
+        for torrent in tPTClient.get_all_torrents(): 
+            tIndex = self.get_torrent_index(mClient,torrent.hash)
             if tIndex == -1:
-                ExecLog("findnew torrent:"+tTorrent.name)
-                self.add_torrent(MyTorrent(tTorrent,None,None,STARTED))
+                ExecLog("findnew torrent:"+torrent.name)
+                self.append_list(MyTorrent(torrent,None,None,STARTED))
                 #tIndex = -1                   #指向刚加入的种子
                 tNumberOfAdded += 1
                 #self.torrent_list[tIndex].spider_status = RETRY
             self.torrent_list[tIndex].checked = 1
-            self.torrent_list[tIndex].torrent.torrent = tTorrent.torrent  #刷新种子信息
+            self.torrent_list[tIndex].torrent.torrent = torrent.torrent  #刷新种子信息
+            tTorrent = self.torrent_list[tIndex]
 
             #检查并设置标签
-            if mClient == "QB":
-                tTracker = self.torrent_list[tIndex].tracker
-                if tTracker.find("keepfrds") >= 0 :
-                    if self.torrent_list[tIndex].tags != 'frds' : self.torrent_list[tIndex].set_tags('frds')
-                elif tTracker.find("m-team") >= 0 :
-                    if self.torrent_list[tIndex].tags != 'mteam': self.torrent_list[tIndex].set_tags('mteam')
-                elif tTracker.find("hdsky") >= 0 :
-                    if self.torrent_list[tIndex].tags != 'hdsky': self.torrent_list[tIndex].set_tags('hdsky')
-                elif tTracker == "" : pass
-                else:
-                    if self.torrent_list[tIndex].tags != 'other': self.torrent_list[tIndex].set_tags('other')
+            tTorrent.set_tag()
                 
             #检查文件
-            if self.torrent_list[tIndex].progress == 100 :
-                if self.torrent_list[tIndex].check_files(tIsNewDay) == False:
-                    ExecLog(self.torrent_list[tIndex].torrent.error_string)
-                    self.torrent_list[tIndex].stop()
+            if tTorrent.progress == 100 :
+                if tTorrent.check_files(tIsNewDay) == False:
+                    ExecLog(tTorrent.torrent.error_string)
+                    tTorrent.stop()
 
             # mteam部分免费种，免费一天，但下载完成率很低
-            if self.torrent_list[tIndex].status != "STOP" and self.torrent_list[tIndex].category == '下载' and self.torrent_list[tIndex].progress <= 95:
-                tStartTime = datetime.datetime.strptime(self.torrent_list[tIndex].add_datetime,"%Y-%m-%d %H:%M:%S")
+            if tTorrent.status != "STOP" and tTorrent.category == '下载' and tTorrent.progress <= 95:
+                tStartTime = datetime.datetime.strptime(tTorrent.add_datetime,"%Y-%m-%d %H:%M:%S")
                 tSeconds = (datetime.datetime.now()-tStartTime).total_seconds()
                 if tSeconds >= 24*3600 : 
-                    self.torrent_list[tIndex].stop()
-                    ExecLog(self.torrent_list[tIndex].name+" have not done more than 1 day") 
+                    tTorrent.stop()
+                    ExecLog(tTorrent.name+" have not done more than 1 day") 
                             
             #如果种子状态不是STARTED，启动它
-            if self.torrent_list[tIndex].add_status == TO_BE_START and self.torrent_list[tIndex].status == "STOP":
-                if self.torrent_list[tIndex].start_download():
-                    ExecLog("start   torrent:"+self.torrent_list[tIndex].name)
+            if tTorrent.add_status == TO_BE_START and tTorrent.status == "STOP":
+                if tTorrent.start_download():
+                    ExecLog("start   torrent:"+tTorrent.name)
                     tNumberOfUpdated += 1
                     self.torrent_list[tIndex].add_status = STARTED
                 else:
@@ -304,10 +335,10 @@ class Torrents:
         
         #最后，找出没有Checked标志的种子列表，进行删除操作。
         for torrent in self.torrent_list:
-            if torrent.checked == 0 and torrent.client == mClient:
+            if torrent.checked == 0 and torrent.client == mClient and torrent.add_status != MANUAL and torrent.add_status != TO_BE_ADD:
                 tNumberOfDeleted += 1
                 ExecLog("delete  torrent:"+torrent.title)
-                self.del_torrent(torrent.client,torrent.get_hash())
+                self.del_list(torrent.client,torrent.get_hash())
      
         DebugLog("complete check_torrents  from "+mClient)
         if tNumberOfAdded > 0   : DebugLog(str(tNumberOfAdded).zfill(4)+" torrents added")
@@ -608,7 +639,7 @@ class Torrents:
                     continue
                 DebugLog("free   torrent:"+tTorrent.HASH)
                 ExecLog("free    torrent:"+Title)
-                self.add_torrent(tTorrent)
+                self.append_list(tTorrent)
         return True
 
     def request_rss(self,mRSSName="",mTimeInterval=-2):
@@ -654,7 +685,9 @@ class Torrents:
                 Title = Title.replace('|','')
                 tRSS = RSS(HASH,RSSName,DownloadLink,Title,tInfo.douban_id,tInfo.imdb_id)
                 
-                if not tRSS.filter_by_keywords(): continue
+                #if not tRSS.filter_by_keywords(): continue
+                toBeDownloaded = tRSS.to_be_downloaded()
+                if toBeDownloaded == IGNORE_DOWNLOAD: continue
                 
                 if tRSS.select():
                     rss_log("old rss:"+tRSS.title)
@@ -662,12 +695,13 @@ class Torrents:
                 if not tRSS.insert():  #记录插入rss数据库
                     ErrorLog("failed to insert into rss:{}|{}".format(RSSName,HASH))
                     continue
-                tTorrent = MyTorrent(None,tRSS,tInfo,TO_BE_ADD)
+                addStatus = TO_BE_ADD if toBeDownloaded == AUTO_DOWNLOAD else MANUAL
+                tTorrent = MyTorrent(None,tRSS,tInfo,addStatus)
 
                 if not WaitFree: 
                     ExecLog("new rss tobeadd:"+tTorrent.title)
                     ExecLog("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
-                    self.add_torrent(tTorrent)
+                    self.append_list(tTorrent)
                 else:
                     rss_log("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
 
@@ -819,8 +853,8 @@ class Torrents:
         if tIndex == -1: return "False, not find matched torrent"
         tAddStatus = self.torrent_list[tIndex].add_status 
         tTitle     = self.torrent_list[tIndex].get_title()
-        if not self.del_torrent(tClient,tHASH): return "False, not find matched torrent"
-        if tAddStatus != TO_BE_ADD:
+        if not self.del_list(tClient,tHASH): return "False, not find matched torrent"
+        if tAddStatus != TO_BE_ADD and tAddStatus != MANUAL:
             tPTClient = PTClient(tClient)
             if not tPTClient.connect():
                 return "False,can't connect to qb"
@@ -828,4 +862,25 @@ class Torrents:
                 return "False, can't delete torrent in "+tClient
         ExecLog("del  torrent:"+tTitle+'|'+tHASH)
         return "Success"
+
+
+    def request_act_torrent(self,mRequestStr):
+        """
+        client|hash|action
+        """
+        try:
+            tClient,tHASH,tAction = mRequestStr.split('|',2)
+        except Exception as err:
+            print(err)
+            ExecLog("failed to split:"+mRequestStr)
+            return "error requeststr:"+mRequestStr
+        DebugLog("to act {}|{}|{}".format(tClient,tHASH,tAction))
+        
+        if tAction == "add": return self.add_torrent(tClient,tHASH)
+
+        # TODO
+        tIndex = self.get_torrent_index(tClient,tHASH)
+        if tIndex == -1: return "not find match torrent"
+        if tAction == "start": self.torrent_list[tIndex].start()
+        elif tAction == "stop": self.torrent_list[tIndex].stop()
 

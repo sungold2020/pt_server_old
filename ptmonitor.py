@@ -35,7 +35,7 @@ gSocket = None
 def handle_task(Request,mConnect=None):
     global gTorrents
 
-    ExecLog("accept request:"+Request)
+    socket_log("accept request:"+Request)
     RequestList = Request.split()
     Task = RequestList[0].lower(); del RequestList[0]
     if   Task == 'checkdisk': 
@@ -55,22 +55,23 @@ def handle_task(Request,mConnect=None):
     elif Task == 'view'         : 
         if len(RequestList) == 1 and RequestList[0] == 'all': return str(update_viewed(False))
         else                                                : return str(update_viewed(True))
-    elif Task == 'tobeadd'      : to_be_add_torrents(mConnect)
+    #elif Task == 'tobeadd'      : to_be_add_torrents(mConnect)
     elif Task == 'lowupload'    : return gTorrents.print_low_upload()
     elif Task == 'torrents'     : return gTorrents.query_torrents(RequestList)
     elif Task == "del"          : return gTorrents.request_del_torrent(RequestList[0] if len(RequestList) == 1 else "")
+    elif Task == "act_torrent"  : return gTorrents.request_act_torrent(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == 'log'          : return get_log()
-    else                        : ExecLog("unknown request task:"+Task) ; return "unknown request task"     
+    else                        : socket_log("unknown request task:"+Task) ; return "unknown request task"     
     
     return "completed"
 
 def get_log():
     Command = "tail -n 500 /root/pt/log/pt.log > log/temp.log"
     #ExecLog("exec:"+QBCopyCommand)
-    if os.system(Command) == 0 : ExecLog ("success exec:"+Command)
+    if os.system(Command) == 0 : socket_log ("success exec:"+Command)
     with open('log/temp.log', 'r') as f1:
         logStr  = f1.read()
-    return '\n'.join(logStr)
+    return ''.join(logStr)
      
 def backup_torrents():
     """
@@ -101,6 +102,21 @@ def backup_torrents():
     if os.system(TRCopyCommand2) == 0 : ExecLog ("success exec:"+TRCopyCommand2)
     else : ExecLog("failed to exec:"+TRCopyCommand2); return False
 
+def listen_socket():
+    while True:
+        #监听Client是否有任务请求
+        if not gSocket.accept(): continue
+
+        Request = gSocket.receive()
+        if Request == "": socket_log("empty request"); continue
+        socket_log("recv:"+Request)
+
+        Reply = handle_task(Request,gSocket)
+        #Print("begin send")
+        gSocket.send(Reply)
+        socket_log("send:"+Reply)
+        gSocket.close()
+
 if __name__ == '__main__' :
     global gTorrents
 
@@ -118,6 +134,11 @@ if __name__ == '__main__' :
     if not gSocket.init(): exit()
    
     gLastCheckDate = gTorrents.last_check_date
+
+    
+    thread_socket = threading.Thread(target=listen_socket)
+    thread_socket.start()
+
     LoopTimes = 0
     while True:
         LoopTimes += 1
@@ -152,6 +173,9 @@ if __name__ == '__main__' :
         DebugLog("memory percent used:"+str(tMem.percent))
         if tMem.percent >= 92: ExecLog("memory percent used:"+str(tMem.percent)); PTClient("QB").restart()
 
+        time.sleep(60)
+
+        """
         #监听Client是否有任务请求
         if not gSocket.accept(): continue
 
@@ -164,3 +188,4 @@ if __name__ == '__main__' :
         gSocket.send(Reply)
         Print("send:"+Reply)
         gSocket.close()
+        """

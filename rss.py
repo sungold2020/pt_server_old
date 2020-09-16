@@ -8,6 +8,12 @@ from bs4 import BeautifulSoup
 from database import *
 from log import *
 from info import *
+from torrent_info import *
+from ptsite import *
+
+IGNORE_DOWNLOAD = 0
+MANUAL_DOWNLOAD = 1
+AUTO_DOWNLOAD  = 2
 
 RSS_LIST = [
     {
@@ -19,33 +25,47 @@ RSS_LIST = [
     {
         'name':'MTeam', 
         'wait_free':True,   
-        'time_interval':10,
+        'time_interval':119,
         'url':'https://pt.m-team.cc/torrentrss.php?https=1&rows=30&cat401=1&cat419=1&cat420=1&cat421=1&cat439=1&cat403=1&cat402=1&cat435=1&cat438=1&cat404=1&cat409=1&icat=1&ismalldescr=1&isize=1&linktype=dl&passkey=7044b36a9057090e36138df761ddfc5d'
         },
     {
         'name':'HDSky', 
         'wait_free':False,   
         'time_interval':10,
-        'includes':['x265','HDS'],
-        'excludes':['HDSWEB','HDSPad','HDSTV'],
+        'auto':{'includes':['x265','HDS'],'excludes':['HDSWEB','HDSPad','HDSTV']},
+        'manual':{'includes':['x265',],'excludes':['HDSWEB','HDSPad','HDSTV','FRDS','HDS','PTH','HDH']},
         'url':'https://hdsky.me/torrentrss.php?rows=10&tea1=1&tea28=1&ismalldescr=1&linktype=dl&passkey=c8c158c14e1762b0c93c91ab2ddc689a'
         },
     {
         'name':'BeiTai',   
         'wait_free':False,   
-        'time_interval':60,
+        'time_interval':119,
         'url':'https://www.beitai.pt/torrentrss.php?rows=20&icat=1&ismalldescr=1&isize=1&linktype=dl&passkey=e193420544db01e767e2a214f30ec049&inclbookmarked=1'
+        },
+    {
+        'name':'BeiTaiAll',   
+        'wait_free':False,   
+        'time_interval':50,
+        'manual':{'includes':['265',],'excludes':['HDS','FRDS']},
+        'url':'https://www.beitai.pt/torrentrss.php?rows=10&cat401=1&ismalldescr=1&linktype=dl&passkey=e193420544db01e767e2a214f30ec049'
         },
     {
         'name':'LeagueHD', 
         'wait_free':False,   
-        'time_interval':5,
+        'time_interval':119,
         'url':'https://leaguehd.com/torrentrss.php?rows=20&icat=1&ismalldescr=1&isize=1&linktype=dl&passkey=dfab9bb8e00a9445760abb17ec2fa772&inclbookmarked=1'
-        },
+        }, 
+    {
+        'name':'LeagueHDAll', 
+        'wait_free':False,   
+        'time_interval':50,
+        'manual':{'includes':['265',],'excludes':['HDS','FRDS','PTHome','HDHome']},
+        'url':'https://leaguehd.com/torrentrss.php?rows=20&ismalldescr=1&linktype=dl&passkey=dfab9bb8e00a9445760abb17ec2fa772'
+        }, 
     {
         'name':'HDHome',   
         'wait_free':False,   
-        'time_interval':60,
+        'time_interval':119,
         'url':'http://hdhome.org/torrentrss.php?myrss=1&linktype=dl&uid=74129&passkey=93581f449716e0adedc71620f78513d2'
         },
     {
@@ -75,8 +95,15 @@ RSS_LIST = [
     {
         'name':'PTHome',   
         'wait_free':False,   
-        'time_interval':60,
+        'time_interval':119,
         'url':'http://pthome.net/torrentrss.php?myrss=1&linktype=dl&uid=116626&passkey=c8b0815aa8bf6f1502260a11f8ed2ed7'
+        },
+    {
+        'name':'PTHomeAll',   
+        'wait_free':False,   
+        'time_interval':50,
+        'manual':{'includes':['265',],'excludes':['HDS','FRDS','BeiTai']},
+        'url':'https://pthome.net/torrentrss.php?rows=20&cat401=1&ismalldescr=1&linktype=dl&passkey=c8b0815aa8bf6f1502260a11f8ed2ed7'
         },
     {
         'name':'AVGV',     
@@ -87,7 +114,7 @@ RSS_LIST = [
     {
         'name':'FRDSMark' ,
         'wait_free':False,   
-        'time_interval':60,
+        'time_interval':119,
         'url':'https://pt.keepfrds.com/torrentrss.php?rows=10&icat=1&isize=1&linktype=dl&passkey=97f4eab2ad32ebf39ee4889f6328800b&inclbookmarked=1'
         },
     {
@@ -99,18 +126,18 @@ RSS_LIST = [
     {
         'name':'HDSkyRSS',
         'wait_free':False,   
-        'time_interval':60,
+        'time_interval':119,
         'url':'https://hdsky.me/torrentrss.php?rows=50&linktype=dl&inclrssmarked=1&passkey=c8c158c14e1762b0c93c91ab2ddc689a'
         },
     {
         'name':'MTeamMark',
         'wait_free':False,   
-        'time_interval':60,
+        'time_interval':119,
         'url':'https://pt.m-team.cc/torrentrss.php?https=1&rows=20&icat=1&ismalldescr=1&isize=1&linktype=dl&passkey=7044b36a9057090e36138df761ddfc5d&inclbookmarked=1'
         }]
 
 class RSS:
-    def __init__(self,HASH='',rss_name='',download_link='',title='',douban_id="",imdb_id=""):
+    def __init__(self,HASH='',rss_name='',download_link='',title='',douban_id="",imdb_id="",add_datetime=""):
         self._HASH          = HASH
         self.rss_name      = rss_name
         self.download_link = download_link
@@ -121,6 +148,15 @@ class RSS:
         self.torrent_id = self.get_torrent_id(self.download_link)
         self.add_date = datetime.datetime.now().strftime('%Y-%m-%d')
         self.downloaded = 0
+
+        if add_datetime == "": self._add_datetime =  datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        else                 : self._add_datetime = add_datetime
+        self._name = ""
+        self._total_size = 0
+        self._files = []
+        #if self.add_status == TO_BE_ADD or selfself.get_torrent_info()
+        if rss_name.lower().startswith("pthome"): self.convert_download_link()
+
 
     @property
     def HASH(self):
@@ -149,6 +185,29 @@ class RSS:
     @imdb_id.setter
     def imdb_id(self,imdb_id):
         self._imdb_id = trans_imdb_id(imdb_id)
+
+    @property
+    def total_size(self):
+        return self._total_size
+    @property
+    def name(self):
+        return self._name
+    @property
+    def files(self):
+        return self._files
+    @property
+    def add_datetime(self):
+        return self._add_datetime
+
+    def get_torrent_info(self):
+        torrent = TorrentInfo(download_link=self.download_link)
+        if not torrent.get_info(): 
+            ExecLog("failed to get info:"+self.download_link); 
+            return False
+        self._total_size = torrent.total_size;
+        self._name = torrent.name
+        self._files = torrent.files
+        return True
 
     def select(self,assign_value=True):
         if self.rss_name == "": return False
@@ -255,11 +314,29 @@ class RSS:
         if tIndex == -1: DebugLog("failed to find torrentid endtag(&):"+mDownloadLink); return ""
         return tTorrentID[:tIndex]
 
+    def to_be_downloaded(self):
+        tSite = None
+        for tRSS in RSS_LIST:
+            if tRSS['name'] == self.rss_name:
+                tSite = tRSS
+                break
+        if tSite == None: ErrorLog("unknown rss name:"+self.rss_name); return IGNORE_DOWNLOAD
+        
+        #
+        if tSite.get('auto') == None and tSite.get('manual') == None: return AUTO_DOWNLOAD
+
+        #AUTO
+        if filter_by_keywords(self.title,tSite.get('auto')): return AUTO_DOWNLOAD
+        if filter_by_keywords(self.title,tSite.get('manual')): return MANUAL_DOWNLOAD
+        return IGNORE_DOWNLOAD
+
+
     def filter_by_keywords(self):
         """
-        根据includes/excludes关键字进行过滤，如果符合规则返回True，否则返回False
-        True: 符合过滤规则，进行下载
-        False：不合符过滤规则，不进行下载
+        根据auto/manual:includes/excludes关键字进行过滤:
+        AUTO
+        MANUAL
+        REMOVE
         """
         tSite = None
         for tRSS in RSS_LIST:
@@ -280,3 +357,27 @@ class RSS:
                 rss_log('include {},ignore it:{}'.format(tExclude,self.title))
                 return False
         return True
+
+    def convert_download_link(self):
+        for site in NexusPage.site_list:
+            if site['name'].lower() in self.rss_name.lower():
+                self.download_link = site['first_url']+'download.php?id='+self.torrent_id+site['last_url']
+
+def filter_by_keywords(title,keywords):
+    """
+
+    """
+    if keywords == None: return False
+
+    tIncludes = keywords.get('includes')   if keywords.get('includes') else []
+    for tInclude in tIncludes:
+        if title.find(tInclude) <= 0: 
+            rss_log('not include {},ignore it:{}'.format(tInclude,title))
+            return False
+
+    tExcludes = keywords.get('excludes')   if keywords.get('excludes') else []
+    for tExclude in tExcludes:
+        if title.find(tExclude) >= 0: 
+            rss_log('include {},ignore it:{}'.format(tExclude,title))
+            return False
+    return True

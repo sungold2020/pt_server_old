@@ -15,6 +15,7 @@ RSS_LOG_FILE='log/rss.log'
 DATABASE_LOG_FILE = 'log/database.log'
 PTSITE_LOG_FILE ='log/site.log'
 MOVIE_LOG_FILE ='log/movie.log'
+SOCKET_LOG_FILE='log/socket.log'
 
 def info_log(tStr):
     Log(INFO_LOG_FILE,tStr)
@@ -30,6 +31,25 @@ def site_log(tStr):
 
 def movie_log(tStr):
     Log(MOVIE_LOG_FILE,tStr)
+
+def socket_log(tStr):
+    Log(SOCKET_LOG_FILE,tStr)
+
+def Print(Str):
+    tCurrentTime = datetime.datetime.now()
+    print(tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')+"::" , end='')
+    print(Str)
+
+def LogClear(FileName="") :
+    if FileName == "":
+        if os.path.isfile(INFO_LOG_FILE+".old"):    os.remove(INFO_LOG_FILE+".old")
+        if os.path.isfile(INFO_LOG_FILE)       :    os.rename(INFO_LOG_FILE,INFO_LOG_FILE+".old")
+        if os.path.isfile(RSS_LOG_FILE+".old"):     os.remove(RSS_LOG_FILE+".old")
+        if os.path.isfile(RSS_LOG_FILE)       :     os.rename(RSS_LOG_FILE,RSS_LOG_FILE+".old")
+        if os.path.isfile(PTSITE_LOG_FILE+".old"):  os.remove(PTSITE_LOG_FILE+".old")
+        if os.path.isfile(PTSITE_LOG_FILE)       :  os.rename(PTSITE_LOG_FILE,PTSITE_LOG_FILE+".old")
+        if os.path.isfile(SOCKET_LOG_FILE+".old"):  os.remove(SOCKET_LOG_FILE+".old")
+        if os.path.isfile(SOCKET_LOG_FILE)       :  os.rename(SOCKET_LOG_FILE,SOCKET_LOG_FILE+".old")
 
 def Print(Str):
     tCurrentTime = datetime.datetime.now()

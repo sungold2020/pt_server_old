@@ -4,6 +4,7 @@ import hashlib
 import bencode
 import requests
 
+from client import PTClient
 from log import *
 
 """
@@ -12,7 +13,7 @@ from log import *
 
 
 class TorrentInfo:
-    def __init__(self,download_link="",torrent_file=""):
+    def __init__(self,download_link=None,torrent_file=None):
         self.torrent_file = torrent_file
         self.download_link = download_link
 
@@ -23,9 +24,9 @@ class TorrentInfo:
          
 
     def get_info(self):
-        if self.torrent_file == "":
-            if self.download_link == "": return False
-            DestFullFile="temp.torrent"
+        if self.torrent_file == None:
+            if self.download_link == None: return False
+            DestFullFile="data/temp.torrent"
             try:
                 f=requests.get(self.download_link)
                 with open(DestFullFile,"wb") as code:
@@ -38,6 +39,7 @@ class TorrentInfo:
                 DebugLog("success download torrent file from:"+self.download_link)
                 self.torrent_file = DestFullFile
 
+        """
         #filename is the torrent file name
         with open(self.torrent_file,'rb') as f:
              torrent_data = f.read()
@@ -47,13 +49,20 @@ class TorrentInfo:
                 info_data = torrent_data[torrent_data.find(b"info")+4:len(torrent_data) - 1]
              self.hash = hashlib.sha1(info_data).hexdigest()
              #print(self.hash)
-
+        tTRClient = PTClient("TR")
+        if not tTRClient.connect(): ExecLog("failed to connect tr"); return False
+        torrent_file = os.path.join(os.getcwd(),'data/temp.torrent')
+        tr_torrent = tTRClient.add_torrent(torrent_file=torrent_file,download_dir="/dev/null",is_paused=True)
+        if tr_torrent == None : return False
+        self.hash = tr_torrent.hashString
+        if tTRClient.del_torrent(self.hash) == False: ExecLog("faild to delete torrent:"+tr_torrent.name)
+        """
         torrent_file = open(self.torrent_file,"rb")
         try :
             metainfo = bencode.bdecode(torrent_file.read())
         except Exception as err:
             print(err)
-            return True
+            return False
 
         info = metainfo[b'info']
         #print(info)
@@ -65,6 +74,7 @@ class TorrentInfo:
             tFiles = info[b'files']
         except Exception as err:
             print (err)
+            return False
         else:
             for tFile in info[b'files']:
                 tSize = tFile[b'length']
