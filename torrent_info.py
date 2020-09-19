@@ -4,8 +4,8 @@ import hashlib
 import bencode
 import requests
 
-from client import PTClient
 from log import *
+import torrentool.api
 
 """
 从link下载种子文件，解析种子文件，获取种子信息
@@ -17,10 +17,11 @@ class TorrentInfo:
         self.torrent_file = torrent_file
         self.download_link = download_link
 
-        self.hash = ""
-        self.name = ""
+        self.torrent = None
+
+        #self.name = ""
         #self.total_size = 0
-        self.files = []
+        #self.files = []
          
 
     def get_info(self):
@@ -39,7 +40,9 @@ class TorrentInfo:
                 DebugLog("success download torrent file from:"+self.download_link)
                 self.torrent_file = DestFullFile
 
-        """
+        self.torrent = torrentool.api.Torrent.from_file(self.torrent_file)
+        return True
+    '''
         #filename is the torrent file name
         with open(self.torrent_file,'rb') as f:
              torrent_data = f.read()
@@ -49,6 +52,7 @@ class TorrentInfo:
                 info_data = torrent_data[torrent_data.find(b"info")+4:len(torrent_data) - 1]
              self.hash = hashlib.sha1(info_data).hexdigest()
              #print(self.hash)
+        """
         tTRClient = PTClient("TR")
         if not tTRClient.connect(): ExecLog("failed to connect tr"); return False
         torrent_file = os.path.join(os.getcwd(),'data/temp.torrent')
@@ -88,12 +92,17 @@ class TorrentInfo:
 
         #    print(tFile)
         return True
-
+    '''
 
     @property
     def total_size(self):
-        total_size = 0
-        for tFile in self.files:
-            total_size += tFile['size']
-
-        return total_size
+        return self.torrent.total_size if self.torrent != None else 0
+    @property
+    def hash(self):
+        return self.torrent.info_hash  if self.torrent != None else ""
+    @property
+    def name(self):
+        return self.torrent.name       if self.torrent != None else ""
+    @property
+    def files(self):
+        return self.torrent.files      if self.torrent != None else ""

@@ -134,32 +134,44 @@ def check_all_id():
     check_id('movies')
 
 def check_id(table_name):
+    """
+    1，检查table表中doubanid 和 imdbid格式的。
+    """
     tList = select("select doubanid,imdbid from "+table_name,None)
     print("begin check id of table "+table_name)
 
     for i in range(len(tList)):
         douban_id = tList[i][0]
         imdb_id   = tList[i][1]
-        imdb_id   = trans_imdb_id(imdb_id)
+
+        #检查imdbid并转换.更新转换后的imdbid
+        imdb_id   = Info.check_imdb_id(imdb_id)
         if imdb_id != "" and imdb_id != tList[i][1]:
             print("tobe update imdbid:{}|{}".format(imdb_id,tList[i][1]))
             update('update '+table_name+' set imdbid=%s where imdbid=%s',(imdb_id,tList[i][1]))
+        #检查doubanid格式是否正确,只打印不更新
         if douban_id != "" and not douban_id.isdigit(): print("doubanid not digit:"+douban_id)
         j = i+1
         while j < len(tList):
             douban_id2 = tList[j][0]
             imdb_id2   = tList[j][1]
+            #doubanid相同，但是imdbid不同的
             if douban_id != "" and douban_id2 == douban_id and imdb_id2 != imdb_id:
+                #如果一个为空，就把另外一个不为空的更新进去
                 if  imdb_id == "" or imdb_id2 == "":
                     update("update "+table_name+' set imdbid=%s where doubanid=%s and imdbid=""',
                             (imdb_id if imdb_id != "" else imdb_id2,douban_id))
                 else:
+                    #两个不为空，值不相同，打印出来
                     print("sam douban_id,diff imdb_id:{}|{}::{}".format(imdb_id,imdb_id2,douban_id))
+            #imdbid相同，但是doubanid不同的
             if imdb_id != "" and imdb_id2 == imdb_id and douban_id2 != douban_id:
+                #如果一个为空，就把另外一个不为空的更新进去
                 if  douban_id == "" or douban_id2 == "":
                     update("update "+table_name+' set doubanid=%s where imdbid=%s and doubanid=""',
                             (douban_id if douban_id != "" else douban_id2,imdb_id))
                 else:
+                    #两个不为空，值不相同，打印出来
                     print("same imdb_id,diff douban_id:{}|{}::{}".format(douban_id,douban_id2,imdb_id))
             j += 1 
 
@@ -186,8 +198,30 @@ def check_id(table_name):
             j += 1 
     """
 
+def check_douban_id():
+    """
+    检查info表中douban_id为空的情况
+    """
+    result = select("select name,imdbid from info where doubanid = \"\"",None)
+    for select in result:
+        movie_name = select[0]
+        imdb_id = select[1]
+        print("name={}imdbid=:{}".format(movie_name,imdb_id))
+        info = Info("",imdb_id)
+        info.get_douban_id_by_imdb_id()
+        time.sleep(10)
+        if info.douban_id == "": print("can't find douban_id:"+movie_name); continue
+        print("doubanid="+info.douban_id)
+        if info.douban_detail() == OK :
+            print("更新info表数据:{}|{}|{}".format(info.movie_name,info.nation,info.douban_id))
+            if not info.update(): print("更新info表失败")
+        else:
+            print("爬取豆瓣信息失败:"+info.douban_id)
+        time.sleep(20)
+
+        
 if __name__ == '__main__':
     read_info_ignore()
     #check_movie_info()
-    check_info()
-    #check_all_id()
+    #check_info()
+    check_all_id()

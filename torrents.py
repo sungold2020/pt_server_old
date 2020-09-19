@@ -18,6 +18,7 @@ from ptsite import *
 #from torrent_info import TorrentInfo
 from client import PTClient
 from client import get_hash
+from rsssite import *
 import threading 
 
 
@@ -74,10 +75,12 @@ class Torrents:
         return -1   
 
     def append_list(self,mTorrent):
+        if self.get_torrent_index(mTorrent.client,mTorrent.get_hash()) >= 0: ExecLog("torrent exists:"+mTorrent.get_title()); return False
         self.lock.acquire() 
         self.torrent_list.append(mTorrent)
         self.lock.release()
         self.write_pt_backup()
+        return True
 
 
     def del_list(self,mClient,mHASH):
@@ -103,6 +106,7 @@ class Torrents:
             ExecLog("add new torrent:"+self.torrent_list[i].title)
             self.torrent_list[i].add_status = TO_BE_START
             self.lock.release()
+            self.write_pt_backup()
             return "Success"
         else:
             ErrorLog("failed to add torrent:"+self.torrent_list[i].title)
@@ -112,18 +116,23 @@ class Torrents:
 
     def reset_checked(self,mClient,tPTClient):
         tNumberOfAdded=0
-        self.lock.acquire();
+        self.lock.acquire()
         for i in range( len(self.torrent_list) ):
-            if self.torrent_list[i].client == mClient: self.torrent_list[i].checked = 0
-            if self.torrent_list[i].client == mClient and self.torrent_list[i].add_status == TO_BE_ADD: 
-                self.torrent_list[i].checked = 1
-                if tPTClient.add_torrent(download_link=self.torrent_list[i].download_link,is_paused=True):
-                    tNumberOfAdded += 1
-                    ExecLog("add new torrent:"+self.torrent_list[i].title)
-                    self.torrent_list[i].add_status = TO_BE_START
-                    #time.sleep(60)
-                else:
-                    ErrorLog("failed to add torrent:"+self.torrent_list[i].title)
+            if self.torrent_list[i].client == mClient: 
+                self.torrent_list[i].checked = 0
+                if self.torrent_list[i].add_status == TO_BE_ADD: 
+                    self.torrent_list[i].checked = 1
+                    if tPTClient.add_torrent(download_link=self.torrent_list[i].download_link,is_paused=True):
+                        tNumberOfAdded += 1
+                        ExecLog("add new torrent:"+self.torrent_list[i].title)
+                        self.torrent_list[i].add_status = TO_BE_START
+                        self.write_pt_backup()
+                        #time.sleep(60)
+                    else:
+                        ErrorLog("failed to add torrent:"+self.torrent_list[i].title)
+                elif self.torrent_list[i].add_status == MANUAL: self.torrent_list[i].check_movie_info()
+                else: pass
+                    
         self.lock.release()
         return tNumberOfAdded
             
@@ -134,6 +143,7 @@ class Torrents:
         
         if not os.path.isfile(TORRENT_LIST_BACKUP): ExecLog(TORRENT_LIST_BACKUP+" does not exist"); return 0
             
+        """
         for line in open(TORRENT_LIST_BACKUP):
             #Client,HASH,Name,SiteName,Title,DownloadLink,AddStatusStr,DoubanID,IMDBID,SpiderStatusStr,DoubanStatusStr,DoubanScore,IMDBScore,DoubanLink,IMDBLink,MovieName,ForeignName,OtherNames,TypeStr,Nation,Director,Actors,Poster,EpisodesStr,Genre,tDateDataStr = line.split('|',25)
             Client,HASH,Name,SiteName,Title,DownloadLink,AddStatusStr,addDateTime,DoubanID,IMDBID,SpiderStatusStr,DoubanStatusStr,DoubanScore,IMDBScore,DoubanLink,IMDBLink,MovieName,ForeignName,OtherNames,TypeStr,Nation,Director,Actors,Poster,EpisodesStr,Genre,tDateDataStr = line.split('|',26)
@@ -149,28 +159,35 @@ class Torrents:
             tBasicTorrent = Torrent(Client,None)
             tBasicTorrent.date_data = DateData
 
-            tRSS = RSS(HASH,SiteName,DownloadLink,Title,DoubanID,IMDBID,addDateTime)
+            tRSS = RSS(HASH,SiteName,DownloadLink,Title,DoubanID,IMDBID,addDateTime,0,int(SpiderStatusStr))
             if int(AddStatusStr) <= TO_BE_ADD: tRSS.get_torrent_info() #TODO 临时，带处理好size后删除
+            #if int(SpiderStatusStr) == NOK and tRSS.id_status == RETRY: tRSS.id_status = NOK
+            if tRSS.douban_status == RETRY: tRSS.douban_status = int(DoubanStatusStr)
+            if tRSS.douban_score == "": tRSS.douban_score = DoubanScore
+            if tRSS.imdb_score   == "": tRSS.imdb_score   = IMDBScore
             
-            tInfo = Info(DoubanID,IMDBID,int(SpiderStatusStr))
-            tInfo.douban_status = int(DoubanStatusStr)
-            tInfo.douban_score  =     DoubanScore
-            tInfo.imdb_score    =     IMDBScore
-            tInfo.douban_link   =     DoubanLink
-            tInfo.imdb_link     =     IMDBLink
-            tInfo.movie_name    =     MovieName
-            tInfo.foreign_name  =     ForeignName
-            tInfo.other_names   =     OtherNames
-            tInfo.type          = int(TypeStr)
-            tInfo.nation        =     Nation
-            tInfo.director      =     Director
-            tInfo.actors        =     Actors
-            tInfo.poster        =     Poster
-            tInfo.episodes      = int(EpisodesStr)
-            tInfo.genre         =     Genre
-
-            self.torrent_list.append(MyTorrent(tBasicTorrent,tRSS,tInfo,int(AddStatusStr)))  #init, can't use add_torrent
+            self.torrent_list.append(MyTorrent(tBasicTorrent,tRSS,int(AddStatusStr)))  #init, can't use add_torrent
         #end for 
+        """
+        for line in open(TORRENT_LIST_BACKUP):
+            Client,HASH,Name,SiteName,Title,DownloadLink,AddStatusStr,TotalSizeStr,AddDateTime,DoubanID,IMDBID,IDStatusStr,DoubanStatusStr,DoubanScore,IMDBScore,tDateDataStr = line.split('|',15)
+            if tDateDataStr [-1:] == '\n' :  tDateDataStr = tDateDataStr[:-1]  #remove '\n'
+            tDateDataList = tDateDataStr.split(',')
+            DateData = []
+            for i in range(len(tDateDataList)) :
+                if tDateDataList[i] == "" :  break      #最后一个可能为空就退出循环
+                tDate = (tDateDataList[i])[:10]
+                tData = int( (tDateDataList[i])[11:] )
+                DateData.append({'date':tDate,'data':tData})
+
+            tTorrent = Torrent(Client,None)
+            tTorrent.date_data = DateData
+            tRSS = RSS(HASH,SiteName,DownloadLink,Title,DoubanID,IMDBID,AddDateTime,int(TotalSizeStr),int(IDStatusStr))
+            #if tRSS.id_status == RETRY: tRSS.id_status = int(IDStatusStr)
+            if tRSS.douban_status == RETRY: tRSS.douban_status = int(DoubanStatusStr)
+            if tRSS.douban_score == "": tRSS.douban_score = DoubanScore
+            if tRSS.imdb_score   == "": tRSS.imdb_score   = IMDBScore  
+            self.torrent_list.append(MyTorrent(tTorrent,tRSS,int(AddStatusStr)))  #init, can't use add_torrent
         self.last_check_date = tDate
         return 1
 
@@ -225,25 +242,14 @@ class Torrents:
             tStr +=     self.torrent_list[i].title+'|'
             tStr +=     self.torrent_list[i].download_link+'|'
             tStr += str(self.torrent_list[i].add_status)+'|'
+            tStr += str(self.torrent_list[i].total_size)+'|'
             tStr +=     self.torrent_list[i].add_datetime+'|'
             tStr +=     self.torrent_list[i].douban_id+'|'
             tStr +=     self.torrent_list[i].imdb_id+'|'
-            tStr += str(self.torrent_list[i].spider_status)+'|'
+            tStr += str(self.torrent_list[i].id_status)+'|'
             tStr += str(self.torrent_list[i].douban_status)+'|'
             tStr +=     self.torrent_list[i].douban_score+'|'
             tStr +=     self.torrent_list[i].imdb_score+'|'
-            tStr +=     self.torrent_list[i].douban_link+'|'
-            tStr +=     self.torrent_list[i].imdb_link+'|'
-            tStr +=     self.torrent_list[i].movie_name+'|'
-            tStr +=     self.torrent_list[i].foreign_name+'|'
-            tStr +=     self.torrent_list[i].other_names+'|'
-            tStr += str(self.torrent_list[i].type)+'|'
-            tStr +=     self.torrent_list[i].nation+'|'
-            tStr +=     self.torrent_list[i].director+'|'
-            tStr +=     self.torrent_list[i].actors+'|'
-            tStr +=     self.torrent_list[i].poster+'|'
-            tStr += str(self.torrent_list[i].episodes)+'|'
-            tStr +=     self.torrent_list[i].genre+'|'
             tStr +=     tDateDataListStr+'\n'
             fo.write(tStr)
       
@@ -282,13 +288,18 @@ class Torrents:
             tIndex = self.get_torrent_index(mClient,torrent.hash)
             if tIndex == -1:
                 ExecLog("findnew torrent:"+torrent.name)
-                self.append_list(MyTorrent(torrent,None,None,STARTED))
+                tRSS = RSS(torrent.hash,"","",torrent.name,"","","",torrent.total_size,RETRY)
+                self.append_list(MyTorrent(torrent,tRSS,STARTED))
                 #tIndex = -1                   #指向刚加入的种子
                 tNumberOfAdded += 1
                 #self.torrent_list[tIndex].spider_status = RETRY
             self.torrent_list[tIndex].checked = 1
             self.torrent_list[tIndex].torrent.torrent = torrent.torrent  #刷新种子信息
             tTorrent = self.torrent_list[tIndex]
+
+            #check addStatus
+            if tTorrent.status == 'GOING'and (tTorrent.add_status == MANUAL or tTorrent.add_status == TO_BE_START): tTorrent.add_status = STARTED
+            if tTorrent.status == 'STOP' and tTorrent.add_status == MANUAL: tTorrent.add_status = TO_BE_START
 
             #检查并设置标签
             tTorrent.set_tag()
@@ -317,28 +328,21 @@ class Torrents:
                     ExecLog("failed to start_download:"+self.torrent_list[tIndex].name)
                     continue
 
-            #如果种子spider_status不是OK
-            if self.torrent_list[tIndex].spider_status == RETRY:
-                DebugLog("checkqb: begin spider movie info:"+self.torrent_list[tIndex].name)
-                tReturn = self.torrent_list[tIndex].spider_movie_info()
-                if tReturn == OK:
-                    tNumberOfUpdated += 1
-                    ExecLog("spider movieinf:"+self.torrent_list[tIndex].name)
-                elif tReturn == NOK:
-                    tNumberOfUpdated += 1
-                    ExecLog("failedto spider:"+self.torrent_list[tIndex].name)
-                else: pass
+            #check movie_info
+            tTorrent.check_movie_info()
 
             if self.torrent_list[tIndex].category == "save" : self.torrent_list[tIndex].save_movie()        
             if self.torrent_list[tIndex].category == "转移" : self.torrent_list[tIndex].move_to_tr(TR_LOGIN)        
         #end for torrents 
         
-        #最后，找出没有Checked标志的种子列表，进行删除操作。
+        #最后，找出没有Checked标志的种子列表
         for torrent in self.torrent_list:
-            if torrent.checked == 0 and torrent.client == mClient and torrent.add_status != MANUAL and torrent.add_status != TO_BE_ADD:
-                tNumberOfDeleted += 1
-                ExecLog("delete  torrent:"+torrent.title)
-                self.del_list(torrent.client,torrent.get_hash())
+            if torrent.checked == 0 and torrent.client == mClient :
+                if torrent.add_status != MANUAL and torrent.add_status != TO_BE_ADD:
+                    tNumberOfDeleted += 1
+                    ExecLog("delete  torrent:"+torrent.title)
+                    self.del_list(torrent.client,torrent.get_hash())
+
      
         DebugLog("complete check_torrents  from "+mClient)
         if tNumberOfAdded > 0   : DebugLog(str(tNumberOfAdded).zfill(4)+" torrents added")
@@ -381,7 +385,9 @@ class Torrents:
             if len(self.tracker_data_list[i]['date_data']) >= 30: del self.tracker_data_list[i]['date_data'][0]
 
         for i in range(len(self.torrent_list)):
-            if   len(self.torrent_list[i].date_data) == 0 :ErrorLog("date_data is null:"+self.torrent_list[i].HASH);  continue
+            if   len(self.torrent_list[i].date_data) == 0 :
+                if self.torrent_list[i].add_status != MANUAL and self.torrent_list[i].add_status != TO_BE_ADD:
+                    ErrorLog("date_data is null:"+self.torrent_list[i].HASH);  continue
             elif len(self.torrent_list[i].date_data) == 1 :tData = self.torrent_list[i].date_data[0]['data']
             else                                     :tData = self.torrent_list[i].date_data[-1]['data']-self.torrent_list[i].date_data[-2]['data']
         
@@ -592,51 +598,35 @@ class Torrents:
             if not tPage.request_free_page(): continue
 
             for tTask in tPage.find_free_torrents():
-                site_log("{}|{}|{}|{}|{}".format(tTask['free'],tTask['title'],tTask['torrent_id'],tTask['douban_id'],tTask['imdb_id']))
-                if tTask['free'] == False: continue
+                site_log("{}|{}|{}|{}|{}".format(tTask['auto'],tTask['title'],tTask['torrent_id'],tTask['douban_id'],tTask['imdb_id']))
+                #if tTask['free'] == False: continue
 
                 TorrentID = tTask['torrent_id']
                 Title = tTask['title']
                 Details = tTask['details']
+
                 DownloadLink = tTask['download_link']
+                if RSS.old_free(TorrentID,site['name']):
+                    DebugLog("old free torrents,ignore it:"+Title);
+                    continue
 
-                tRSS = RSS("",tPage.site['name'],DownloadLink,Title)
-                if tRSS.select():   #rss记录已经存在
-                    if tRSS.downloaded == 1: site_log("torrentID have been downloaded:"+TorrentID+"::"+Title); continue
-                    if not tRSS.update_id(tTask['douban_id'],tTask['imdb_id']): return False  #比较更新douban_id和imdb_id
-                    tInfo = Info(tRSS.douban_id,tRSS.imdb_id)
-                    tTorrent = MyTorrent(rss=tRSS,info=tInfo)
-                else:
-                    ExecLog("failed to find rss from torrentid:"+tRSS.rss_name+"::"+tRSS.torrent_id)
-                    #if not tPage.request_detail_page(TorrentID):
-                    #    ExecLog("failed to request detail")
-                    #    continue
-                    """
-                    tTorrentInfo = TorrentInfo(download_link=tRSS.download_link)
-                    if not tTorrentInfo.get_info():
-                        ExecLog("failed to get torrent info from :"+tRSS.download_link)
-                        continue
-                    """
-                    tRSS.HASH = get_hash(download_link=tRSS.download_link)
-                    if tRSS.HASH == "": ExecLog("failed to get hash from "+tRSS.download_link); continue
-                    if not tRSS.insert():
-                        ExecLog("failed to insert rss:{}|{}|{}".format(tRSS.HASH,tRSS.rss_name,tRSS.title))
-                        continue
+                HASH = get_hash(download_link=DownloadLink)
+                if HASH == "": ExecLog("cann't get hash from "+DownloadLink); continue
+
+                IDStatus = RETRY if tTask['douban_id'] == "" and tTask['imdb_id'] == "" else OK
+                tRSS = RSS(HASH,tPage.site['name'],DownloadLink,Title,tTask['douban_id'],tTask['imdb_id'],"",0,IDStatus)
+                if not tRSS.insert():
+                    ExecLog("failed to insert rss:{}|{}|{}".format(tRSS.HASH,tRSS.rss_name,tRSS.title))
+                    continue
                     
-                    site_log("get a torrent from link:{}|{}|{}".format(tRSS.download_link,tRSS.title,tRSS.HASH))
-                    tTorrent= MyTorrent(rss=tRSS)
+                add_status = TO_BE_ADD if tTask['auto'] else MANUAL
+                tTorrent= MyTorrent(torrent=None,rss=tRSS,add_status=add_status)
 
-                if tTask['douban_id'] != ""   : tTorrent.douban_id = tTask['douban_id']
                 if tTask['douban_link'] != "" : tTorrent.douban_link = tTask['douban_link']
                 if tTask['douban_score'] != "": tTorrent.douban_score = tTask['douban_score']
-                if tTask['imdb_id'] != ""     : tTorrent.imdb_id = tTask['imdb_id']
                 if tTask['imdb_link'] != ""   : tTorrent.imdb_link = tTask['imdb_link']
                 if tTask['imdb_score'] != ""  : tTorrent.imdb_score = tTask['imdb_score']
-                if self.get_torrent_index("QB",tTorrent.HASH) >= 0:
-                    ExecLog("torrent exists in list:"+tRSS.title)
-                    tTorrent.rss.downloaded = 1
-                    tTorrent.rss.update_or_insert()
-                    continue
+
                 DebugLog("free   torrent:"+tTorrent.HASH)
                 ExecLog("free    torrent:"+Title)
                 self.append_list(tTorrent)
@@ -674,36 +664,36 @@ class Torrents:
                     ErrorLog("error to get entry:")
                     continue
 
+                if RSS.old_rss(HASH,RSSName):
+                    rss_log("old rss:"+Title)
+                    continue
+                #if not tRSS.filter_by_keywords(): continue
+                toBeDownloaded = to_be_downloaded(RSSName,Title)
+                if toBeDownloaded == IGNORE_DOWNLOAD: continue
+                addStatus = TO_BE_ADD if toBeDownloaded == AUTO_DOWNLOAD else MANUAL
+
                 tSummary = ""
                 try:
                     tSummary = BeautifulSoup(tEntry.summary,'lxml').get_text()
                 except Exception as err:
                     pass
-                tInfo = Info()
-                tInfo.get_from_summary(tSummary)
+                return_code,douban_id,imdb_id = Info.get_from_summary(tSummary)
 
                 Title = Title.replace('|','')
-                tRSS = RSS(HASH,RSSName,DownloadLink,Title,tInfo.douban_id,tInfo.imdb_id)
+                IDStatus = OK if douban_id != "" or imdb_id != "" else RETRY
+                tRSS = RSS(HASH,RSSName,DownloadLink,Title,douban_id,imdb_id,"",0,IDStatus)
                 
-                #if not tRSS.filter_by_keywords(): continue
-                toBeDownloaded = tRSS.to_be_downloaded()
-                if toBeDownloaded == IGNORE_DOWNLOAD: continue
-                
-                if tRSS.select():
-                    rss_log("old rss:"+tRSS.title)
-                    continue
                 if not tRSS.insert():  #记录插入rss数据库
                     ErrorLog("failed to insert into rss:{}|{}".format(RSSName,HASH))
                     continue
-                addStatus = TO_BE_ADD if toBeDownloaded == AUTO_DOWNLOAD else MANUAL
-                tTorrent = MyTorrent(None,tRSS,tInfo,addStatus)
+                tTorrent = MyTorrent(None,tRSS,addStatus)
 
                 if not WaitFree: 
                     ExecLog("new rss tobeadd:"+tTorrent.title)
-                    ExecLog("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
+                    ExecLog("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tRSS.douban_id,tRSS.imdb_id,tRSS.douban_score,tRSS.imdb_score,tRSS.type,tRSS.nation,tRSS.movie_name,tRSS.director))
                     self.append_list(tTorrent)
                 else:
-                    rss_log("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tInfo.douban_id,tInfo.imdb_id,tInfo.douban_score,tInfo.imdb_score,tInfo.type,tInfo.nation,tInfo.movie_name,tInfo.director))
+                    rss_log("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tRSS.douban_id,tRSS.imdb_id,tRSS.douban_score,tRSS.imdb_score,tRSS.type,tRSS.nation,tRSS.movie_name,tRSS.director))
 
             #end for Items
         return True
@@ -805,13 +795,12 @@ class Torrents:
         tClient,tHASH,tDoubanID,tIMDBID = mRequestStr.split('|',3)
         if tHASH == "" or (tIMDBID == "" and tDoubanID == ""): return "False,empty hash or empty id"
         for i in range(len(self.torrent_list)):
-            if tClient == self.torrent_list[i].client and tHASH == self.torrent_list[i].hash:
-                if tDoubanID != "": self.torrent_list[i].douban_id = tDoubanID
-                if tIMDBID   != "": self.torrent_list[i].imdb_id   = tIMDBID
-                self.torrent_list[i].spider_status = RETRY
-                self.torrent_list[i].douban_status = RETRY
-                self.write_pt_backup()
-                return "Success"
+            if tClient == self.torrent_list[i].client and tHASH == self.torrent_list[i].get_hash():
+                if self.torrent_list[i].set_id(tDoubanID,tIMDBID):
+                    self.write_pt_backup()
+                    return "Success"
+                else:
+                    return "False,failed set id"
         return "False, not find matched torrent"
 
     def request_set_category(self,mRequestStr):
@@ -883,4 +872,38 @@ class Torrents:
         if tIndex == -1: return "not find match torrent"
         if tAction == "start": self.torrent_list[tIndex].start()
         elif tAction == "stop": self.torrent_list[tIndex].stop()
+
+
+    def request_saved_movie(self,mRequestStr):
+        """
+        request:
+            movie doubanid|imdbid
+        reply:
+            dirname|disk|deleted\n
+            dirname|disk|deleted\n
+        """
+        try:
+            DoubanID,IMDBID = mRequestStr.split('|',1)
+        except Exception as err:
+            print(err)
+            ExecLog("failed to split:"+mRequestStr)
+            return "failed:error requeststr:"+mRequestStr
+        DebugLog("to movie {}|{}".format(DoubanID,IMDBID))
+        
+        if DoubanID != "":
+            sel_sql = 'select dirname,disk,deleted from movies where doubanid = %s'
+            sel_val = (DoubanID,)
+        else:
+            sel_sql = 'select dirname,disk,deleted from movies where imdbid = %s'
+            sel_val = (IMDBID,)
+        SelectResult = select(sel_sql,sel_val)
+        if SelectResult == None or len(SelectResult) == 0: 
+            return "failed: no record"
+        reply = ""
+        for tSelect in SelectResult:
+            reply += tSelect[0]+'|'   #dirname
+            reply += tSelect[1]+'|'   #disk
+            reply += str(tSelect[2])+'|'+'\n' #deleted
+        return reply
+
 

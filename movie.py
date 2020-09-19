@@ -99,7 +99,7 @@ class Movie:
         return self._imdb_id
     @imdb_id.setter
     def imdb_id(self,imdb_id):
-        self._imdb_id = trans_imdb_id(imdb_id)
+        self._imdb_id = Info.check_imdb_id(imdb_id)
 
     def check_dir_name(self):
         """

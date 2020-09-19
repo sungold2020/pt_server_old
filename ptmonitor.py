@@ -60,6 +60,7 @@ def handle_task(Request,mConnect=None):
     elif Task == 'torrents'     : return gTorrents.query_torrents(RequestList)
     elif Task == "del"          : return gTorrents.request_del_torrent(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == "act_torrent"  : return gTorrents.request_act_torrent(RequestList[0] if len(RequestList) == 1 else "")
+    elif Task == "movie"        : return gTorrents.request_saved_movie(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == 'log'          : return get_log()
     else                        : socket_log("unknown request task:"+Task) ; return "unknown request task"     
     

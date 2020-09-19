@@ -10,6 +10,7 @@ import mysql.connector
 
 from info import *
 from log import *
+from rsssite import *
 
 class NexusPage():
     #user_agent = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15 Epiphany/605.1.15"
@@ -28,6 +29,8 @@ class NexusPage():
             'name':'MTeam',    
             'error_count':0,
             'time_interval':15,
+            'auto':{'free':True},
+            'manual':{'includes':['x265',],'excludes':['FRDS','HDS','PTH','HDH','BeiTai'],'free':False},
             'url':'https://pt.m-team.cc/movie.php',
             'first_url':'https://pt.m-team.cc/',
             'last_url':'&passkey=7044b36a9057090e36138df761ddfc5d&https=1',
@@ -75,7 +78,8 @@ class NexusPage():
             'name':'HDHome',   
             'error_count':0,
             'time_interval':30,
-            'includes':['x265','HDH'],
+            'auto':{'includes':['x265','HDH'],'free':True},
+            'manual':{'includes':['x265',],'excludes':['FRDS','HDS','PTH','BeiTai'],'free':False},
             'url':'https://hdhome.org/torrents.php',
             'first_url':'https://hdhome.org/',
             'last_url':'&passkey=93581f449716e0adedc71620f78513d2',
@@ -140,65 +144,6 @@ class NexusPage():
         self.detail_url = ""
         self.info = None
 
-    def request_detail_page(self,mTorrentID):
-        if not self.site : return False
-            
-        self.detail_url = self.site['first_url']+'details.php?id='+mTorrentID+'&hit=1'
-        site_log(self.detail_url)
-
-        #if self.get_error_count() >= NexusPage.max_error_count:
-        #    ExecLog("reach max error count:"+self.detail_url)
-        #    return False
-        
-        # Using Session to keep cookie
-        cookie_dict = {"cookie":self.site['cookie']}
-        s = requests.Session()
-        s.cookies.update(cookie_dict)
-        
-        myheaders={
-            'cookie':self.site['cookie'],
-            'user-agent': NexusPage.user_agent}
-        if self.site.get('referer'): myheaders['referer'] = self.site.get('referer')
-        if self.site.get('host')   : myheaders['host']    = self.site.get('host')
-        #site_log(myheaders)
-
-        try:
-            res = s.get(self.detail_url, headers=myheaders,timeout=120)
-            site_log(res.text)
-            self.soup = bs4.BeautifulSoup(res.text,'lxml')
-            #text = open('frds.log').read()
-            #self.soup = bs4.BeautifulSoup(text,'lxml')
-        except Exception as err:
-            print(err)
-            ExecLog("failed to request from "+self.detail_url)
-            #self.Print("error:"+self.error_string)
-            self.set_error_count(False)
-            return False
-        else:
-            self.set_error_count(True)
-
-        tInfo = Info()
-
-        #FRDS 详情页格式有些不一样
-        if self.site['name'] == 'FRDS' and tInfo.get_from_detail(self.soup) : 
-            self.info = tInfo
-            DebugLog("success to get from detail:"+self.detail_url); return True
-
-        tSummary = ""
-        summary_anchor = self.soup.find('div',id='kdescr')
-        if summary_anchor : tSummary = summary_anchor.get_text()
-        else : site_log("not find summary:"+self.detail_url); return False
-        site_log(tSummary)
-        tInfo.get_from_summary(tSummary)
-
-        if tInfo.douban_id != "" or tInfo.imdb_id != "": 
-            self.info = tInfo
-            DebugLog("success to get from detail:"+self.detail_url)
-            return True
-        else : 
-            ExecLog("failed to get from detail:"+self.detail_url)
-            return False
-
     def set_error_count(self,is_success):
         for i in range(len(NexusPage.site_list)):
             if NexusPage.site_list[i]['name'] == self.site['name']:
@@ -224,6 +169,61 @@ class NexusPage():
         #self.Print("error:"+self.error_string)
         return -1
 
+    def request_detail_page(self,mTorrentID):
+        if not self.site : return False
+        self.detail_url = self.site['first_url']+'details.php?id='+mTorrentID+'&hit=1'
+        site_log(self.detail_url)
+
+        #if self.get_error_count() >= NexusPage.max_error_count:
+        #    ExecLog("reach max error count:"+self.detail_url)
+        #    return False    
+        # Using Session to keep cookie
+
+        cookie_dict = {"cookie":self.site['cookie']}
+        s = requests.Session()
+        s.cookies.update(cookie_dict)       
+        myheaders={
+            'cookie':self.site['cookie'],
+            'user-agent': NexusPage.user_agent}
+        if self.site.get('referer'): myheaders['referer'] = self.site.get('referer')
+        if self.site.get('host')   : myheaders['host']    = self.site.get('host')
+        #site_log(myheaders)
+        try:
+            res = s.get(self.detail_url, headers=myheaders,timeout=120)
+            site_log(res.text)
+            self.soup = bs4.BeautifulSoup(res.text,'lxml')
+            #text = open('frds.log').read()
+            #self.soup = bs4.BeautifulSoup(text,'lxml')
+        except Exception as err:
+            print(err)
+            ExecLog("failed to request from "+self.detail_url)
+            #self.Print("error:"+self.error_string)
+            self.set_error_count(False)
+            return False
+        else:
+            self.set_error_count(True)
+
+        tInfo = Info()
+        #FRDS 详情页格式有些不一样
+        if self.site['name'] == 'FRDS' and tInfo.get_from_detail(self.soup) : 
+            self.info = tInfo
+            DebugLog("success to get from detail:"+self.detail_url); return True
+
+        tSummary = ""
+        summary_anchor = self.soup.find('div',id='kdescr')
+        if summary_anchor : tSummary = summary_anchor.get_text()
+        else : site_log("not find summary:"+self.detail_url); return False
+        site_log(tSummary)
+
+        tInfo.get_from_summary(tSummary)
+        if tInfo.douban_id != "" or tInfo.imdb_id != "": 
+            self.info = tInfo
+            DebugLog("success to get from detail:"+self.detail_url)
+            return True
+        else : 
+            ExecLog("failed to get from detail:"+self.detail_url)
+            return False
+            
     def request_free_page(self):
         if not self.site : return False
 
@@ -277,10 +277,10 @@ class NexusPage():
                 if item['href'].find('movie.douban.com') >= 0:
                     douban_link = item['href']
                     douban_score = item.get_text()
-                    douban_id = get_id_from_link(douban_link,DOUBAN)
+                    douban_id = Info.get_id_from_link(douban_link,DOUBAN)
                 if item['href'].find('www.imdb.com') >= 0:
                     imdb_link = item['href']
-                    imdb_id = get_id_from_link(imdb_link,IMDB)
+                    imdb_id = Info.get_id_from_link(imdb_link,IMDB)
                     imdb_score = item.get_text()
             details = entry.a['href']
             torrent_id = re.search(pattern, details).group(1)
@@ -289,9 +289,13 @@ class NexusPage():
             download_url = self.site['first_url']+'download.php?id='+torrent_id+self.site['last_url']
             if entry.find(class_=NexusPage.free_tag) or entry.find(class_=NexusPage.free_tag2): free = True
             else                                                                              : free = False
-            if not self.filter_by_keywords(title): continue
+            
+            #if not self.filter_by_keywords(title): continue
+            add = self.to_be_downloaded(title,free)
+            if add == IGNORE_DOWNLOAD: continue
+
             torrent = {
-                    'free':free,
+                    'auto':True if add == AUTO_DOWNLOAD else False,
                     'torrent_id':torrent_id,
                     'title':title,
                     'details':details,
@@ -306,6 +310,33 @@ class NexusPage():
             self.free_torrents.append(torrent)
         return self.free_torrents
 
+    def to_be_downloaded(self,title,free):
+        """
+        IGNORE_DOWNLOAD = 0
+        MANUAL_DOWNLOAD = 1
+        AUTO_DOWNLOAD  = 2
+        """
+        #缺省auto和mannual都不配置的情况下，就按照free来判断是否自动加入。 
+        if self.site.get('auto') == None and self.site.get('manual') == None: 
+            if free : return AUTO_DOWNLOAD
+            else    : return IGNORE_DOWNLOAD
+
+        #AUTO
+        auto_keywords = self.site.get('auto')
+        if auto_keywords != None: #如果不配置，就跳过
+            if filter_by_keywords(title,auto_keywords):
+                if free                                 : return AUTO_DOWNLOAD  #种子为free，则自动加入
+                elif auto_keywords.get('free') == False : return AUTO_DOWNLOAD  #种子不为free,但'free'关键字配置为false，则也自动加入
+                else                                    : pass
+
+        #MANUAL, 仅根据关键字过滤，无关free
+        manual_keywords = self.site.get('manual')
+        if manual_keywords != None:
+            if filter_by_keywords(title,manual_keywords): return MANUAL_DOWNLOAD
+
+        return IGNORE_DOWNLOAD
+
+    '''
     def filter_by_keywords(self,Title):
         """
         根据includes/excludes关键字进行过滤，如果符合规则返回True，否则返回False
@@ -325,6 +356,7 @@ class NexusPage():
                 site_log('include {},ignore it:{}'.format(tExclude,Title))
                 return False
         return True
+    '''
         
     def Print(self,Str):
         fo = open(NexusPage.FreeDebugFile,"a+")
@@ -332,5 +364,78 @@ class NexusPage():
         fo.write(tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')+"::")
         fo.write(Str+'\n')
         fo.close()
+
+    @staticmethod
+    def get_download_link(rss_name,torrent_id):
+        for site in NexusPage.site_list:
+            if site['name'].lower() in rss_name.lower():
+                return site['first_url']+'download.php?id='+torrent_id+site['last_url']
+        return""
+
+    @staticmethod
+    def get_id_from_detail(rss_name,torrent_id):
+        """
+        # TODO
+        返回值：return_code,douban_id,imdb_id，其中return_code:
+           OK: 成功找到ID
+           NOK：不能找到ID
+           RETRY：访问页面错误，下次重试
+        """
+        return_code = NOK 
+        douban_id = imdb_id = ""
+        if rss_name == "" or torrent_id == "": 
+            ErrorLog("rss_name or torrent_id is null")
+            return return_code,douban_id,imdb_id
+
+        tSite = None
+        for site in NexusPage.site_list:
+            if rss_name in site['name'] or site['name'] in rss_name:
+                tSite = site
+                break
+        if tSite == None : 
+            ErrorLog("unknown site name:"+rss_name)
+            return return_code,douban_id,imdb_id
+        DebugLog("find site:{}".format(tSite['name']))
+
+        detail_url = tSite['first_url']+'details.php?id='+torrent_id+'&hit=1'
+        site_log(detail_url)
+        cookie_dict = {"cookie":tSite['cookie']}
+        s = requests.Session()
+        s.cookies.update(cookie_dict)        
+        myheaders={
+            'cookie':tSite['cookie'],
+            'user-agent': NexusPage.user_agent}
+        if tSite.get('referer'): myheaders['referer'] = tSite.get('referer')
+        if tSite.get('host')   : myheaders['host']    = tSite.get('host')
+        #site_log(myheaders)
+
+        try:
+            res = s.get(detail_url, headers=myheaders,timeout=120)
+            site_log(res.text)
+            soup = bs4.BeautifulSoup(res.text,'lxml')
+            #text = open('frds.log').read()
+            #self.soup = bs4.BeautifulSoup(text,'lxml')
+        except Exception as err:
+            print(err)
+            ExecLog("failed to request from "+detail_url)
+            return_code = RETRY
+            #self.Print("error:"+self.error_string)
+            #self.set_error_count(False)
+            return return_code,douban_id,imdb_id
+
+        #FRDS 详情页格式有些不一样
+        if tSite['name'] == 'FRDS' :
+            return_code,douban_id,imdb_id = Info.get_from_detail(soup)
+            if return_code == True: DebugLog("success to get from detail:"+detail_url); return OK,douban_id,imdb_id
+            # NOK 继续尝试从summary获取
+            
+        tSummary = ""
+        summary_anchor = soup.find('div',id='kdescr')
+        if not summary_anchor: site_log("not find summary:"+detail_url); return NOK,douban_id,imdb_id
+        tSummary = summary_anchor.get_text()
+        site_log(tSummary)
+        return_code,douban_id,imdb_id = Info.get_from_summary(tSummary)
+        if return_code == True: DebugLog("success to get from detail:"+detail_url); return OK,douban_id,imdb_id
+        else : ExecLog("failed to get from detail:"+detail_url); return NOK,douban_id,imdb_id
 
 

@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+# coding=utf-8
 import os
 import time
 import shutil
@@ -33,17 +35,14 @@ MOVED       =  3
 
 class MyTorrent:
 
-    def __init__(self,torrent=None,rss=None,info=None,add_status=TO_BE_ADD):
-        
+    def __init__(self,torrent=None,rss=None,add_status=TO_BE_ADD):
         self.torrent = torrent if torrent != None else Torrent("QB",None)
-        self.rss = rss      #if rss != None else RSS()
-        self.info = info    if info != None else Info()
-
+        self.rss = rss      
+        #self.info = info    if info != None else Info()
         self.add_status = add_status
         self.checked = 1              #每次检查时用于标记它是否标记到，检查结束后，如果发现Checked为0，说明种子已经被删除。
                                       #新建对象时肯定Checked=1
-        if self.douban_id == "" and self.spider_status == RETRY: self.spider_detail()
-
+        self.is_check_nfo = False
     #------------- begin rss------------------------------
     @property
     def rss_name(self):
@@ -86,13 +85,20 @@ class MyTorrent:
         if self.rss == None: ErrorLog("set torrent_id,but rss is none")
         else               : self.rss.torrent_id = torrent_id
     @property
-    def add_date(self):
+    def add_datetime(self):
         if self.rss == None: return ""
-        else               : return self.rss.add_date
-    @add_date.setter
-    def add_date(self,add_date):
-        if self.rss == None: ErrorLog("set add_data,but rss is none")
-        else               : self.rss.add_date = add_date
+        else               : return self.rss.add_datetime
+    @add_datetime.setter
+    def add_datetime(self,add_datetime):
+        if self.rss == None: ErrorLog("set add_datetime,but rss is none")
+        else               : self.rss.add_datetime = add_datetime
+    @property
+    def total_size(self):
+        return self.torrent.total_size if self.torrent.torrent != None else self.rss.total_size
+    @total_size.setter
+    def total_size(self,total_size):
+        if self.rss == None: ErrorLog("set total_size,but rss is none")
+        else               : self.rss.total_size = total_size
     @property
     def downloaded(self):
         if self.rss == None: return 0
@@ -101,6 +107,105 @@ class MyTorrent:
     def downloaded(self,downloaded):
         if self.rss == None: ErrorLog("set downloaded,but rss is none")
         else               : self.rss.downloaded = downloaded
+    @property
+    def id_status(self):
+        return self.rss.id_status 
+    @id_status.setter
+    def id_status(self,id_status):
+        if self.rss == None: ErrorLog("set id_status,but rss is none")
+        else               : self.rss.id_status = id_status
+    def set_id(self,douban_id,imdb_id):
+        return self.rss.set_id(douban_id,imdb_id) if self.rss != None else  False
+
+        #------------------begin info-------------------
+    @property
+    def douban_id(self):
+        return self.rss.douban_id if self.rss != None else ""
+    @douban_id.setter
+    def douban_id(self,douban_id):
+        self.rss.douban_id = douban_id
+    @property
+    def douban_score(self):
+        return self.rss.douban_score if self.rss != None else ""
+    @douban_score.setter
+    def douban_score(self,douban_score):
+        self.rss.douban_score = douban_score
+    @property
+    def imdb_id(self):
+        return self.rss.imdb_id if self.rss != None else ""
+    @imdb_id.setter
+    def imdb_id(self,imdb_id):
+        self.rss.imdb_id = imdb_id
+    @property
+    def imdb_score(self):
+        return self.rss.imdb_score if self.rss != None else ""
+    @imdb_score.setter
+    def imdb_score(self,imdb_score):
+        self.rss.imdb_score = imdb_score
+    @property
+    def douban_link(self):
+        return self.rss.douban_link if self.rss != None else ""
+    @douban_link.setter
+    def douban_link(self,douban_link):
+        self.rss.douban_link = douban_link
+    @property
+    def imdb_link(self):
+        return self.rss.imdb_link if self.rss != None else ""
+    @imdb_link.setter
+    def imdb_link(self,imdb_link):
+        self.rss.imdb_link = imdb_link
+    @property
+    def movie_name(self):
+        return self.rss.movie_name if self.rss != None else ""
+    @movie_name.setter
+    def movie_name(self,movie_name):
+        self.rss.movie_name = movie_name
+    @property
+    def type(self):
+        return self.rss.type if self.rss != None else ""
+    @type.setter
+    def type(self,mType):
+        self.rss.type = mType
+    @property
+    def nation(self):
+        return self.rss.nation if self.rss != None else ""
+    @nation.setter
+    def nation(self,nation):
+        self.rss.nation = nation
+    @property
+    def douban_status(self):
+        return self.rss.douban_status 
+    @douban_status.setter
+    def douban_status(self,douban_status):
+        self.rss.douban_status = douban_status
+    @property
+    def douban_retry_times(self):
+        return self.rss.douban_retry_times if self.rss != None else ""
+    @douban_retry_times.setter
+    def douban_retry_times(self,douban_retry_times):
+        self.rss.douban_retry_times = douban_retry_times
+    @property
+    def foreign_name(self):
+        return self.rss.foreign_name if self.rss != None else ""
+    @property
+    def other_names(self):
+        return self.rss.other_names if self.rss != None else ""
+    @property
+    def director(self):
+        return self.rss.director if self.rss != None else ""
+    @property
+    def actors(self):
+        return self.rss.actors if self.rss != None else ""
+    @property
+    def episodes(self):
+        return self.rss.episodes if self.rss != None else ""
+    @property
+    def poster(self):
+        return self.rss.poster if self.rss != None else ""
+    @property
+    def genre(self):
+        return self.rss.genre if self.rss != None else ""
+        #------------------end info---------------
     #-------------------end rss------------------------
 
     #------------------begin torrent-------------------
@@ -139,7 +244,6 @@ class MyTorrent:
     def torrent_status(self):
         if self.torrent == None: return "UNKNOWN"
         else               : return self.torrent.torrent_status
-
     @property
     def category(self):
         if self.torrent == None: return ""
@@ -164,12 +268,8 @@ class MyTorrent:
     def uploaded(self):
         if self.torrent == None: return ""
         else               : return self.torrent.uploaded
-    @property
-    def total_size(self):
-        if self.torrent.torrent != None: return self.torrent.total_size
-        elif self.rss != None  : return self.rss.total_size
-        else: return 0
-
+    #@property
+    #def total_size(self):   defined in rss part
     @property
     def files(self):
         if self.torrent == None: return []
@@ -193,7 +293,6 @@ class MyTorrent:
     def is_root_folder(self):
         if self.torrent == None: return False
         else               : return self.torrent.is_root_folder()
-
     def check_files(self,mIsNewDay):
         if self.torrent == None: return False
         else               : return self.torrent.check_files(mIsNewDay)
@@ -202,204 +301,10 @@ class MyTorrent:
         else               : return self.torrent.is_low_upload(mNumberOfDays,mUploadThreshold)
     #------------------end torrent-------------------
 
-    #------------------begin info-------------------
-    @property
-    def douban_id(self):
-        if self.info == None: 
-            if self.rss != None:
-                if self.rss.douban_id != "":
-                    ErrorLog("rss.douban_id exist,but info is None:"+self.get_name())
-                    self.info = Info(douban_id=self.rss.douban_id)
-                    return self.rss.douban_id
-            return ""
-        elif self.rss == None:
-            if self.info.douban_id != "":
-                ErrorLog("info.douban_id exist,but rss is None:"+self.get_name())
-            return self.info.douban_id
-        else:
-            if self.rss.douban_id != self.info.douban_id:
-                ErrorLog("diff douban_id in rss and info:{}|{}::{}".format(self.rss.douban_id,self.info.douban_id,self.get_name()))
-                if self.info.douban_id == "": self.info.douban_id = self.rss.douban_id
-                if self.rss.douban_id  == "": self.rss.douban_id  = self.info.douban_id
-            return self.info.douban_id
-
-    @douban_id.setter
-    def douban_id(self,douban_id):
-        if douban_id == "": return 
-        if self.info == None: 
-            self.info = Info(douban_id)
-        else                : 
-            if self.info.douban_id != "" and self.info.douban_id != douban_id:
-                ErrorLog("diff info.douban_id:{}|{}|{}".format(self.get_name(),douban_id,self.info.douban_id))
-                #return
-            self.info.douban_id = douban_id
-            DebugLog("info:{}:{}".format(self.name,self.info.douban_id))
-                
-        if self.rss != None : 
-            if self.rss.douban_id != "" and self.rss.douban_id != douban_id:
-                ErrorLog("diff rss.douban_id:{}|{}|{}".format(self.get_name(),douban_id,self.rss.douban_id))
-                #return
-            self.rss.douban_id = douban_id
-            DebugLog("rss:{}:{}".format(self.name,self.info.douban_id))
-
-    @property
-    def imdb_id(self):
-        if self.info == None: 
-            if self.rss != None:
-                if self.rss.imdb_id != "":
-                    ErrorLog("rss.imdb_id exist,but info is None:"+self.get_name())
-                    self.info = Info(imdb_id=self.rss.imdb_id)
-                    return self.rss.imdb_id
-            return ""
-        elif self.rss == None:
-            if self.info.imdb_id != "":
-                ErrorLog("info.imdb_id exist,but rss is None:"+self.get_name())
-            return self.info.imdb_id
-        else:
-            if self.rss.imdb_id != self.info.imdb_id:
-                ErrorLog("diff imdb_id in rss and info:{}|{}::{}".format(self.rss.imdb_id,self.info.imdb_id,self.get_name()))
-                if self.info.imdb_id == "": self.info.imdb_id = self.rss.imdb_id
-                if self.rss.imdb_id  == "": self.rss.imdb_id  = self.info.imdb_id
-            return self.info.imdb_id
-
-    @imdb_id.setter
-    def imdb_id(self,imdb_id):
-        if imdb_id == "": return 
-        imdb_id = trans_imdb_id(imdb_id)
-        if self.info == None: 
-            self.info = Info(imdb_id)
-        else                : 
-            if self.info.imdb_id != "" and self.info.imdb_id != imdb_id:
-                ErrorLog("diff info.imdb_id:{}|{}|{}".format(self.get_name(),imdb_id,self.info.imdb_id))
-                #return
-            self.info.imdb_id = imdb_id
-            DebugLog("info:{}:{}".format(self.name,self.info.imdb_id))
-                
-        if self.rss != None : 
-            if self.rss.imdb_id != "" and self.rss.imdb_id != imdb_id:
-                ErrorLog("diff rss.imdb_id:{}|{}|{}".format(self.get_name(),imdb_id,self.rss.imdb_id))
-                #return
-            self.rss.imdb_id = imdb_id
-            DebugLog("rss:{}:{}".format(self.name,self.rss.imdb_id))
-
-    @property
-    def spider_status(self):
-        if self.info == None: return RETRY
-        else                : return self.info.spider_status
-    @spider_status.setter
-    def spider_status(self,spider_status):
-        self.info.spider_status = spider_status
-
-    @property
-    def douban_score(self):
-        if self.info == None: return ""
-        else                : return self.info.douban_score
-    @douban_score.setter
-    def douban_score(self,douban_score):
-        self.info.douban_score = douban_score
-
-    @property
-    def imdb_score(self):
-        if self.info == None: return ""
-        else                : return self.info.imdb_score
-    @imdb_score.setter
-    def imdb_score(self,imdb_score):
-        self.info.imdb_score = imdb_score
-
-    @property
-    def douban_link(self):
-        if self.info == None: return ""
-        else                : return self.info.douban_link
-    @douban_link.setter
-    def douban_link(self,douban_link):
-        self.info.douban_link = douban_link
-
-    @property
-    def imdb_link(self):
-        if self.info == None: return ""
-        else                : return self.info.imdb_link
-    @imdb_link.setter
-    def imdb_link(self,imdb_link):
-        self.info.imdb_link = imdb_link
-
-    @property
-    def movie_name(self):
-        if self.info == None: return ""
-        else                : return self.info.movie_name
-    @movie_name.setter
-    def movie_name(self,movie_name):
-        self.info.movie_name = movie_name
-
-    @property
-    def type(self):
-        if self.info == None: return ""
-        else                : return self.info.type
-    @type.setter
-    def type(self,mType):
-        self.info.type = mType
-
-    @property
-    def nation(self):
-        if self.info == None: return ""
-        else                : return self.info.nation
-    @nation.setter
-    def nation(self,nation):
-        self.info.nation = nation
-
-    @property
-    def douban_status(self):
-        if self.info == None: return RETRY
-        else                : return self.info.douban_status
-    @douban_status.setter
-    def douban_status(self,douban_status):
-        self.info.douban_status = douban_status
-
-    @property
-    def douban_retry_times(self):
-        if self.info == None: return ""
-        else                : return self.info.douban_retry_times
-    @douban_retry_times.setter
-    def douban_retry_times(self,douban_retry_times):
-        self.info.douban_retry_times = douban_retry_times
-
-    @property
-    def foreign_name(self):
-        if self.info == None: return ""
-        else                : return self.info.foreign_name
-
-    @property
-    def other_names(self):
-        if self.info == None: return ""
-        else                : return self.info.other_names
-
-    @property
-    def director(self):
-        if self.info == None: return ""
-        else                : return self.info.director
-    @property
-    def actors(self):
-        if self.info == None: return ""
-        else                : return self.info.actors
-
-    @property
-    def episodes(self):
-        if self.info == None: return ""
-        else                : return self.info.episodes
-    @property
-    def poster(self):
-        if self.info == None: return ""
-        else                : return self.info.poster
-    @property
-    def genre(self):
-        if self.info == None: return ""
-        else                : return self.info.genre
-    #------------------end info--------------------------------
     def get_name(self):
-        if self.name != "": return self.name
-        else              : return self.title
+        return self.name if self.name != "" else self.title
     def get_title(self):
-        if self.title != "": return self.title
-        else               : return self.name
+        return self.title if self.title != "" else self.name
     def get_hash(self):
         if self.hash != self.HASH and self.hash != "" and self.HASH != "": ErrorLog("error:diff hash and HASH:{}|{}".format(self.hash,self.HASH))
         return self.hash if self.hash != "" else self.HASH
@@ -415,20 +320,17 @@ class MyTorrent:
                 if self.tags != 'hdsky': self.set_tags('hdsky')
             elif tTracker == "" : pass
             else:
-                if self.tags != 'other': self.set_tags('other')		
-	
+                if self.tags != 'other': self.set_tags('other')     
+    
     def start_download(self):
         if self.torrent == None: ErrorLog("torrent does not exist"); return False
-        if self.rss.rss_name != "":
-            self.rss.downloaded = 1
-            if self.rss.update():
-                ExecLog("update rsstable:"+self.name)
-            else:   
-                ErrorLog("failed to update rss:"+self.name+':'+self.HASH)
+
+        if not self.rss.update_downloaded(): ErrorLog("failed to update rss:"+self.name+':'+self.HASH)
+
         tBTStat =  os.statvfs(DOWNLOAD_FOLDER)
         tFreeSize = (tBTStat.f_bavail * tBTStat.f_frsize) /(1024*1024*1024)
         #DebugLog("free size:"+str(tFreeSize))
-        tSize = self.total_size /(1024*1024*1024)
+        tSize = self.torrent.total_size /(1024*1024*1024)
         #DebugLog("Size:"+str(tSize))
         if tFreeSize < tSize+1 :ExecLog("diskspace is not enough"); return False
         if  self.resume() and self.set_category("下载"):
@@ -442,7 +344,11 @@ class MyTorrent:
         if self.progress != 100: 
             ErrorLog("begin to get id from nfo,but torrent have not done.")
             return False
-
+        
+        #如果已经检查过nfo了，就不用再检查了
+        if self.is_check_nfo == True: return False
+        self.is_check_nfo = True
+        
         #检查下有没有nfo文件
         tNfoFileName = ""
         tFiles = self.files
@@ -453,6 +359,7 @@ class MyTorrent:
                 break
         if tNfoFileName == "": ExecLog("n_find nfo file:"+self.name); return False
         
+        #检索nfo文件内容是否包含
         IMDBLink = DoubanLink = ""
         for line in open(tNfoFileName,"rb"):
             line = line.decode("utf8","ignore")
@@ -467,116 +374,38 @@ class MyTorrent:
             if tIndex >= 0 : DoubanLink = line[tIndex:1]
             tIndex = line.find("https://movie.douban.com/subject")
             if tIndex >= 0 : DoubanLink = line[tIndex:1] 
-        self.douban_link = DoubanLink
-        self.imdb_link = IMDBLink
-        douban_id = get_id_from_link(DoubanLink,DOUBAN)
-        imdb_id   = get_id_from_link(IMDBLink,IMDB)
-        if self.rss != None:
-            if not self.rss.update_id(douban_id,imdb_id): return False
-        self.douban_id = douban_id
-        self.imdb_id   = imdb_id
+        douban_id = Info.get_id_from_link(DoubanLink,DOUBAN)
+        imdb_id   = Info.get_id_from_link(IMDBLink,IMDB)
         DebugLog("DoubanLink:{} :: IMDBLink:{}".format(DoubanLink,IMDBLink))
-        DebugLog("find DoubanID:{} :: IMDBID:{}".format(self.douban_id,self.imdb_id))
-        if self.douban_id == "" and self.imdb_id == "": return False
-        else                                          : return True
+        DebugLog("find DoubanID:{} :: IMDBID:{}".format(douban_id,imdb_id))
 
-    def get_id_from_rss(self):
-        sel_sql = "select doubanid,imdbid,rssname from rss where hash=%s"
-        sel_val = (self.hash,)
-        tReturn = select(sel_sql,sel_val)
-        if tReturn == None or len(tReturn) == 0: 
-            DebugLog("failed to find id from rss:{}|{}".format(self.rss_name,self.hash))
-            return False
-        else: 
-            for tResult in tReturn:
-                if tResult[0] != "": self.douban_id = tResult[0]
-                if tResult[1] != "": self.imdb_id   = tResult[1]
-            if self.douban_id != "" or self.imdb_id != "": return True
-            else: return False
-    
-    def spider_movie_info(self):
-        if self.spider_status != RETRY: return self.spider_status
+        if douban_id == "" and imdb_id == "": ExecLogLog("can't find id from nfo:"+self.get_name()); return False
+        ExecLog("get id from nfo:{}|{}{}".format(self.get_name(),douban_id,imdb_id)); 
+        if not self.rss.set_id(douban_id,imdb_id): ExecLog("failed to set_id:{}|{}|{}".format(self.title,douban_id,imdb_id))
+        return  True
 
-        DebugLog("begin to spider_movie_info")
-        if self.douban_id == "" and self.imdb_id == "":
-            if self.progress == 100:
-                if self.get_id_from_rss():
-                    ExecLog("find id from rss:{}::{}".format(self.douban_id,self.imdb_id))
-                else:
-                    if self.get_id_from_nfo():
-                        ExecLog("get id from nfo:{}|{}:{}".format(self.name,self.douban_id,self.imdb_id))
-                    else:
-                        # TODO get id from detail
-                        if self.spider_detail(): 
-                            ExecLog("get id indetail:{}::{}".format(self.douban_id,self.imdb_id))
-                        else:
-                            DebugLog("failed to get id from detail page")
-                            self.spider_status = NOK
-                            return self.spider_status
-            else: 
-                DebugLog("torrent have not done")
-                return self.spider_status
-
-        DebugLog("select from info:{}|{}".format(self.info.douban_id,self.info.imdb_id))
-        if self.info.select():   DebugLog("find a record from nfo:"+self.info.douban_id+'|'+self.info.imdb_id)  #尝试从info表中获取记录
-        if self.spider_status == OK: 
-            if self.rss != None: self.rss.update_id(self.info.douban_id,self.info.imdb_id)
-            DebugLog("spider_status is ok in info table:{}|{}".format(self.info.douban_id,self.info.imdb_id))
-            return self.spider_status
+    def check_movie_info(self):
+        """
+        检查是否已经获取豆瓣详情：1、首先检查是否具备ID（获取ID后，会创建Info对象，并检索info表的数据）2、根据id爬取豆瓣详情页
+        """
+        #检查id
+        if self.id_status == NOK:  return NOK
+        elif self.id_status == RETRY:
+            isIDOK = self.rss.get_id_from_detail()
+            if isIDOK == NOK:
+                #尝试读取nfo文件找id
+                if self.progress == 100:
+                    if not self.get_id_from_nfo(): self.id_status = NOK; return NOK
+                else: return RETRY
+            elif isIDOK == RETRY: return RETRY
+        else : pass  # ID is OK
         
-        if self.info.spider_status == RETRY:
-            tReturn = self.info.spider_douban()
-            if tReturn == OK: 
-                DebugLog("success to spider douban")
-                self.info.spider_status = OK
-                #return self.spider_status
-            elif tReturn == RETRY:
-                DebugLog("retry to spider douban again")
-                return self.spider_status
-            else: # NOK
-                DebugLog("failed to spider douban")
-                pass
-        else:
-            DebugLog("ignore it,spider_status is not RETRY")
-
-        # 必要信息已经具备
-        if self.movie_name != "" and self.nation != "" and (self.douban_id != "" or self.imdb_id != ""):
-            DebugLog("name nation imdbid exist")
-            self.spider_status = OK
-        else:
-            ExecLog("empty name,or nation ,or id")
-            self.spider_status = NOK
-        self.info.update_or_insert()  #更新或者插入到表info
-        
-        if self.rss == None or not self.rss.update_id(self.info.douban_id,self.info.imdb_id):
-            ExecLog("error:update_id:"+self.name)
-        else:
-            DebugLog("success update id:"+self.name)
-        return self.spider_status
-
-    def spider_detail(self):
-
-        if self.rss_name == "" or self.torrent_id == "": return False
-
-        tSite = None
-        for site in NexusPage.site_list:
-            if self.rss_name in site['name'] or site['name'] in self.rss_name: 
-                tSite = site
-                break
-        if tSite == None : ErrorLog("unknown site name:"+self.rss_name); return False
-        DebugLog("find site:{}".format(tSite['name']))
-                    
-        tPage = NexusPage(tSite)
-        if not tPage.request_detail_page(self.torrent_id):
-            #ExecLog(tPage.error_string)
-            return False    
-
-        self.info = tPage.info
-        if self.rss != None:
-            if not self.rss.update_id(self.info.douban_id,self.info.imdb_id): return False
-        if self.imdb_id != "" or self.douban_id != "": return True
-        else                                         : return False
-        
+        if self.rss.info == None:  ErrorLog("id is ok,but info is null")
+        if self.douban_status == OK   : return self.douban_status
+        elif self.douban_status == NOK: ExecLog("cann't find record for {}|{}".format(self.douban_id,self.imdb_id)); return NOK
+        else :     # self.douban_status == RETRY
+            DebugLog("begin to check_movie_info")
+            return self.rss.spider_douban()
 
     def save_movie(self):
         """
@@ -595,9 +424,9 @@ class MyTorrent:
             ErrorLog("failed to stop torrent:"+self.name); return False
         
         #1、检查影片信息爬取
-        if self.spider_status != OK:
-            self.spider_status = RETRY
-            if not self.spider_movie_info():
+        if self.douban_status != OK:
+            self.douban_status = RETRY
+            if not self.check_movie_info():
                 ExecLog("failed to spider movie info")
                 return False
         DebugLog("{}|{}|{}|{}".format(self.movie_name,self.nation,self.douban_id,self.imdb_id))
@@ -606,15 +435,15 @@ class MyTorrent:
         #2、移入或者更名至tobe目录下的目录文件夹 
         #2.1 组装目标文件夹名需要先获取Number和Copy
         Number = Copy = 0
-        if self.imdb_id != "":
-            sel_sql = 'select number,copy from movies where imdbid = %s'
-            sel_val = (self.imdb_id,)
-        else:
+        if self.douban_id != "":
             sel_sql = 'select number,copy from movies where doubanid = %s'
             sel_val = (self.douban_id,)
+        else:
+            sel_sql = 'select number,copy from movies where imdbid = %s'
+            sel_val = (self.imdb_id,)
         SelectResult = select(sel_sql,sel_val)
         if SelectResult == None : 
-            ErrorLog("error:select max(number) from movies")
+            ErrorLog("error:select from movies")
             return False
         elif len(SelectResult) == 0: #说明不存在，需要获取max(number)+1
             sel_sql = 'select max(number) from movies'
@@ -671,7 +500,7 @@ class MyTorrent:
 
         #4 下载poster.jpg文件
         DestFullFile=os.path.join(DestDirName,"poster.jpg")
-        if self.info.download_poster(DestDirName): ExecLog("success download poster file")
+        if self.rss.download_poster(DestDirName): ExecLog("success download poster file")
         else                                     : ErrorLog("failed to download poster.jpg from:"+self.poster)
             
         #5 检查该目录并加入表

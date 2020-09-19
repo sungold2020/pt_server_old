@@ -152,6 +152,7 @@ def get_hash(torrent_file=None,download_link=None):
     tTorrent = tTRClient.add_torrent(torrent_file=torrent_file,download_link=download_link,download_dir="/dev/null",is_paused=True)
     if tTorrent == None : return ""
     tHASH = tTorrent.hash
+    time.sleep(5)
     print("begin delete tr")
     if tTRClient.del_torrent(tHASH) == False: ExecLog("faild to delete torrent:"+tTorrent.name)
     return tHASH
