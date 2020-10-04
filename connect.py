@@ -57,6 +57,7 @@ class Socket:
     def receive(self):
         try:
             tData = self.connect.recv(100000)
+            Request = str(tData, encoding="utf-8")
         except socket.timeout:
             Print("recv timeout")
             return ""
@@ -65,7 +66,6 @@ class Socket:
             Print(err)
             return ""
         else:
-            Request = str(tData, encoding="utf-8")
             #Print("recv:"+Request)
             return Request
 

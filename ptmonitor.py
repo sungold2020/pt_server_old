@@ -37,6 +37,7 @@ def handle_task(Request,mConnect=None):
 
     socket_log("accept request:"+Request)
     RequestList = Request.split()
+    if RequestList == None or len(RequestList) == 0: ExecLog(f"unknown request:{Request}"); return "error"
     Task = RequestList[0].lower(); del RequestList[0]
     if   Task == 'checkdisk': 
         if len(RequestList) > 0 : gTorrents.check_disk(RequestList)
@@ -61,19 +62,67 @@ def handle_task(Request,mConnect=None):
     elif Task == "del"          : return gTorrents.request_del_torrent(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == "act_torrent"  : return gTorrents.request_act_torrent(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == "movie"        : return gTorrents.request_saved_movie(RequestList[0] if len(RequestList) == 1 else "")
+    elif Task == "set_info"     : return set_info(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == 'log'          : return get_log()
+    elif Task == 'speed'        : return get_speed()
+    elif Task == 'freespace'    : return get_free_space()
     else                        : socket_log("unknown request task:"+Task) ; return "unknown request task"     
     
     return "completed"
 
 def get_log():
-    Command = "tail -n 500 /root/pt/log/pt.log > log/temp.log"
+    Command = "tail -n 300 /root/pt/log/pt.log > log/temp.log"
     #ExecLog("exec:"+QBCopyCommand)
     if os.system(Command) == 0 : socket_log ("success exec:"+Command)
     with open('log/temp.log', 'r') as f1:
         logStr  = f1.read()
     return ''.join(logStr)
      
+def get_speed():
+    qb_client = PTClient("QB")
+    tr_client = PTClient("TR")
+    if not(qb_client.connect() and tr_client.connect()): return "速度:未知"
+    return "QB: {:.1f}M/s↓ {:.2f}M/s↑\nTR: {:.1f}M/s↓ {:.2f}M/s↑".format(qb_client.down_speed,qb_client.up_speed,tr_client.down_speed,tr_client.up_speed)
+
+def get_free_space():
+    tBTStat =  os.statvfs(DOWNLOAD_FOLDER)
+    tFreeSize = (tBTStat.f_bavail * tBTStat.f_frsize) /(1024*1024*1024)
+    return "{:.0f}".format(tFreeSize)
+
+def set_info(mRequestStr):
+    try:
+        DoubanID,IMDBID,MovieName,Nation,Director,Actors,Poster,Genre,TypeStr = mRequestStr.split('|',1)
+    except Exception as err:
+        print(err)
+        ExecLog("failed to split:"+mRequestStr)
+        return "failed:error requeststr:"+mRequestStr
+   
+    tInfo = Info(DoubanID,IMDBID)
+    tInfo.movie_name = MovieName
+    tInfo.nation     = nation
+    tInfo.director   = Director
+    tInfo.actors     = actors
+    tInfo.poster     = Poster
+    tInfo.genre      = Genre
+    tInfo.type       = int(TypeStr)
+    if tInfo.update_or_insert(): return "Success"
+    return "更新info表失败"
+
+def get_info(mRequestStr):
+    try:
+        doubanID,imdbID = mRequestStr.split('|',1)
+    except Exception as err:
+        print(err)
+        ExecLog("failed to split:"+mRequestStr)
+        return "failed:error requeststr:"+mRequestStr
+    tInfo = Info(doubanID,imdbID)
+    if tInfo.douban_status != OK: 
+        tInfo.douban_status == RETRY
+        tInfo.douban_detail()
+    return f"{tInfo.douban_id}|{tInfo.imdb_id}|{tInfo.douban_score}|{tInfo.imdb_score}|{tInfo.movie_name}|{tInfo.nation}|{tInfo.type}|{tInfo.director}|{tInfo.actors}|{tInfo.poster}|{tInfo.genre}"
+
+
+
 def backup_torrents():
     """
     把QB和TR的torrents备份到相应目录
@@ -135,11 +184,6 @@ if __name__ == '__main__' :
     if not gSocket.init(): exit()
    
     gLastCheckDate = gTorrents.last_check_date
-
-    
-    thread_socket = threading.Thread(target=listen_socket)
-    thread_socket.start()
-
     LoopTimes = 0
     while True:
         LoopTimes += 1
@@ -174,9 +218,6 @@ if __name__ == '__main__' :
         DebugLog("memory percent used:"+str(tMem.percent))
         if tMem.percent >= 92: ExecLog("memory percent used:"+str(tMem.percent)); PTClient("QB").restart()
 
-        time.sleep(60)
-
-        """
         #监听Client是否有任务请求
         if not gSocket.accept(): continue
 
@@ -189,4 +230,3 @@ if __name__ == '__main__' :
         gSocket.send(Reply)
         Print("send:"+Reply)
         gSocket.close()
-        """

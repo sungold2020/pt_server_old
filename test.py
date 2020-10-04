@@ -29,29 +29,22 @@ print (torrent)
 download_link=" https://pt.m-team.cc/download.php?id=427572&passkey=7044b36a9057090e36138df761ddfc5d&https=1"
 download_link="https://pt.keepfrds.com/download.php?id=11509&passkey=97f4eab2ad32ebf39ee4889f6328800b"
 
-"""
-import qbittorrentapi
+downloadlink='https://www.beitai.pt/download.php?id=2021&passkey=e193420544db01e767e2a214f30ec049'
 
-try:
-    client = qbittorrentapi.Client(host='localhost:8989', username='admin', password='adminadmin')
-    client.auth_log_in()
-    client.torrents_delete(True,'d63b454fcdf172cf2e33f7847671f8418936d5dd');
-except Exception as err:
-    print(err)
-else:
-    print("success")
-"""
+string = "avgv"
+print(f"{string.ljust(10)} ipload")
+
+        #tTorrentName = re.sub(u"[\u4e00-\u9f50]+","",self.name) #去掉name中的中文字符
+ch = '。'
+if '\u4e00' <= ch <= '\u9fff':
+    print("it is chinese")
 import re
-mSummary = "https://movie.douban.com/subject/123456   \nss"
-tResult = re.search("movie\.douban\.com\/subject\/\d+",mSummary)
-if tResult != None: DoubanLink = "https://"+tResult.group()
-print(DoubanLink)
-mSummary="dddd https://www.imdb.com/title/tt9894470/ ddd"
-tResult = re.search("www\.imdb\.com\/title\/tt\d+",mSummary)
-if tResult != None: IMDBLink = "https://"+tResult.group()
-print(IMDBLink)
+string = "hello world"
+if re.search(u"[\u4e00-\u9f50]+",string) != None:
+    print("contain chinese")
 
-from torrent_info import *
-torrent = TorrentInfo(torrent_file="data/temp.torrent")
-torrent.get_info()
-print(torrent.hash)
+from info import *
+info = Info("1308190","")
+info.douban_status = RETRY
+info.spider_douban()
+print(info.movie_name)

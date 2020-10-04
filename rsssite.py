@@ -19,10 +19,10 @@ RSS_LIST = [
         'time_interval':10,
         'url':'https://pt.keepfrds.com/torrentrss.php?rows=10&icat=1&ismalldescr=1&isize=1&linktype=dl&passkey=97f4eab2ad32ebf39ee4889f6328800b'
         },
-    {
+    {    #mteam在free种有订阅，这里就不需要了
         'name':'MTeam', 
         'wait_free':False,   
-        'time_interval':20,
+        'time_interval':0,   
         'manual':{'includes':['x265',],'excludes':['HDSWEB','HDSPad','HDSTV','FRDS','HDS','PTH','HDH','BeiTai']},
         'url':'https://pt.m-team.cc/torrentrss.php?https=1&rows=30&cat401=1&cat419=1&cat420=1&cat421=1&cat439=1&cat403=1&cat402=1&cat435=1&cat438=1&cat404=1&cat409=1&icat=1&ismalldescr=1&isize=1&linktype=dl&passkey=7044b36a9057090e36138df761ddfc5d'
         },
@@ -31,7 +31,7 @@ RSS_LIST = [
         'wait_free':False,   
         'time_interval':10,
         'auto':{'includes':['x265','HDS'],'excludes':['HDSWEB','HDSPad','HDSTV']},
-        'manual':{'includes':['x265',],'excludes':['HDSWEB','HDSPad','HDSTV','FRDS','HDS','PTH','HDH','BeiTai']},
+        'manual':{'includes':['x265',],'excludes':['HDSWEB','HDSPad','HDSTV','FRDS','PTH','HDH','BeiTai']},
         'url':'https://hdsky.me/torrentrss.php?rows=10&tea1=1&tea28=1&ismalldescr=1&linktype=dl&passkey=c8c158c14e1762b0c93c91ab2ddc689a'
         },
     {
@@ -43,9 +43,9 @@ RSS_LIST = [
     {
         'name':'BeiTaiAll',   
         'wait_free':False,   
-        'time_interval':50,
+        'time_interval':70,
         'manual':{'includes':['265',],'excludes':['HDS','FRDS']},
-        'url':'https://www.beitai.pt/torrentrss.php?rows=10&cat401=1&ismalldescr=1&linktype=dl&passkey=e193420544db01e767e2a214f30ec049'
+        'url':'https://www.beitai.pt/torrentrss.php?rows=10&ismalldescr=1&linktype=dl&passkey=e193420544db01e767e2a214f30ec049'
         },
     {
         'name':'LeagueHD', 
@@ -56,7 +56,7 @@ RSS_LIST = [
     {
         'name':'LeagueHDAll', 
         'wait_free':False,   
-        'time_interval':50,
+        'time_interval':30,
         'manual':{'includes':['265',],'excludes':['HDS','FRDS','PTHome','HDHome','BeiTai','HDH','PTH']},
         'url':'https://leaguehd.com/torrentrss.php?rows=20&ismalldescr=1&linktype=dl&passkey=dfab9bb8e00a9445760abb17ec2fa772'
         }, 
@@ -69,8 +69,15 @@ RSS_LIST = [
     {
         'name':'HDArea',   
         'wait_free':False,   
-        'time_interval':60,
+        'time_interval':119,
         'url':'https://www.hdarea.co/cartrss.php?rows=50&linktype=dl&passkey=cd27426c9894a4c182eb99521afd6f38&inclcarted=1'
+        },
+    {
+        'name':'HDAreaALL',   
+        'wait_free':False,   
+        'time_interval':50,
+        'manual':{'includes':['265',],'excludes':['HDS','FRDS','PTHome','HDHome','BeiTai','HDH','PTH']},
+        'url':'https://www.hdarea.co/torrentrss.php?rows=20&linktype=dl&passkey=cd27426c9894a4c182eb99521afd6f38'
         },
     {
         'name':'JoyHD',    

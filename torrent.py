@@ -104,9 +104,10 @@ class Torrent:
             return TRACKER_NOT_WORK
     @property
     def torrent_status(self):
+        if self.torrent == None: return "N/A"
         if   self.status == "STOP": return "STOP"
         elif self.tracker_status == TRACKER_WORKING: return "GOING"
-        else: return "NOT WORK"
+        else: return "ERROR"
 
     @property
     def files(self):

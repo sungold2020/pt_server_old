@@ -11,13 +11,13 @@ import torrentool.api
 从link下载种子文件，解析种子文件，获取种子信息
 """
 
+TORRENTS_DIR = 'data/torrents/'
 
-class TorrentInfo:
+
+class TorrentInfo( torrentool.api.Torrent):
     def __init__(self,download_link=None,torrent_file=None):
         self.torrent_file = torrent_file
         self.download_link = download_link
-
-        self.torrent = None
 
         #self.name = ""
         #self.total_size = 0
@@ -106,3 +106,53 @@ class TorrentInfo:
     @property
     def files(self):
         return self.torrent.files      if self.torrent != None else ""
+
+
+    @staticmethod
+    def download_torrent_file(download_link):
+        """
+        根据下载链接，下载种子文件，获取hash值，并按照hash.torrent名称保存到配置给定的目录
+        返回值: hash值 失败返回""
+        """
+        #下载种子文件
+        temp_torrent_file =os.path.join(os.path.abspath(TORRENTS_DIR),'temp.torrent')
+        try:
+            f=requests.get(download_link,timeout=120)
+            with open(temp_torrent_file ,"wb") as code:
+                code.write(f.content)
+        except Exception as err:
+            Print(err)
+            DebugLog("failed to download torrent file from:"+download_link)
+            return ""
+        else : 
+            DebugLog("success download torrent file from:"+download_link)
+
+        #获取torrent（包含hash等信息）
+        torrent = torrentool.api.Torrent.from_file(temp_torrent_file)
+        if torrent == None or torrent.info_hash == None: return "" 
+
+        #改名hash.torrent
+        torrent_file = os.path.join(os.path.abspath(TORRENTS_DIR),torrent.hash+'.torrent')
+        try:
+            os.rename(temp_torrent_file,torrent_file)
+        except Exception as err:
+            print(err)
+            ErrorLog("error: rename {} to {}".format(temp_torrent_file,torrent_file))
+            return ""
+        return torrent.info_hash
+
+
+
+    @staticmethod
+    def get_hash(torrent_file=None,download_link=None):
+        if torrent_file == None: torrent_file = TorrentInfo.download_torrent_file(download_link)
+        torrent = torrentool.api.Torrent.from_file(torrent_file)
+        return torrent.hash if torrent != None else ""
+
+    @staticmethod
+    def bulid_torrent_info(torrent_file,download_link):
+        if torrent_file == None: torrent_file = TorrentInfo.download_torrent_file(download_link)
+        torrent = torrentool.api.Torrent.from_file(torrent_file)
+        return torrent
+
+    

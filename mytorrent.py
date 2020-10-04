@@ -169,6 +169,9 @@ class MyTorrent:
     @property
     def nation(self):
         return self.rss.nation if self.rss != None else ""
+    @property
+    def poster(self):
+        return self.rss.poster if self.rss != None else ""
     @nation.setter
     def nation(self,nation):
         self.rss.nation = nation
@@ -230,7 +233,7 @@ class MyTorrent:
         else               : return self.torrent.name
     @property
     def progress(self):
-        if self.torrent == None: return ""
+        if self.torrent == None: return 0
         else               : return self.torrent.progress
     @property
     def status(self):
@@ -275,6 +278,9 @@ class MyTorrent:
         if self.torrent == None: return []
         else               : return self.torrent.files
     #重定义函数
+    def start(self):
+        if self.torrent == None: return False
+        else               : return self.torrent.resume()
     def stop(self):
         if self.torrent == None: return False
         else               : return self.torrent.stop()
@@ -305,6 +311,8 @@ class MyTorrent:
         return self.name if self.name != "" else self.title
     def get_title(self):
         return self.title if self.title != "" else self.name
+    def get_compiled_name(self):
+        return self.rss.name if (self.rss != None and self.rss.name != "") else self.name
     def get_hash(self):
         if self.hash != self.HASH and self.hash != "" and self.HASH != "": ErrorLog("error:diff hash and HASH:{}|{}".format(self.hash,self.HASH))
         return self.hash if self.hash != "" else self.HASH
@@ -402,7 +410,7 @@ class MyTorrent:
         
         if self.rss.info == None:  ErrorLog("id is ok,but info is null")
         if self.douban_status == OK   : return self.douban_status
-        elif self.douban_status == NOK: ExecLog("cann't find record for {}|{}".format(self.douban_id,self.imdb_id)); return NOK
+        elif self.douban_status == NOK: ExecLog("can't find record for {}|{}".format(self.douban_id,self.imdb_id)); return NOK
         else :     # self.douban_status == RETRY
             DebugLog("begin to check_movie_info")
             return self.rss.spider_douban()
@@ -507,7 +515,7 @@ class MyTorrent:
         tMovie = Movie(TO_BE_PATH, DirName,"tobe")
         if tMovie.douban_id == "": tMovie.douban_id = self.douban_id
         if tMovie.imdb_id   == "": tMovie.imdb_id   = self.imdb_id
-        if tMovie.check_movie() != 1: ErrorLog("failed to check:"+DirName)  #; continue，继续插入表
+        if tMovie.check_movie() != 1: ErrorLog("failed to check:"+DirName)  ; return False
         else                        : ExecLog("success insert table movies")
         
         #6 更新信息至表movies

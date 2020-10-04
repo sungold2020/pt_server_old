@@ -400,20 +400,20 @@ class Movie:
         if Movie.ToBeExecDirName == True:
             try:
                 os.rename(SourceDir,DestDir)
-                ExecLog("mv "+self.dir_name+'\n')
-                ExecLog("   "+DestDirName+'\n')
+                ExecLog("mv "+self.dir_name)
+                ExecLog("   "+DestDirName)
                 movie_log ("rename success")
                 self.dir_name = DestDirName
                 return 1
             except:
-                ErrorLog("mv failed:"+self.dir_name+'\n')
+                ErrorLog("mv failed:"+self.dir_name)
                 ErrorLog("          "+DestDirName)
                 movie_log ("Mv failed:"+SourceDir)
                 movie_log ("          "+DestDir)
                 self.IsError = 1 ; return 0
         else:
-            movie_log("ToDo mv "+self.dir_name+'\n')
-            movie_log("        "+DestDirName+'\n')
+            movie_log("ToDo mv "+self.dir_name)
+            movie_log("        "+DestDirName)
             return 1
     
     #end def rename_dir_name
@@ -628,11 +628,11 @@ class Movie:
         
         if self.check_dir_name() == 0 :
             ErrorLog("failed check_dir_name:"+self.dir_name)
-            self.IsError = 1; return 0
+            self.IsError = 1
         
         if self.check_info() == False:
             ErrorLog("failed check_info:"+self.dir_name)
-            #self.IsError = 1; return 0
+            #self.IsError = 1
 
         if self.collection == 1:
             movie_log ("Begin collection"+self.dir_name)
@@ -653,15 +653,16 @@ class Movie:
         
         if self.check_dir_cont() == 0 :
             ErrorLog("failed check_dir_cont:"+self.dir_name)
-            self.IsError = 1; return 0
+            self.IsError = 1
             
-        if self.rename_dir_name() == 0 :
-            ErrorLog("failed rename_dir_name:"+self.dir_name)
-            self.IsError = 1; return 0
-        
         if self.split_format() == 0:
             ErrorLog("split_format:"+self.dir_name)
-            self.IsError = 1; return 0
+            self.IsError = 1
+
+        if self.rename_dir_name() == 0 :
+            ErrorLog("failed rename_dir_name:"+self.dir_name)
+            self.IsError = 1
+        
         if self.check_table() != SUCCESS:
             ErrorLog("check_table:"+self.dir_name)
             self.IsError = 1; return 0
@@ -819,6 +820,7 @@ class Movie:
                  TempStr[0:3] == "dd+" or \
                  TempStr[0:4] == "lpcm" or \
                  TempStr[0:4] == "flac" or \
+                 TempStr[0:4] == "opus" or \
                  TempStr[0:5] == "atmos" or \
                  TempStr[0:6] == "truehd" or \
                  TempStr[0:6] == "ddplus" or \

@@ -17,6 +17,8 @@ PTSITE_LOG_FILE ='log/site.log'
 MOVIE_LOG_FILE ='log/movie.log'
 SOCKET_LOG_FILE='log/socket.log'
 
+global lastLogDay
+lastLogDay = "1970-01-01"
 def info_log(tStr):
     Log(INFO_LOG_FILE,tStr)
 
@@ -34,11 +36,6 @@ def movie_log(tStr):
 
 def socket_log(tStr):
     Log(SOCKET_LOG_FILE,tStr)
-
-def Print(Str):
-    tCurrentTime = datetime.datetime.now()
-    print(tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')+"::" , end='')
-    print(Str)
 
 def LogClear(FileName="") :
     if FileName == "":
@@ -71,8 +68,8 @@ def LogClear(FileName="") :
       
 def Log(FileName,Str,time_flag=True) :
     fo = open(FileName,"a+")
-    tCurrentTime = datetime.datetime.now()
-    if time_flag == True: fo.write(tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')+"::")
+    tCurrentDayTime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if time_flag == True: fo.write(f"{tCurrentDayTime[11:]}: ")
     fo.write(Str+'\n')
     fo.close()
 
@@ -81,7 +78,13 @@ def DebugLog( Str, Mode = "np"):
     if Mode == "p": Print(Str)
 
 def ExecLog(Str):
+    global lastLogDay
+
     Print(Str)
+    tCurrentDayTime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if tCurrentDayTime[:10] != lastLogDay: 
+        lastLogDay = tCurrentDayTime[:10]
+        ExecLog(f"new day: ----------------------{lastLogDay}----------------------- ")
     DebugLog(Str)
     Log(ExecLogFile,Str)    
     

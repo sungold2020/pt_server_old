@@ -34,7 +34,8 @@ class NexusPage():
             'url':'https://pt.m-team.cc/movie.php',
             'first_url':'https://pt.m-team.cc/',
             'last_url':'&passkey=7044b36a9057090e36138df761ddfc5d&https=1',
-            'cookie':'__cfduid=d6e1d0fef6c7cf6f43935dacc4b5bda5b1597982934; tp=MzIzYWNhMmZhZjQzZDU5ZWM5ZmUwMzc4YmIyY2NiMDU3YWMxOTZjNw%3D%3D'
+            #注意:mteam的cookie必须__cfduid在前，tp在后
+            'cookie':'__cfduid=d04199be83f6b36fa87641bc2d8bfcdaf1600603307; tp=MzIzYWNhMmZhZjQzZDU5ZWM5ZmUwMzc4YmIyY2NiMDU3YWMxOTZjNw%3D%3D'
             },
         {
             'name':'FRDS',    
@@ -155,19 +156,13 @@ class NexusPage():
                 else         : 
                     if NexusPage.site_list[i]['time_interval']  >= 120: return True
                     NexusPage.site_list[i]['error_count'] += 1
-                    NexusPage.site_list[i]['time_interval'] = NexusPage.site_list[i]['time_interval'] * NexusPage.site_list[i]['error_count']
+                    if NexusPage.site_list[i]['error_count'] >= 2:
+                        NexusPage.site_list[i]['time_interval'] = NexusPage.site_list[i]['time_interval'] * NexusPage.site_list[i]['error_count'] / (NexusPage.site_list[i]['error_count']-1)
                     ExecLog("set {}.time_interval = {}".format(self.site['name'],NexusPage.site_list[i]['time_interval']))
                 return True
         ExecLog("not find site name in site_list:"+self.site['name'])
         #self.Print("error:"+self.error_string)
         return False
-    def get_error_count(self):
-        for i in range(len(NexusPage.site_list)):
-            if NexusPage.site_list[i]['name'] == self.site['name']: 
-                return NexusPage.site_list[i]['error_count']
-        ExecLog("not find site name in site_list:"+self.site['name'])
-        #self.Print("error:"+self.error_string)
-        return -1
 
     def request_detail_page(self,mTorrentID):
         if not self.site : return False
@@ -252,6 +247,8 @@ class NexusPage():
             return False
         self.soup = bs4.BeautifulSoup(res.text,'lxml')
         site_log(res.text)
+        if res.text.find("次連續登錄失敗將導致你的IP位址被禁用") >= 0 :
+            ErrorLog(f"{self.site['name']} cookie失效")
         """
         text = open('hdhome.txt').read()
         self.soup = bs4.BeautifulSoup(text,'lxml')
@@ -433,6 +430,7 @@ class NexusPage():
         summary_anchor = soup.find('div',id='kdescr')
         if not summary_anchor: site_log("not find summary:"+detail_url); return NOK,douban_id,imdb_id
         tSummary = summary_anchor.get_text()
+        site_log("summary===")
         site_log(tSummary)
         return_code,douban_id,imdb_id = Info.get_from_summary(tSummary)
         if return_code == True: DebugLog("success to get from detail:"+detail_url); return OK,douban_id,imdb_id

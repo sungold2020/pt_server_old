@@ -6,7 +6,8 @@ import time
 import requests
 from torrent import Torrent
 from log import *
-#from torrent_info import *
+from rss import *
+from torrent_info import *
 
 TR_LOGIN = {'host':"localhost", 'port':9091, 'username':'dummy', 'password':'moonbeam' }
 QB_LOGIN = {'host_port':'localhost:8989', 'username':'admin', 'password':'moonbeam' }
@@ -22,6 +23,25 @@ class PTClient:
     def type(self,mType):
         if mType != "QB" and mType == "TR": ErrorLog("unknown type:"+mType); return
         self._type == mType
+    @property
+    def down_speed(self):
+        if self.client == None:
+            if not self.connect(): return -1
+        if self.type == "QB":
+            return self.client.transfer.info['dl_info_speed']/(1024*1024)
+        elif self.type == "TR":
+            return self.client.session_stats().downloadSpeed/(1024*1024)
+        else: return -1
+    @property
+    def up_speed(self):
+        if self.client == None:
+            if not self.connect(): return -1
+        if self.type == "QB":
+            return self.client.transfer.info['up_info_speed']/(1024*1024)
+        elif self.type == "TR":
+            return self.client.session_stats().uploadSpeed/(1024*1024)
+        else: return -1
+    
 
     def connect(self):
         try:
@@ -68,10 +88,24 @@ class PTClient:
             print(err)
             return None
 
-    def add_torrent(self,download_link=None,torrent_file=None,download_dir=None,is_paused=True,is_root_folder=True,is_skip_checking=False,category=None):
-        if download_link == None and torrent_file == None: ErrorLog("empty download link or torrent"); return None
-        if torrent_file == None: torrent_file = download_torrent_file(download_link)
-        if torrent_file == "": return None
+    def add_torrent(self,HASH="",download_link="",torrent_file="",download_dir=None,is_paused=True,is_root_folder=True,is_skip_checking=False,category=None):
+        """
+        1,如果torrent_file为空，则根据hash寻找对应的文件或者根据download_link进行重新下载:w
+            HASH为空，或者HASH对应的种子文件不存在，则重新下载
+        2,加入pt客户端 
+        """
+        if download_link == "" and torrent_file == "" and HASH == "": ErrorLog("empty download link or torrent file"); return None
+
+        #1，获取及校验torrent_file
+        if torrent_file == "": 
+            torrent_file = os.path.join(TORRENTS_DIR,HASH+'.torrent')
+            if HASH == "" or not os.path.exists(torrent_file):
+                torrent_info = RSS.download_torrent_file(download_link)
+                if torrent_info == None: ExecLog("下载并获取种子信息失败:"+download_link); return None
+                HASH = torrent_info.info_hash
+                torrent_file = os.path.join(TORRENTS_DIR,HASH+'.torrent')
+        if not os.path.exists(torrent_file): ExecLog("cann't find torrent:"+torrent_file); return None
+
         try:
             if   self.type == "TR":  
                 DebugLog("add torrent_file to tr:"+torrent_file)
@@ -80,9 +114,7 @@ class PTClient:
                 tReturn = self.client.torrents_add(urls=download_link,torrent_files=torrent_file,save_path=download_dir,paused=is_paused,category=category,is_skip_checking=is_skip_checking,is_root_folder=is_root_folder) 
                 if tReturn != "Ok.": return None
                 time.sleep(10)
-                tHASH = get_hash(torrent_file=torrent_file,download_link=download_link)
-                if tHASH == "": return None
-                else          : return self.get_torrent(tHASH)
+                return self.get_torrent(HASH)
             else                  : 
                 return None
         except Exception as err:
@@ -145,7 +177,9 @@ class PTClient:
             return False
         
 
+'''
 def get_hash(torrent_file=None,download_link=None):
+    """
     tTRClient = PTClient("TR")
     if not tTRClient.connect(): ExecLog("failed to connect tr"); return ""
     print("begin add tr")
@@ -155,7 +189,10 @@ def get_hash(torrent_file=None,download_link=None):
     time.sleep(5)
     print("begin delete tr")
     if tTRClient.del_torrent(tHASH) == False: ExecLog("faild to delete torrent:"+tTorrent.name)
-    return tHASH
+    """
+    torrent = TorrentInfo(torrent_file=torrent_file,download_link=download_link)
+    if not torrent.get_info(): return ""
+    return torrent.hash
 
 def download_torrent_file(download_link):
     DestFullFile=os.path.abspath("data/temp.torrent")
@@ -171,3 +208,4 @@ def download_torrent_file(download_link):
         DebugLog("success download torrent file from:"+download_link)
         return DestFullFile
 
+'''

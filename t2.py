@@ -123,7 +123,7 @@ class Torrents:
         if tAddStatus != TO_BE_ADD and tAddStatus != MANUAL:
             tPTClient = PTClient(mClient)
             if not tPTClient.connect(): return "False, failed to connect "+mClient
-            if not tPTClient.del_torrent(mHASH,is_delete_file=is_delete_file): 
+            if not tPTClient.del_torrent(mHASH,is_delete_fil=is_delete_file): 
                 return "False, can't delete torrent in "+mClient
         ExecLog("del  torrent:"+tTitle)
         return "Success"
@@ -752,8 +752,7 @@ class Torrents:
                 else:
                     tReply += self.torrent_list[i].imdb_score+'|'
                 tReply += self.torrent_list[i].movie_name+'|'
-                tReply += self.torrent_list[i].nation+'|'
-                tReply += self.torrent_list[i].poster+'\n'
+                tReply += self.torrent_list[i].nation+'\n'
         return tReply
 
 
@@ -829,7 +828,6 @@ class Torrents:
         if tIndex == -1: return "not find match torrent"
         if tAction == "start": self.torrent_list[tIndex].start()
         elif tAction == "stop": self.torrent_list[tIndex].stop()
-        ExecLog(f"{tAction} :{self.torrent_list[tIndex].get_compiled_name()}")
         return "Success"
 
 
