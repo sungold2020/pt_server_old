@@ -3,23 +3,8 @@
 import datetime
 import time
 import os
-#import requests
-#import feedparser
 import re
 import psutil
-#import codecs 
-#from bs4 import BeautifulSoup
-#import transmissionrpc
-#import qbittorrentapi
-
-#import movie
-#from rss import *
-#from info import Info
-#from torrent import Torrent
-#from mytorrent import *
-#from log import *
-#from ptsite import *
-#from torrent_info import TorrentInfo
 from connect import *
 from torrents import *
 
@@ -50,7 +35,7 @@ def handle_task(Request,mConnect=None):
     elif Task == 'checkqb'      : gTorrents.check_torrents("QB") 
     elif Task == 'checktr'      : gTorrents.check_torrents("TR") 
     elif Task == 'backuptorrent': gTorrents.backup_torrents()
-    elif Task == 'keep'         : gTorrents.keep_torrents( check_disk(RequestList) )
+    elif Task == 'keep'         : return keep_torrents( RequestList )
     elif Task == 'set_id'       : return gTorrents.request_set_id(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == 'set_category' : return gTorrents.request_set_category(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == 'view'         : 
@@ -62,7 +47,9 @@ def handle_task(Request,mConnect=None):
     elif Task == "del"          : return gTorrents.request_del_torrent(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == "act_torrent"  : return gTorrents.request_act_torrent(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == "movie"        : return gTorrents.request_saved_movie(RequestList[0] if len(RequestList) == 1 else "")
+    elif Task == "get_tracker_message" : return gTorrents.request_tracker_message(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == "set_info"     : return set_info(RequestList[0] if len(RequestList) == 1 else "")
+    elif Task == "get_info"     : return get_info(RequestList[0] if len(RequestList) == 1 else "")
     elif Task == 'log'          : return get_log()
     elif Task == 'speed'        : return get_speed()
     elif Task == 'freespace'    : return get_free_space()
@@ -91,7 +78,7 @@ def get_free_space():
 
 def set_info(mRequestStr):
     try:
-        DoubanID,IMDBID,MovieName,Nation,Director,Actors,Poster,Genre,TypeStr = mRequestStr.split('|',1)
+        DoubanID,IMDBID,MovieName,Nation,Director,Actors,Poster,Genre,TypeStr = mRequestStr.split('|',8)
     except Exception as err:
         print(err)
         ExecLog("failed to split:"+mRequestStr)
@@ -164,8 +151,47 @@ def listen_socket():
         Reply = handle_task(Request,gSocket)
         #Print("begin send")
         gSocket.send(Reply)
-        socket_log("send:"+Reply)
+        if Request.startswith('torrents') or Request.startswith('log') : pass  
+        else                                                           : socket_log("send:"+Reply)
         gSocket.close()
+
+def keep_torrents(tDiskPath):
+    """
+    输入:待进行保种的目录列表
+    1、查找movies表，获取下载链接及hash
+    2、如果下载链接不空，就取下载链接，否则通过hash值去种子备份目录寻找种子文件
+    3、加入qb，设置分类为'转移',跳检，不创建子文件夹
+    """
+    tPTClient = PTClient("TR")
+    if not tPTClient.connect(): return "failed to connect TR"
+
+    print(tDiskPath)
+    tDirNameList = gTorrents.check_disk(tDiskPath)  #检查tDiskPath,获取未保种的目录列表
+    for tDirName in tDirNameList:
+        ExecLog("begin to keep torrent:"+tDirName['DirPath']+tDirName['DirName'])
+        tMovie = movie.Movie(tDirName['DirPath'],tDirName['DirName'])
+        if tMovie.check_dir_name() == False:
+            ExecLog("failed to checkdirname:"+tMovie.DirName)
+            continue
+        if not tMovie.get_torrent(): ExecLog("can't get torrent:"+tDirName['DirName']); continue
+        torrent = tPTClient.add_torrent(HASH="",download_link=tMovie.download_link,torrent_file=tMovie.torrent_file,download_dir=TR_KEEP_DIR,is_paused=True)
+        if torrent != None:
+            ExecLog("success add torrent to tr")
+        else:
+            ErrorLog("failed to add torrent:"+tMovie.torrent_file+"::"+tMovie.download_link)
+            continue
+        tLink = os.path.join(TR_KEEP_DIR,torrent.name) 
+        tFullPathDirName = os.path.join(tDirName['DirPath']+tDirName['DirName'])
+        if os.path.exists(tLink) : os.remove(tLink)
+        try:    
+            os.symlink(tFullPathDirName,tLink)
+        except:
+            ErrorLog("failed create link:ln -s "+tFullPathDirName+" "+tLink)
+        else: ExecLog("create link: ln -s "+tFullPathDirName+" "+tLink)
+    return "completed"
+
+    #把新加入的种子加入列表
+    self.check_torrents("TR")
 
 if __name__ == '__main__' :
     global gTorrents
@@ -184,6 +210,9 @@ if __name__ == '__main__' :
     if not gSocket.init(): exit()
    
     gLastCheckDate = gTorrents.last_check_date
+    thread_socket = threading.Thread(target=listen_socket)
+    thread_socket.start()
+
     LoopTimes = 0
     while True:
         LoopTimes += 1
@@ -218,6 +247,9 @@ if __name__ == '__main__' :
         DebugLog("memory percent used:"+str(tMem.percent))
         if tMem.percent >= 92: ExecLog("memory percent used:"+str(tMem.percent)); PTClient("QB").restart()
 
+        time.sleep(60);
+
+        """
         #监听Client是否有任务请求
         if not gSocket.accept(): continue
 
@@ -230,3 +262,4 @@ if __name__ == '__main__' :
         gSocket.send(Reply)
         Print("send:"+Reply)
         gSocket.close()
+        """

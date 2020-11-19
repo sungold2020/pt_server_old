@@ -13,7 +13,8 @@ MAX_DOUBAN_RETRY_TIMES= 3
 DOUBAN_URL = 'https://movie.douban.com/subject/'
 DOUBAN_SEARCH_URL="https://m.douban.com/search/?query="
 DOUBAN_VIEWED_URL = 'https://movie.douban.com/people/69057957/collect?start=0&sort=time&rating=all&filter=all&mode=grid'
-DOUBAN_COOKIE='"118282"; bid=p0dhpEfEV-4; __utmc=30149280; __utmc=223695111; __yadk_uid=zONgmuQAhUz48FScpbbLwlyp9sWgxc8m; _vwo_uuid_v2=DB07B9A9429A767628851B0838F87F143|70668c6e9c14c93aa7249d070dc6cf07; __utmv=30149280.21843; __gads=ID=af7d0ac47d706c3b:T=1592790195:S=ALNI_MZPqMSCLzv4tlBWoABDl8fGGwGUBQ; douban-profile-remind=1; __utmz=30149280.1594774078.8.3.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utmz=223695111.1594774078.7.2.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utma=30149280.531319256.1586329544.1594944611.1598777833.10; __utmb=30149280.0.10.1598777833; __utma=223695111.1308861375.1586329544.1594944612.1598777833.9; __utmb=223695111.0.10.1598777833; ap_v=0,6.0; _pk_ref.100001.4cf6=%5B%22%22%2C%22%22%2C1598777833%2C%22https%3A%2F%2Fwww.douban.com%2Fpeople%2F218434462%2F%22%5D; _pk_ses.100001.4cf6=*; dbcl2="69057957:QCb/tdaIW6s"; ck=S20Y; push_noty_num=0; push_doumail_num=0; _pk_id.100001.4cf6=e6366f0e1d0169b1.1586329544.9.1598777855.1594944644.'
+#DOUBAN_COOKIE='ll="118282"; bid=p0dhpEfEV-4; __utmc=30149280; __utmc=223695111; __yadk_uid=zONgmuQAhUz48FScpbbLwlyp9sWgxc8m; _vwo_uuid_v2=DB07B9A9429A767628851B0838F87F143|70668c6e9c14c93aa7249d070dc6cf07; __gads=ID=af7d0ac47d706c3b:T=1592790195:S=ALNI_MZPqMSCLzv4tlBWoABDl8fGGwGUBQ; douban-profile-remind=1; __utmz=30149280.1594774078.8.3.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utmz=223695111.1594774078.7.2.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utmv=30149280.6905; _pk_ref.100001.4cf6=%5B%22%22%2C%22%22%2C1601810716%2C%22https%3A%2F%2Fwww.douban.com%2Fpeople%2F218434462%2F%22%5D; _pk_ses.100001.4cf6=*; __utma=30149280.531319256.1586329544.1598777833.1601810716.11; __utmb=30149280.0.10.1601810716; __utma=223695111.1308861375.1586329544.1598777833.1601810717.10; __utmb=223695111.0.10.1601810717; ap_v=0,6.0; dbcl2="69057957:K8+pPeX9x8g"; ck=0tvw; _pk_id.100001.4cf6=e6366f0e1d0169b1.1586329544.10.1601810724.1598778162.; push_noty_num=0; push_doumail_num=0'
+DOUBAN_COOKIE='ll="118282"; bid=p0dhpEfEV-4; __utmc=30149280; __utmc=223695111; __yadk_uid=zONgmuQAhUz48FScpbbLwlyp9sWgxc8m; _vwo_uuid_v2=DB07B9A9429A767628851B0838F87F143|70668c6e9c14c93aa7249d070dc6cf07; __gads=ID=af7d0ac47d706c3b:T=1592790195:S=ALNI_MZPqMSCLzv4tlBWoABDl8fGGwGUBQ; douban-profile-remind=1; __utmz=30149280.1594774078.8.3.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utmz=223695111.1594774078.7.2.utmcsr=accounts.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/passport/login; __utmv=30149280.6905; push_noty_num=0; push_doumail_num=0; ap_v=0,6.0; _pk_ref.100001.4cf6=%5B%22%22%2C%22%22%2C1605693970%2C%22https%3A%2F%2Fwww.douban.com%2Fpeople%2F218434462%2F%22%5D; _pk_ses.100001.4cf6=*; __utma=30149280.531319256.1586329544.1605575173.1605693970.16; __utmb=30149280.0.10.1605693970; __utma=223695111.1308861375.1586329544.1605575173.1605693970.15; __utmb=223695111.0.10.1605693970; dbcl2="69057957:YI95Z/Qbhkg"; ck=MoAu; _pk_id.100001.4cf6=e6366f0e1d0169b1.1586329544.15.1605693982.1605575173.'
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36"
 
 MOVIE =  0
@@ -482,11 +483,17 @@ class Info:
 
         #json_string = "".join(i  for i in json_string if 31<ord(i)<127)
         json_string = "".join(i  for i in json_string if 31<ord(i))   #根据ascii码去除特殊字符
+        json_string = json_string.replace('\\','\\\\')
          
         #json_string = json_string.replace('\t','')
         #json_string = re.sub('[\x00-\x09|\x0b-\x0c|\x0e-\x1f]','',json_string)
         info_log(json_string)
-        data = json.loads(json_string) 
+        try:
+            data = json.loads(json_string,strict=False) 
+        except Exception as err:
+            print(err)
+            ExecLog(f"解析json出现错误：{self.douban_id}")
+            return False
         #print(data)
         if data == None:  ExecLog('爬取豆瓣详情出现错误:没有找到"json "'); return False
 

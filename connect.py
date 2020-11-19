@@ -2,7 +2,7 @@ import socket
 
 from log import *
 
-PTPORT = 12346
+PTPORT = 30227
 SERVER = 1
 CLIENT = 0
 class Socket:
@@ -44,6 +44,7 @@ class Socket:
     def accept(self):
         try:
             self.connect,self.address = self.socket.accept()
+            ExecLog("IP:"+self.address[0])
             Print(self.address)
         except socket.timeout:
             #Print("accept timeout")
@@ -67,6 +68,7 @@ class Socket:
             return ""
         else:
             #Print("recv:"+Request)
+            socket_log("recv:"+Request)
             return Request
 
     def send(self,Reply):

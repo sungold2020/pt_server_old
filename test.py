@@ -43,8 +43,10 @@ string = "hello world"
 if re.search(u"[\u4e00-\u9f50]+",string) != None:
     print("contain chinese")
 
-from info import *
-info = Info("1308190","")
-info.douban_status = RETRY
-info.spider_douban()
-print(info.movie_name)
+
+import json
+text = open('info_json.txt').read()
+text = text.replace('\\','\\\\')
+print(text)
+json_data = json.loads(text,strict=False)
+print(json_data.get("genre"))

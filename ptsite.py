@@ -22,7 +22,7 @@ class NexusPage():
             'time_interval':0,
             'url':'https://hdsky.me/torrents.php',
             'first_url':'https://hdsky.me/',
-            'last_url':'&passkey=c8c158c14e1762b0c93c91ab2ddc689a',
+            'last_url':'&passkey=c8c158c14e1762b0c93c91ab2ddc689a&sign=5fc6576c78235f5772647cf1083294ad',
             'cookie':'_cfduid=db2b415ee08bcfffe3cf8cce295391efd1593000122; c_secure_uid=OTI5OTY%3D; c_secure_pass=d6d578d9961e551a990a652eff203fea; c_secure_ssl=eWVhaA%3D%3D; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D; UM_distinctid=172f345ce002c-0d1dbc47b6f2a1-317c0e5e-ffc00-172f345ce090; CNZZDATA5476511=cnzz_eid%3D830024714-1593216097-https%253A%252F%252Fhdsky.me%252F%26ntime%3D1593692147'
             },
         {
@@ -35,7 +35,7 @@ class NexusPage():
             'first_url':'https://pt.m-team.cc/',
             'last_url':'&passkey=7044b36a9057090e36138df761ddfc5d&https=1',
             #注意:mteam的cookie必须__cfduid在前，tp在后
-            'cookie':'__cfduid=d04199be83f6b36fa87641bc2d8bfcdaf1600603307; tp=MzIzYWNhMmZhZjQzZDU5ZWM5ZmUwMzc4YmIyY2NiMDU3YWMxOTZjNw%3D%3D'
+            'cookie':'__cfduid=d17a97d64b190205faa4c18fa946439a21603528410; tp=MzIzYWNhMmZhZjQzZDU5ZWM5ZmUwMzc4YmIyY2NiMDU3YWMxOTZjNw%3D%3D' 
             },
         {
             'name':'FRDS',    
@@ -62,9 +62,11 @@ class NexusPage():
             'error_count':0,
             'time_interval':0,
             'url':'https://leaguehd.com/torrents.php',
+            'detail_url':'https://leaguehd.com/details_movie.php?id=%s',
+            'download_url':'https://leaguehd.com/download.php?https=1&id=%s&passkey=dfab9bb8e00a9445760abb17ec2fa772',
             'first_url':'https://leaguehd.com/',
             'last_url':'&passkey=dfab9bb8e00a9445760abb17ec2fa772',
-            'cookie':'c_secure_ssl=eWVhaA%3D%3D; __cfduid=d4246542612e038a805e33a9f1f028ccb1592576107; c_secure_uid=MTI5NjQ%3D; c_secure_pass=31ba18ffe0b9f74be2c1b76065a600ef; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D'
+            'cookie':'c_secure_ssl=eWVhaA%3D%3D; c_secure_uid=MTI5NjQ%3D; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D; __cfduid=d31edf1d44395d5664d5d78a7063c3fc91605575200; c_secure_pass=43ba4bf8d502792998450ea87db84f9a'
             },
         {
             'name':'PTSBao',   
@@ -283,7 +285,11 @@ class NexusPage():
             torrent_id = re.search(pattern, details).group(1)
             title = (entry.get_text()).strip()
             if title[-1:] == '\n': title = title[:-1] #删除\n
-            download_url = self.site['first_url']+'download.php?id='+torrent_id+self.site['last_url']
+            #组装下载链接
+            if self.site.get('download_url') == None:
+                download_url = self.site['first_url']+'download.php?id='+torrent_id+self.site['last_url']
+            else:
+                download_url = self.site['download_url'].replace('%s',torrent_id)
             if entry.find(class_=NexusPage.free_tag) or entry.find(class_=NexusPage.free_tag2): free = True
             else                                                                              : free = False
             
@@ -370,7 +376,43 @@ class NexusPage():
         return""
 
     @staticmethod
-    def get_id_from_detail(rss_name,torrent_id):
+    def get_site(rss_name):
+        for site in NexusPage.site_list:
+            if rss_name in site['name'] or site['name'] in rss_name:
+                return site
+        return None
+
+    @staticmethod
+    def get_detail_url(rss_name,torrent_id):
+        #根据torrent_id来组装detail_url
+
+        for site in NexusPage.site_list:
+            if rss_name in site['name'] or site['name'] in rss_name:
+                if site.get('detail_url') == None:
+                    detail_url = site['first_url']+'details.php?id='+torrent_id+'&hit=1'
+                else:
+                    detail_url = site['detail_url'].replace('%s',torrent_id)
+                return detail_url
+        return ""
+    
+    @staticmethod
+    def complete_detail_url(rss_name,detail_url):
+        #如果detail_url不完整，缺网站地址抬头，例如detail?id=xxx
+
+        detail_url = detail_url.strip()
+        if detail_url[0:1] == "/": detail_url = detail_url[1:] #去掉/
+
+        if detail_url.startswith("http"): return detail_url
+
+        for site in NexusPage.site_list:
+            if rss_name in site['name'] or site['name'] in rss_name:
+                if site['first_url'][-1:] == '/':
+                    return site['first_url'] + detail_url
+                else:
+                    return site['first_url'] + '/' + detail_url
+
+    @staticmethod
+    def get_id_from_detail(rss_name,torrent_id,detail_url=""):
         """
         # TODO
         返回值：return_code,douban_id,imdb_id，其中return_code:
@@ -378,24 +420,23 @@ class NexusPage():
            NOK：不能找到ID
            RETRY：访问页面错误，下次重试
         """
-        return_code = NOK 
-        douban_id = imdb_id = ""
+        return_code = NOK ; douban_id = imdb_id = ""
+
         if rss_name == "" or torrent_id == "": 
             ErrorLog("rss_name or torrent_id is null")
             return return_code,douban_id,imdb_id
 
-        tSite = None
-        for site in NexusPage.site_list:
-            if rss_name in site['name'] or site['name'] in rss_name:
-                tSite = site
-                break
+        #获取站点
+        tSite = NexusPage.get_site(rss_name)
         if tSite == None : 
             ErrorLog("unknown site name:"+rss_name)
             return return_code,douban_id,imdb_id
         DebugLog("find site:{}".format(tSite['name']))
 
-        detail_url = tSite['first_url']+'details.php?id='+torrent_id+'&hit=1'
+        #获取详细地址
+        if detail_url == "": detail_url = NexusPage.get_detail_url(tSite['name'],torrent_id)
         site_log(detail_url)
+
         cookie_dict = {"cookie":tSite['cookie']}
         s = requests.Session()
         s.cookies.update(cookie_dict)        

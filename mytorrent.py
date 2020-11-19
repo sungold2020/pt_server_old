@@ -248,6 +248,9 @@ class MyTorrent:
         if self.torrent == None: return "UNKNOWN"
         else               : return self.torrent.torrent_status
     @property
+    def tracker_message(self):
+        return self.torrent.tracker_message if self.torrent != None else ""
+    @property
     def category(self):
         if self.torrent == None: return ""
         else               : return self.torrent.category
@@ -387,7 +390,7 @@ class MyTorrent:
         DebugLog("DoubanLink:{} :: IMDBLink:{}".format(DoubanLink,IMDBLink))
         DebugLog("find DoubanID:{} :: IMDBID:{}".format(douban_id,imdb_id))
 
-        if douban_id == "" and imdb_id == "": ExecLogLog("can't find id from nfo:"+self.get_name()); return False
+        if douban_id == "" and imdb_id == "": ExecLog("can't find id from nfo:"+self.get_name()); return False
         ExecLog("get id from nfo:{}|{}{}".format(self.get_name(),douban_id,imdb_id)); 
         if not self.rss.set_id(douban_id,imdb_id): ExecLog("failed to set_id:{}|{}|{}".format(self.title,douban_id,imdb_id))
         return  True
@@ -515,7 +518,7 @@ class MyTorrent:
         tMovie = Movie(TO_BE_PATH, DirName,"tobe")
         if tMovie.douban_id == "": tMovie.douban_id = self.douban_id
         if tMovie.imdb_id   == "": tMovie.imdb_id   = self.imdb_id
-        if tMovie.check_movie() != 1: ErrorLog("failed to check:"+DirName)  ; return False
+        if tMovie.save_movie() != 1: ErrorLog("failed to check:"+DirName)  ; return False
         else                        : ExecLog("success insert table movies")
         
         #6 更新信息至表movies

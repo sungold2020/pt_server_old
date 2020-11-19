@@ -106,6 +106,7 @@ class PTClient:
                 torrent_file = os.path.join(TORRENTS_DIR,HASH+'.torrent')
         if not os.path.exists(torrent_file): ExecLog("cann't find torrent:"+torrent_file); return None
 
+        torrent_file = os.path.abspath(torrent_file) #TR需要绝对路径的torrent文件
         try:
             if   self.type == "TR":  
                 DebugLog("add torrent_file to tr:"+torrent_file)

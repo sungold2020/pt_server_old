@@ -20,7 +20,7 @@ import threading
 
 
 #连续NUMBEROFDAYS上传低于UPLOADTHRESHOLD，并且类别不属于'保种'的种子，会自动停止。
-NUMBEROFDAYS = 2                           #连续多少天低于阈值
+NUMBEROFDAYS = 1                           #连续多少天低于阈值
 UPLOADTHRESHOLD = 0.03                    #阈值，上传/种子大小的比例
 
 TORRENT_LIST_BACKUP = "data/pt.txt"  #种子信息备份目录（重要的是每天的上传量）
@@ -173,7 +173,7 @@ class Torrents:
 
             tTorrent = Torrent(Client,None)
             tTorrent.date_data = DateData
-            tRSS = RSS(HASH,SiteName,DownloadLink,Title,DoubanID,IMDBID,AddDateTime,int(TotalSizeStr),int(IDStatusStr))
+            tRSS = RSS(HASH,SiteName,DownloadLink,'',Title,DoubanID,IMDBID,AddDateTime,int(TotalSizeStr),int(IDStatusStr))
             if tRSS.douban_status == RETRY: tRSS.douban_status = int(DoubanStatusStr)
             if tRSS.douban_score == "": tRSS.douban_score = DoubanScore
             if tRSS.imdb_score   == "": tRSS.imdb_score   = IMDBScore  
@@ -227,9 +227,9 @@ class Torrents:
             if tDateDataListStr[-1:] == ',' : tDateDataListStr = tDateDataListStr[:-1] #去掉最后一个','
             tStr  =     self.torrent_list[i].client+'|'
             tStr +=     self.torrent_list[i].get_hash()+'|'
-            tStr +=     self.torrent_list[i].name+'|'
+            tStr +=     self.torrent_list[i].name.replace('|','')+'|'
             tStr +=     self.torrent_list[i].rss_name+'|'
-            tStr +=     self.torrent_list[i].get_compiled_name()+'|'
+            tStr +=     self.torrent_list[i].title.replace('|','')+'|'
             tStr +=     self.torrent_list[i].download_link+'|'
             tStr += str(self.torrent_list[i].add_status)+'|'
             tStr += str(self.torrent_list[i].total_size)+'|'
@@ -269,7 +269,7 @@ class Torrents:
             tIndex = self.get_torrent_index(mClient,torrent.hash)
             if tIndex == -1:
                 ExecLog("findnew torrent:"+torrent.name)
-                tRSS = RSS(torrent.hash,"","",torrent.name,"","","",torrent.total_size,RETRY)
+                tRSS = RSS(torrent.hash,"",'',"",torrent.name,"","","",torrent.total_size,RETRY)
                 self.append_list(MyTorrent(torrent,tRSS,STARTED))
                 #tIndex = -1                   #指向刚加入的种子
                 tNumberOfAdded += 1
@@ -471,10 +471,15 @@ class Torrents:
         """
         for i in range( len(self.torrent_list) ) :
             tSrcDirName = os.path.join(SavedPath,DirName)
+            if len(self.torrent_list[i].files) == 0: continue
+            FirstFile = os.path.realpath(os.path.join(self.torrent_list[i].save_path,self.torrent_list[i].files[0]['name']))
+            if tSrcDirName in FirstFile: return True
+            """
             for tFile in self.torrent_list[i].files:
                 FirstFile = os.path.join(self.torrent_list[i].save_path,tFile['name'])
                 tDestFile = os.path.realpath(FirstFile)
                 if tSrcDirName in tDestFile: return True
+            """
         return False
 
     def check_disk(self,tCheckDiskList):
@@ -519,39 +524,6 @@ class Torrents:
                     ExecLog("Error：not file or dir")
         return tDirNameList
 
-    def keep_torrents(self,tDiskPath):
-        """
-        输入:待进行保种的目录列表
-        1、查找movies表，获取下载链接及hash
-        2、如果下载链接不空，就取下载链接，否则通过hash值去种子备份目录寻找种子文件
-        3、加入qb，设置分类为'转移',跳检，不创建子文件夹
-        """
-        tPTClient = PTClient("TR")
-
-        tDirNameList = check_disk(tDiskPath)  #检查tDiskPath,获取未保种的目录列表
-        for tDirName in tDirNameList:
-            ExecLog("begin to keep torrent:"+tDirName['DirPath']+tDirName['DirName'])
-            tMovie = movie.Movie(tDirName['DirPath'],tDirName['DirName'])
-            if tMovie.CheckDirName() == 0 :
-                ExecLog("failed to checkdirname:"+tMovie.DirName)
-                continue
-            if not tMovie.get_torrent(): ExecLog("can't get torrent:"+self.DirName); continue
-            if tPTClient.add_torrent(HASH="",download_link=tMovie.download_link,torrent_file=tMovie.torrent_file,download_dir=TR_KEEP_DIR,is_paused=True):
-                ExecLog("success add torrent to tr")
-            else:
-                ErrorLog("failed to add torrent:"+TorrentFile+"::"+DownloadLink)
-                continue
-            tLink = os.path.join(TR_KEEP_DIR,tr_torrent.name) 
-            tFullPathDirName = os.path.join(tDirName['DirPath']+tDirName['DirName'])
-            if os.path.exists(tLink) : os.remove(tLink)
-            try:    
-                os.symlink(tFullPathDirName,tLink)
-            except:
-                ErrorLog("failed create link:ln -s "+tFullPathDirName+" "+tLink)
-            else: ExecLog("create link: ln -s "+tFullPathDirName+" "+tLink)
-
-        #把新加入的种子加入列表
-        self.check_torrents("TR")
 
     def request_free(self,mSiteName="",mTimeInterval=-1):
 
@@ -580,10 +552,10 @@ class Torrents:
                     continue
 
                 IDStatus = RETRY if tTask['douban_id'] == "" and tTask['imdb_id'] == "" else OK
-                tRSS = RSS("",tPage.site['name'],DownloadLink,Title,tTask['douban_id'],tTask['imdb_id'],"",0,IDStatus)
+                tRSS = RSS("",tPage.site['name'],DownloadLink,Details,Title,tTask['douban_id'],tTask['imdb_id'],"",0,IDStatus)
                 if tRSS.HASH == "": ExecLog("cann't get hash,ignore it:"+Title); continue
                 if not tRSS.insert():
-                    ExecLog("failed to insert rss:{}|{}|{}".format(tRSS.HASH,tRSS.rss_name,tRSS.get_compiled_name()))
+                    ExecLog("failed to insert rss:{}|{}|{}".format(tRSS.HASH,tRSS.rss_name,tRSS.name))
                     continue
                     
                 add_status = TO_BE_ADD if tTask['auto'] else MANUAL
@@ -648,7 +620,7 @@ class Torrents:
 
                 Title = Title.replace('|','')
                 IDStatus = OK if douban_id != "" or imdb_id != "" else RETRY
-                tRSS = RSS(HASH,RSSName,DownloadLink,Title,douban_id,imdb_id,"",0,IDStatus)
+                tRSS = RSS(HASH,RSSName,DownloadLink,Detail,Title,douban_id,imdb_id,"",0,IDStatus)
                 
                 if not tRSS.insert():  #记录插入rss数据库
                     ErrorLog("failed to insert into rss:{}|{}".format(RSSName,HASH))
@@ -726,6 +698,9 @@ class Torrents:
             elif mList[0].lower() == 'default': tClientList = ['QB','']
             else: ErrorLog("invalid arg mList="+mList[0]); return ""
 
+        #qb，返回前刷新下状态
+        if mList[0].lower() == 'qb': self.check_torrents("QB")
+
         tReply = ""
         for i in range(len(self.torrent_list)):
             if self.torrent_list[i].client in tClientList:
@@ -744,11 +719,11 @@ class Torrents:
                 tReply += self.torrent_list[i].douban_id+'|'
                 tReply += self.torrent_list[i].imdb_id+'|'
                 if self.torrent_list[i].douban_score == "":
-                    tReply += 'n/a'+'|'
+                    tReply += '-'+'|'
                 else:
                     tReply += self.torrent_list[i].douban_score+'|'
                 if self.torrent_list[i].imdb_score == "":
-                    tReply += 'n/a'+'|'
+                    tReply += '-'+'|'
                 else:
                     tReply += self.torrent_list[i].imdb_score+'|'
                 tReply += self.torrent_list[i].movie_name+'|'
@@ -866,3 +841,17 @@ class Torrents:
         return reply
 
 
+    def request_tracker_message(self,mRequestStr):
+        """
+        client|hash
+        """
+        try:
+            tClient,tHASH = mRequestStr.split('|',1)
+        except Exception as err:
+            print(err)
+            ExecLog("failed to split:"+mRequestStr)
+            return "error requeststr:"+mRequestStr
+        DebugLog("get_tracker_message {}|{}".format(tClient,tHASH))
+        
+        torrent = self.get_torrent(tClient,tHASH)
+        return torrent.tracker_message if torrent != None else "failed"

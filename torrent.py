@@ -103,6 +103,18 @@ class Torrent:
         else:
             return TRACKER_NOT_WORK
     @property
+    def tracker_message(self):
+        if self.torrent == None: return ""
+        if self.client == "QB":
+            for tracker in self.torrent.trackers:
+                if tracker.get('url').startswith('http'): return tracker.get('msg')
+            return ""
+        elif self.client == "TR":
+            # TODO
+            return ""
+        else:
+            return ""
+    @property
     def torrent_status(self):
         if self.torrent == None: return "N/A"
         if   self.status == "STOP": return "STOP"

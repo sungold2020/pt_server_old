@@ -66,7 +66,7 @@ def CheckMovies(DiskPath,Disk):
                 continue 
 
             tMovie = Movie(DiskPath,file,Disk)
-            if tMovie.check_movie() != SUCCESS:
+            if tMovie.check_movie() != True:
                 ExecLog ("CheckMovie error:"+tMovie.dir_name)
                 DebugLog ("")
                 DebugLog ("")

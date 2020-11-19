@@ -12,19 +12,17 @@ from info import *
 from torrent_info import *
 from ptsite import *
 class RSS:
-    def __init__(self,HASH='',rss_name='',download_link='',title='',douban_id="",imdb_id="",add_datetime="",total_size=0,id_status=RETRY):
+    def __init__(self,HASH='',rss_name='',download_link='',detail_url='',title='',douban_id="",imdb_id="",add_datetime="",total_size=0,id_status=RETRY):
         self._HASH         = HASH
         self.rss_name      = rss_name
-        self.download_link = download_link
+        self._download_link = download_link
+        self._detail_url   = detail_url
         self.title         = title
         self._add_datetime = add_datetime if add_datetime != "" else datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self._total_size   = total_size
 
-        self.torrent_id    = self.get_torrent_id(self.download_link)
-        #pthome的downloadlink是临时链接，转换为带passkey的下载链接
-        if rss_name.lower().startswith("pthome"): self.download_link = NexusPage.get_download_link(self.rss_name,self.torrent_id)
         self.downloaded = 0
-
+        self.torrent_id = self.get_torrent_id(download_link)
 
         self.info = None
         douban_id    = Info.check_douban_id(douban_id)
@@ -51,6 +49,30 @@ class RSS:
         #如果rss_name空，尝试读取rss表获取记录
         if self.rss_name == "": self.select_by_hash()
 
+
+    @property
+    def download_link(self):
+        #pthome的downloadlink是临时链接，转换为带passkey的下载链接
+        if self.rss_name.lower().startswith("pthome"): return NexusPage.get_download_link(self.rss_name,self.torrent_id)
+        return self._download_link
+    @download_link.setter
+    def download_link(self,download_link):
+        self._download_link = download_link
+
+    @property
+    def detail_url(self):
+        """
+        两种情况：
+        1、detail_url为空，根据torrent_id去组装detail_url;
+        2、detail_url缺网站名(例如:details?id=xxx),则需要补充完整detail_url
+        """
+        if self._detail_url == "": self._detail_url =  NexusPage.get_detail_url(self.rss_name,self.torrent_id) 
+        if not self._detail_url.startswith("http"): 
+            self._detail_url = NexusPage.complete_detail_url(self.rss_name,self._detail_url)
+        return self._detail_url
+    @detail_url.setter
+    def detail_url(self,detail_url):
+        self._detail_url = detail_url
 
     @property
     def HASH(self):
@@ -148,10 +170,10 @@ class RSS:
     def select(self,assign_value=True):
         if self.rss_name == "": return False
         if self._HASH != "":  #通过免费种子加入时，有torrent_id，无HASH
-            sel_sql = "select title,downloadlink,doubanid,imdbid,downloaded,torrentid,datetime,size from rss where rssname=%s and HASH=%s"
+            sel_sql = "select title,downloadlink,detailurl,doubanid,imdbid,downloaded,torrentid,datetime,size from rss where rssname=%s and HASH=%s"
             sel_val = (self.rss_name,self.HASH)
             tSelectResult =  select(sel_sql,sel_val)
-            tSQL = "select title,downloadlink,torrentid,downloaded,datetime,size from rss where rssname={} and HASH={}".format(self.rss_name,self.HASH)
+            tSQL = "select title,downloadlink,detailurl,torrentid,downloaded,datetime,size from rss where rssname={} and HASH={}".format(self.rss_name,self.HASH)
             if tSelectResult == None:
                 ErrorLog("failed to exec :"+tSQL)
                 return False
@@ -159,21 +181,22 @@ class RSS:
             elif len(tSelectResult) > 1: ErrorLog("find 2+record:"+tSQL); return False
             else: pass
             if assign_value == True:
-                self.title = tSelectResult[0][0]
+                self.title         = tSelectResult[0][0]
                 self.download_link = tSelectResult[0][1]
-                douban_id = tSelectResult[0][2]
-                imdb_id = tSelectResult[0][3]
-                self.torrent_id = tSelectResult[0][4]
-                self.downloaded = tSelectResult[0][5]
-                self.add_datettime = tSelectResult[0][6]
-                self.total_size = tSelectResult[0][7]
+                self.detail_url    = tSelectResult[0][2]
+                douban_id          = tSelectResult[0][3]
+                imdb_id            = tSelectResult[0][4]
+                self.torrent_id    = tSelectResult[0][5]
+                self.downloaded    = tSelectResult[0][6]
+                self.add_datettime = tSelectResult[0][7]
+                self.total_size    = tSelectResult[0][8]
                 if douban_id != "" or imdb_id != "": self.info = Info(douban_id,imdb_id)
             return True
         elif self.torrent_id != "":
-            sel_sql = "select title,downloadlink,doubanid,imdbid,HASH,downloaded,datetime,size from rss where rssname=%s and torrentid=%s"
+            sel_sql = "select title,downloadlink,detailurl,doubanid,imdbid,HASH,downloaded,datetime,size from rss where rssname=%s and torrentid=%s"
             sel_val = (self.rss_name,self.torrent_id)
             tSelectResult =  select(sel_sql,sel_val)
-            tSQL = "select title,download_link,HASH,downloaded,datetime,size from rss where rssname={} and torrentid={}".format(self.rss_name,self.torrent_id)
+            tSQL = "select title,download_link,detailurl,HASH,downloaded,datetime,size from rss where rssname={} and torrentid={}".format(self.rss_name,self.torrent_id)
             if tSelectResult == None:
                 ErrorLog("failed to exec :"+tSQL)
                 return False
@@ -181,55 +204,58 @@ class RSS:
             elif len(tSelectResult) > 1: ErrorLog("find 2+record:"+tSQL); return False
             else: pass
             if assign_value == True:
-                self.title = tSelectResult[0][0]
+                self.title         = tSelectResult[0][0]
                 self.download_link = tSelectResult[0][1]
-                douban_id = tSelectResult[0][2]
-                imdb_id = tSelectResult[0][3]
-                self.HASH = tSelectResult[0][4]
-                self.downloaded = tSelectResult[0][5]
-                self.add_datettime = tSelectResult[0][6]
-                self.total_size = tSelectResult[0][7]
+                self.detail_url    = tSelectResult[0][2]
+                douban_id          = tSelectResult[0][3]
+                imdb_id            = tSelectResult[0][4]
+                self.HASH          = tSelectResult[0][5]
+                self.downloaded    = tSelectResult[0][6]
+                self.add_datettime = tSelectResult[0][7]
+                self.total_size    = tSelectResult[0][8]
                 if douban_id != "" or imdb_id != "": self.info = Info(douban_id,imdb_id)
             return True
         else: return False
                
     def select_by_hash(self,assign_value=True):
         if self._HASH == "": return False 
-        sel_sql = "select title,downloadlink,doubanid,imdbid,downloaded,torrentid,datetime,size from rss where HASH=%s"
+        sel_sql = "select title,downloadlink,detailurl,doubanid,imdbid,downloaded,torrentid,datetime,size from rss where HASH=%s"
         sel_val = (self.HASH,)
         tSelectResult =  select(sel_sql,sel_val)
-        tSQL = "select title,downloadlink,torrentid,downloaded,datetime,size from rss where HASH={}".format(self.HASH)
+        tSQL = "select title,downloadlink,detailurl,torrentid,downloaded,datetime,size from rss where HASH={}".format(self.HASH)
         if tSelectResult == None:
             ErrorLog("failed to exec :"+tSQL)
             return False
         if len(tSelectResult) == 0: return False
         if len(tSelectResult) > 1: ExecLog("find 2+record:"+tSQL)
         if assign_value == True:
-            self.title = tSelectResult[0][0]
-            douban_id = tSelectResult[0][2]
-            imdb_id = tSelectResult[0][3]
-            self.torrent_id = tSelectResult[0][4]
-            self.downloaded = tSelectResult[0][5]
-            self.add_datettime = tSelectResult[0][6]
-            self.total_size = tSelectResult[0][7]
+            self.title         = tSelectResult[0][0]
+            self.download_link = tSelectResult[0][1]
+            self.detail_url    = tSelectResult[0][2]
+            douban_id          = tSelectResult[0][3]
+            imdb_id            = tSelectResult[0][4]
+            self.torrent_id    = tSelectResult[0][5]
+            self.downloaded    = tSelectResult[0][6]
+            self.add_datettime = tSelectResult[0][7]
+            self.total_size    = tSelectResult[0][8]
             if douban_id != "" or imdb_id != "": self.info = Info(douban_id,imdb_id)
         return True
 
     def insert(self):
         if self.HASH == "" or self.rss_name == "": return None
         
-        in_sql = "insert into rss(rssname,HASH,title,downloadlink,torrentid,doubanid,imdbid,datetime,downloaded,size) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-        in_val = (self.rss_name,self.HASH,self.title,self.download_link,self.torrent_id,self.douban_id,self.imdb_id,self.add_datetime,self.downloaded,self.total_size)
+        in_sql = "insert into rss(rssname,HASH,title,downloadlink,detailurl,torrentid,doubanid,imdbid,datetime,downloaded,size) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+        in_val = (self.rss_name,self.HASH,self.title,self.download_link,self.detail_url,self.torrent_id,self.douban_id,self.imdb_id,self.add_datetime,self.downloaded,self.total_size)
         return insert(in_sql,in_val)
 
     def update(self):
         if self.rss_name == "": ExecLog("rss_name is null:"+self.name); return False
         if self._HASH != "":
-            up_sql = "update rss set title=%s,downloadlink=%s,torrentid=%s,doubanid=%s,imdbid=%s,downloaded=%s,datetime=%s,size=%s where rssname=%s and HASH=%s"
-            up_val = (self.title,self.download_link,self.torrent_id,self.douban_id,self.imdb_id,self.downloaded,self.add_datetime,self.total_size,self.rss_name,self.HASH)
+            up_sql = "update rss set title=%s,downloadlink=%s,detailurl=%s,torrentid=%s,doubanid=%s,imdbid=%s,downloaded=%s,datetime=%s,size=%s where rssname=%s and HASH=%s"
+            up_val = (self.title,self.download_link,self.detail_url,self.torrent_id,self.douban_id,self.imdb_id,self.downloaded,self.add_datetime,self.total_size,self.rss_name,self.HASH)
         elif self.torrent_id != "":
-            up_sql = "update rss set title=%s,downloadlink=%s,torrentid=%s,doubanid=%s,imdbid=%s,downloaded=%s,datetime=%s,size=%s where rssname=%s and torrentid=%s"
-            up_val = (self.title,self.download_link,self.torrent_id,self.douban_id,self.imdb_id,self.downloaded,self.add_datetime,self.total_size,self.rss_name,self.torrent_id)
+            up_sql = "update rss set title=%s,downloadlink=%s,detailurl=%s,torrentid=%s,doubanid=%s,imdbid=%s,downloaded=%s,datetime=%s,size=%s where rssname=%s and torrentid=%s"
+            up_val = (self.title,self.download_link,self.detail_url,self.torrent_id,self.douban_id,self.imdb_id,self.downloaded,self.add_datetime,self.total_size,self.rss_name,self.torrent_id)
         else:
             ErrorLog("HASH and torrent_id is null to update:"+self.title)
             return False
@@ -254,7 +280,7 @@ class RSS:
 
         torrent_info = RSS.download_torrent_file(self.download_link,self._HASH)
         if torrent_info == None:
-            ExecLog("failed to get info:"+self.download_link); 
+            ErrorLog("failed to get info:"+self.download_link); 
             return False
 
         self._HASH         = torrent_info.info_hash
@@ -278,6 +304,7 @@ class RSS:
             self.id_from_detail = NOK; return NOK
         
         if self.id_from_detail != RETRY: return self.id_from_detail
+
         return_code,douban_id,imdb_id = NexusPage.get_id_from_detail(self.rss_name,self.torrent_id)
         if return_code == NOK :  
             ExecLog("can't find id from detail:"+self.name); 
@@ -297,32 +324,6 @@ class RSS:
         if not self.update(): ExecLog("failed to update rss:"+self.name); return False
         return True
         
-
-    '''
-    def update_id(self,douban_id="",imdb_id=""):
-        """
-        根据输入的id和self的id进行比较更新
-        """
-        tToDoUpdate = False
-        if self.douban_id == "" and douban_id != "":
-            self.douban_id = douban_id
-            tToDoUpdate = True
-        if self.douban_id != "" and douban_id != "" and self.douban_id != douban_id:
-            ErrorLog("error:diff douban_id to update:{}|{}".format(self.douban_id,douban_id))
-            tToDoUpdate = True
-            #return False
-        imdb_id = trans_imdb_id(imdb_id)
-        if self.imdb_id == "" and imdb_id != "":
-            self.imdb_id = imdb_id
-            tToDoUpdate = True
-        if self.imdb_id != "" and imdb_id != "" and self.imdb_id != imdb_id:
-            ErrorLog("error:diff imdb_id to update:{}|{}".format(self.imdb_id,imdb_id))
-            tToDoUpdate = True
-            #return False
-
-        if tToDoUpdate == True: return self.update()
-        else                  : return True
-    '''
 
     @staticmethod
     def get_torrent_id(mDownloadLink):
