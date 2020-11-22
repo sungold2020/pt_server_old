@@ -1,12 +1,7 @@
 #!/usr/bin/python3
 # coding=utf-8
-import datetime
-import time
-import os
-import requests
+
 import feedparser
-import re
-import psutil
 
 import movie
 from rss import *
@@ -27,7 +22,7 @@ TORRENT_LIST_BACKUP = "data/pt.txt"  #种子信息备份目录（重要的是每
 TRACKER_LIST_BACKUP = "data/tracker.txt"               
 IGNORE_FILE = "data/ignore.txt"
 
-TR_KEEP_DIR='/media/root/BT/keep/'   #TR种子缺省保存路径
+TR_KEEP_DIR = '/media/root/BT/keep/'   #TR种子缺省保存路径
 
 class Torrents:
     def __init__(self):
@@ -48,14 +43,14 @@ class Torrents:
                 {'name':'HDSky'    ,'keyword':'hdsky'    ,'date_data':[]}]
         self.last_check_date = "1970-01-01"
         
-        #读取IGNORE_FILE
+        # 读取IGNORE_FILE
         self.ignore_list = []
         if os.path.isfile(IGNORE_FILE):
             for line in open(IGNORE_FILE):
-                Path,Name = line.split('|',1)
-                Path = Path.strip(); Name = Name.strip()
-                if Name[-1:] == '\n' : Name = Name[:-1]
-                self.ignore_list.append({'Path':Path,'Name':Name})
+                path,name = line.split('|',1)
+                path = path.strip(); name = name.strip()
+                if name[-1:] == '\n' : name = name[:-1]
+                self.ignore_list.append({'Path':path,'Name':name})
             ExecLog(f"read ignore from {IGNORE_FILE}")
         else :
             ExecLog(f"{IGNORE_FILE} does not exist")
@@ -155,6 +150,7 @@ class Torrents:
         读取备份目录下的pt.txt，用于恢复种子记录数据，仅当初始化启动时调用
         """
         if not os.path.isfile(TORRENT_LIST_BACKUP): ExecLog(TORRENT_LIST_BACKUP+" does not exist"); return False
+        tDate = "1970-01-01"
         for line in open(TORRENT_LIST_BACKUP):
             Client,HASH,Name,SiteName,Title,DownloadLink,AddStatusStr,TotalSizeStr,AddDateTime,DoubanID,IMDBID,IDStatusStr,DoubanStatusStr,DoubanScore,IMDBScore,tDateDataStr = line.split('|',15)
             if tDateDataStr [-1:] == '\n' :  tDateDataStr = tDateDataStr[:-1]  #remove '\n'
@@ -316,7 +312,7 @@ class Torrents:
                 if tTorrent.save_movie():  
                     #ExecLog("delete  torrent:"+tTorrent.get_compiled_name())
                     self.del_torrent(tTorrent.client,tTorrent.get_hash(),False)
-            if tTorrent.category == "转移" : tTorrent.move_to_tr(TR_LOGIN)        
+            if tTorrent.category == "转移" : tTorrent.move_to_tr()
         #end for torrents 
         
         #最后，找出没有Checked标志的种子列表
@@ -516,7 +512,7 @@ class Torrents:
                                 DebugLog("in Ignore List:"+fullpathfile2)
                                 continue
                             if self.in_torrent_list(fullpathfile,file2): DebugLog(file2+":: find in torrent list")
-                            else: ExecLog(file2+":: not find in torrent list"); tDirNameList.append({'DirPath':fullpathfile,'DirName':pathfile2})
+                            else: ExecLog(file2+":: not find in torrent list"); tDirNameList.append({'DirPath':fullpathfile,'DirName':fullpathfile2})
                     else:
                         if self.in_torrent_list(DiskPath,file) : DebugLog(file+"::find in torrent list:")
                         else: ExecLog(file+"::not find in torrent list:"); tDirNameList.append({'DirPath':DiskPath,'DirName':file})

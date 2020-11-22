@@ -14,7 +14,8 @@ import torrentool.api
 TORRENTS_DIR = 'data/torrents/'
 
 
-class TorrentInfo( torrentool.api.Torrent):
+#class TorrentInfo(torrentool.api.Torrent):
+class TorrentInfo:
     def __init__(self,download_link=None,torrent_file=None):
         self.torrent_file = torrent_file
         self.download_link = download_link
@@ -132,7 +133,7 @@ class TorrentInfo( torrentool.api.Torrent):
         if torrent == None or torrent.info_hash == None: return "" 
 
         #改名hash.torrent
-        torrent_file = os.path.join(os.path.abspath(TORRENTS_DIR),torrent.hash+'.torrent')
+        torrent_file = os.path.join(os.path.abspath(TORRENTS_DIR),torrent.info_hash+'.torrent')
         try:
             os.rename(temp_torrent_file,torrent_file)
         except Exception as err:
@@ -147,10 +148,10 @@ class TorrentInfo( torrentool.api.Torrent):
     def get_hash(torrent_file=None,download_link=None):
         if torrent_file == None: torrent_file = TorrentInfo.download_torrent_file(download_link)
         torrent = torrentool.api.Torrent.from_file(torrent_file)
-        return torrent.hash if torrent != None else ""
+        return torrent.info_hash if torrent != None else ""
 
     @staticmethod
-    def bulid_torrent_info(torrent_file,download_link):
+    def build_torrent_info(torrent_file,download_link):
         if torrent_file == None: torrent_file = TorrentInfo.download_torrent_file(download_link)
         torrent = torrentool.api.Torrent.from_file(torrent_file)
         return torrent
