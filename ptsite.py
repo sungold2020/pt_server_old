@@ -412,7 +412,7 @@ class NexusPage():
                     return site['first_url'] + '/' + detail_url
 
     @staticmethod
-    def get_id_from_detail(rss_name,torrent_id,detail_url=""):
+    def get_id_from_detail(rss_name,detail_url):
         """
         # TODO
         返回值：return_code,douban_id,imdb_id，其中return_code:
@@ -422,8 +422,8 @@ class NexusPage():
         """
         return_code = NOK ; douban_id = imdb_id = ""
 
-        if rss_name == "" or torrent_id == "": 
-            ErrorLog("rss_name or torrent_id is null")
+        if rss_name == "" or detail_url == "":
+            ErrorLog("rss_name or detail_url is null")
             return return_code,douban_id,imdb_id
 
         #获取站点
@@ -433,8 +433,6 @@ class NexusPage():
             return return_code,douban_id,imdb_id
         DebugLog("find site:{}".format(tSite['name']))
 
-        #获取详细地址
-        if detail_url == "": detail_url = NexusPage.get_detail_url(tSite['name'],torrent_id)
         site_log(detail_url)
 
         cookie_dict = {"cookie":tSite['cookie']}

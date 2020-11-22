@@ -186,8 +186,8 @@ class RSS:
                 self.detail_url    = tSelectResult[0][2]
                 douban_id          = tSelectResult[0][3]
                 imdb_id            = tSelectResult[0][4]
-                self.torrent_id    = tSelectResult[0][5]
-                self.downloaded    = tSelectResult[0][6]
+                self.downloaded    = tSelectResult[0][5]
+                self.torrent_id    = tSelectResult[0][6]
                 self.add_datettime = tSelectResult[0][7]
                 self.total_size    = tSelectResult[0][8]
                 if douban_id != "" or imdb_id != "": self.info = Info(douban_id,imdb_id)
@@ -234,8 +234,8 @@ class RSS:
             self.detail_url    = tSelectResult[0][2]
             douban_id          = tSelectResult[0][3]
             imdb_id            = tSelectResult[0][4]
-            self.torrent_id    = tSelectResult[0][5]
-            self.downloaded    = tSelectResult[0][6]
+            self.downloaded    = tSelectResult[0][5]
+            self.torrent_id    = tSelectResult[0][6]
             self.add_datettime = tSelectResult[0][7]
             self.total_size    = tSelectResult[0][8]
             if douban_id != "" or imdb_id != "": self.info = Info(douban_id,imdb_id)
@@ -243,7 +243,7 @@ class RSS:
 
     def insert(self):
         if self.HASH == "" or self.rss_name == "": return None
-        
+
         in_sql = "insert into rss(rssname,HASH,title,downloadlink,detailurl,torrentid,doubanid,imdbid,datetime,downloaded,size) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
         in_val = (self.rss_name,self.HASH,self.title,self.download_link,self.detail_url,self.torrent_id,self.douban_id,self.imdb_id,self.add_datetime,self.downloaded,self.total_size)
         return insert(in_sql,in_val)
@@ -273,7 +273,7 @@ class RSS:
             ExecLog("update rsstable:"+self.name)
             return self.update()
         return True
-      
+
 
     def get_torrent_info(self):
         if self.download_link == "": return False
@@ -293,6 +293,10 @@ class RSS:
         return True
 
     def get_id_from_detail(self):
+        """
+        从
+        :return:
+        """
         if self.id_from_detail == NOK: return NOK
 
         if self.douban_id != "" or self.imdb_id != "": return OK
@@ -305,9 +309,10 @@ class RSS:
         
         if self.id_from_detail != RETRY: return self.id_from_detail
 
-        return_code,douban_id,imdb_id = NexusPage.get_id_from_detail(self.rss_name,self.torrent_id)
+        return_code,douban_id,imdb_id = NexusPage.get_id_from_detail(self.rss_name,self.detail_url)
         if return_code == NOK :  
             ExecLog("can't find id from detail:"+self.name)
+            ExecLog("                         :"+self.detail_url)
             self.id_from_detail = NOK
             return NOK #不在这里设id_status为NOK，还有可能从nfo获取
         if return_code == RETRY: self.retry_times += 1; return RETRY

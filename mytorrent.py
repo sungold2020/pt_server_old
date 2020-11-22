@@ -69,6 +69,14 @@ class MyTorrent:
         if self.rss == None: ErrorLog("set download_link,but rss is none")
         else               : self.rss.download_link = download_link
     @property
+    def detail_url(self):
+        if self.rss == None: return ""
+        else               : return self.rss.detail_url
+    @detail_url.setter
+    def detail_url(self,detail_url):
+        if self.rss == None: ErrorLog("set detail_url,but rss is none")
+        else               : self.rss.detail_url = detail_url
+    @property
     def title(self):
         if self.rss == None: return ""
         else               : return self.rss.title
@@ -236,7 +244,7 @@ class MyTorrent:
         if self.torrent == None: return 0
         else               : return self.torrent.progress
     @property
-    def status(self):
+    def status(self): 
         if self.torrent == None: return "UNKNOWN"
         else               : return self.torrent.status
     @property
@@ -311,16 +319,23 @@ class MyTorrent:
     #------------------end torrent-------------------
 
     def get_name(self):
+        #优先获取torrent_name，然后title
         return self.name if self.name != "" else self.title
     def get_title(self):
+        #优先获取title，然后torrent_name
         return self.title if self.title != "" else self.name
     def get_compiled_name(self):
+        #优先获取rss.name(电影名+torrent_name)，否则torrent_name
         return self.rss.name if (self.rss != None and self.rss.name != "") else self.name
     def get_hash(self):
+        #有限获取hash，其次HASH，两者不为空的情况下比较一致性
         if self.hash != self.HASH and self.hash != "" and self.HASH != "": ErrorLog("error:diff hash and HASH:{}|{}".format(self.hash,self.HASH))
         return self.hash if self.hash != "" else self.HASH
 
     def set_tag(self):
+        """
+        设置标签，仅对QB有效
+        """
         if self.client == "QB":
             tTracker = self.tracker
             if tTracker.find("keepfrds") >= 0 :
@@ -334,6 +349,9 @@ class MyTorrent:
                 if self.tags != 'other': self.set_tags('other')     
     
     def start_download(self):
+        """
+        开始下载种子，首先判断磁盘空间是否足够
+        """
         if self.torrent == None: ErrorLog("torrent does not exist"); return False
 
         if not self.rss.update_downloaded(): ErrorLog("failed to update rss:"+self.name+':'+self.HASH)
@@ -352,6 +370,9 @@ class MyTorrent:
             return False
 
     def get_id_from_nfo(self):
+        """
+        尝试从*.nfo文件获取imdbid/doubanid
+        """
         if self.progress != 100: 
             ErrorLog("begin to get id from nfo,but torrent have not done.")
             return False
@@ -397,7 +418,9 @@ class MyTorrent:
 
     def check_movie_info(self):
         """
-        检查是否已经获取豆瓣详情：1、首先检查是否具备ID（获取ID后，会创建Info对象，并检索info表的数据）2、根据id爬取豆瓣详情页
+        检查是否已经获取豆瓣详情：
+        1、首先检查是否具备ID（获取ID后，会创建Info对象，并检索info表的数据）
+        2、根据id爬取豆瓣详情页
         """
         #检查id
         if self.id_status == NOK:  return NOK
@@ -541,6 +564,7 @@ class MyTorrent:
 
     def move_to_tr(self):
         """
+        注：重新代码后未使用，未测试
         根据是否创建子文件夹(is_root_folder)分两种情况：
         一、创建了子文件夹：例如
             save_path = '2020-xx-xx xxx"
@@ -554,7 +578,7 @@ class MyTorrent:
             不创建链接，tr的save_path指向同一save_path即可
         """
 
-        if not self.pause(): ErrorLog("failed to stop torrent:"+self.name)
+        if not self.pause(): ErrorLog("failed to stop torrent:"+self.name); return False
 
         tTorrentFile = os.path.join(QB_BACKUP_DIR,self.hash+".torrent")
         if self.is_root_folder():
@@ -574,7 +598,7 @@ class MyTorrent:
             ErrorLog("failed to add torrent:"+tTorrentFile)
             return False               
         else:
-            #ExecLog("move torrent to tr:"+tr_torrent.name+'::'+tr_torrent.hashString)
+            ExecLog("move torrent to tr:"+tr_torrent.name+'::'+tr_torrent.hashString)
             time.sleep(5)
 
         if not self.set_category(""):
@@ -582,15 +606,28 @@ class MyTorrent:
             return False
         return True
 
-    def save_torrent_file(self,mDestDir):
+    def save_torrent_file(self,mDestDir,file_flag=0):
+        """
+        把torrent文件保存到指定目录,
+        file_flag = 0: 文件格式为torrent_name+hash[:16].torrent
+        file_flag = 1: 文件格式为hash.torrent
+        """
         if self.client == 'QB':
             tTorrentFile = os.path.join(QB_BACKUP_DIR,self.hash+".torrent")
             tResumeFile  = os.path.join(QB_BACKUP_DIR,self.hash+".fastresume")
         else:
             tTorrentFile = os.path.join(os.path.join(TR_BACKUP_DIR,'torrents/'),self.name+'.'+self.hash[:16]+'.torrent')
             tResumeFile  = os.path.join(os.path.join(TR_BACKUP_DIR,'resume/'),self.name+'.'+self.hash[:16]+'.resume')
-        tDestTorrentFile = os.path.join(mDestDir,self.name+'.'+self.hash[:16]+".torrent")
-        tDestResumeFile  = os.path.join(mDestDir,self.name+'.'+self.hash[:16]+".resume")
+        if file_flag == 0:
+            tDestTorrentFile = os.path.join(mDestDir,self.name+'.'+self.hash[:16]+".torrent")
+            tDestResumeFile  = os.path.join(mDestDir,self.name+'.'+self.hash[:16]+".resume")
+        elif file_flag == 1:
+            tDestTorrentFile = os.path.join(mDestDir,self.hash+".torrent")
+            tDestResumeFile  = os.path.join(mDestDir,self.hash+".resume")
+        else:
+            ErrorLog("invalid file_flag in save_torrent_file")
+            return False
+
         try:
             shutil.copyfile(tTorrentFile,tDestTorrentFile)
             shutil.copyfile(tResumeFile ,tDestResumeFile)
@@ -612,6 +649,9 @@ class MyTorrent:
         return True
 
     def insert_download(self,mNumber,mCopy,mDirName): 
+        """
+        将download_link插入或者更新download表
+        """
         tSelectResult = select("select downloadlink,number,copy from download where hash=%s",(self.hash,))
         if tSelectResult == None:
             ErrorLog("failed to exec select download")
@@ -634,7 +674,7 @@ class MyTorrent:
                 DebugLog("insert download success")
                 return True
             else:
-                ErrorLog("error:"+in_sql+"::"+self.hash)
+                ErrorLog("error:"+up_sql+"::"+self.hash)
                 return False
 
 

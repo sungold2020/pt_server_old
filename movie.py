@@ -21,6 +21,9 @@ FAILED_MOVE       = -5
 FAILED_RMDIR      = -6
 TABLE_ERROR       = -7
 
+ENCODE       = 0
+BLUE_RAY     = 1
+
 class Movie:
     #0表示测试，不执行修改，1表示执行修改
     ToBeExecDirName = True     # DirName名称
@@ -34,6 +37,7 @@ class Movie:
         self.type = MOVIE      #0:Movie 1:TV 2:Record
         self.name = ""         #
         self.min = 0
+        self.format_type = ENCODE  # 文件格式类型，0：重编码，1：蓝光原盘 
         self.format_str = "" 
         self.dir_name = dir_name
 
@@ -264,6 +268,10 @@ class Movie:
                 if os.path.islink(FullPathFile) :
                     movie_log ("it is a link:"+self.dir_name)
                     continue 
+                if File == "BDMV": 
+                    self.format_type = BLUE_RAY
+                    continue
+
                 SubDirName = FullPathFile 
                 NumberOfSubDir += 1
             elif os.path.isfile(FullPathFile):
@@ -294,6 +302,8 @@ class Movie:
                 #torrent
                 elif File[-6:] == 'resume' or File[-7:] == 'torrent' or File == 'download.txt':
                     pass
+                elif File.endswith(".iso"):
+                    self.format_type = BLUE_RAY
                 else:
                     ExecLog ("other type file"+File)
             else:
@@ -377,28 +387,29 @@ class Movie:
         #print("check jpg complete")
         
         # 检查视频文件
-        if self.number_of_video == 0:
-            ErrorLog("no video in"+self.dir_name)
-            self.IsError = 1 ; return False
-        elif self.number_of_video == 1:
-            #print("check video complete")
-            return True
-        else : #>=2忽略SP/sample外，还有多个视频文件，则需要进一步分析
-            if self.type == RECORD or self.type == TV : #电视剧/纪录片
-                pass
-            else:
-                #比较多个video名的差别，
-                #如果长度一致，仅有一个字符的差别，且这个字符是数字。则OK，否则报错
-                #先以第一个VideoFileName为比较对象，后面逐个VideoFileName和它比较
-                length = len(self.video_files[0])
-                for i in range(self.number_of_video):
-                    if len(self.video_files[i]) != length :
-                        ErrorLog("diff len video:"+self.dir_name)
-                        movie_log ("diff len video:"+self.dir_name)
-                        movie_log ("  1:"+self.video_files[0])
-                        movie_log ("  2:"+self.video_files[i])
-                        #self.number_of_video = -1
-                        #self.IsError = 1 ; return False
+        if self.format_type == ENCODE:
+            if self.number_of_video == 0:
+                ErrorLog("no video in"+self.dir_name)
+                self.IsError = 1 ; return False
+            elif self.number_of_video == 1:
+                #print("check video complete")
+                return True
+            else : #>=2忽略SP/sample外，还有多个视频文件，则需要进一步分析
+                if self.type == RECORD or self.type == TV : #电视剧/纪录片
+                    pass
+                else:
+                    #比较多个video名的差别，
+                    #如果长度一致，仅有一个字符的差别，且这个字符是数字。则OK，否则报错
+                    #先以第一个VideoFileName为比较对象，后面逐个VideoFileName和它比较
+                    length = len(self.video_files[0])
+                    for i in range(self.number_of_video):
+                        if len(self.video_files[i]) != length :
+                            ErrorLog("diff len video:"+self.dir_name)
+                            movie_log ("diff len video:"+self.dir_name)
+                            movie_log ("  1:"+self.video_files[0])
+                            movie_log ("  2:"+self.video_files[i])
+                            #self.number_of_video = -1
+                            #self.IsError = 1 ; return False
         return True
     #end def check_dir_cont    
 
@@ -671,24 +682,24 @@ class Movie:
                 self.IsError = 1 ; return False
         #end if self.collection == 1
         
-        #2、检查id和info信息
-        if self.check_info() == False:
-            ErrorLog("failed check_info:"+self.dir_name)
-            self.IsError = 1
-            return False
-
-        #3、检查dir中内容
-        if self.check_dir_cont() == False :
-            ErrorLog("failed check_dir_cont:"+self.dir_name)
-            self.IsError = 1
-            return False
-            
-        #4、检查format中的格式信息
+        #2、检查format中的格式信息
         if self.split_format() == 0:
             ErrorLog("split_format:"+self.dir_name)
             self.IsError = 1
             #return 0  只记录错误，不返回
 
+        #3、检查id和info信息
+        if self.check_info() == False:
+            ErrorLog("failed check_info:"+self.dir_name)
+            self.IsError = 1
+            return False
+
+        #4、检查dir中内容
+        if self.check_dir_cont() == False :
+            ErrorLog("failed check_dir_cont:"+self.dir_name)
+            self.IsError = 1
+            return False
+            
         #5、如果dirname中,min，format格式不全，补充完整后更新dirname
         if self.rename_dir_name() == False :
             ErrorLog("failed rename_dir_name:"+self.dir_name)
@@ -712,14 +723,14 @@ class Movie:
             self.IsError = 1
             return False
         
-        if self.check_dir_cont() == False :
-            ErrorLog("failed check_dir_cont:"+self.dir_name)
-            self.IsError = 1
-            
         if self.split_format() == 0:
             ErrorLog("split_format:"+self.dir_name)
             self.IsError = 1
 
+        if self.check_dir_cont() == False :
+            ErrorLog("failed check_dir_cont:"+self.dir_name)
+            self.IsError = 1
+            
         if self.rename_dir_name() == False :
             ErrorLog("failed rename_dir_name:"+self.dir_name)
             self.IsError = 1
@@ -732,7 +743,6 @@ class Movie:
 
     
     def split_format(self):
-    
         '''
         对Format进行分析，提取年份，分辨率，压缩算法等
         前置条件：

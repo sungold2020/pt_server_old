@@ -189,22 +189,6 @@ class Torrent:
         else:
             return True
     
-    '''
-    def start(self):
-        if self.torrent == None: self.error_string = "torrent does not exist"; return False
-        tBTStat =  os.statvfs(DOWNLOAD_FOLDER)
-        tFreeSize = (tBTStat.f_bavail * tBTStat.f_frsize) /(1024*1024*1024)
-        #DebugLog("free size:"+str(tFreeSize))
-        tSize = self.total_size /(1024*1024*1024)
-        #DebugLog("Size:"+str(tSize))
-        if tFreeSize < tSize+1 :self.error_string = "diskspace is not enough"; return False
-        if  self.resume() and self.set_category("下载"):
-            return True
-        else:
-            self.error_string = ("failed to start torrent:"+self.name)
-            return False
-    '''
-
     def set_category(self,mCategory=""):
         if self.torrent == None: return False
         if   self.client == "TR": return False
@@ -231,6 +215,25 @@ class Torrent:
             else:
                 return True
         else:
+            return False
+    
+    def set_save_path(self,save_path):
+        if self.torrent == None: 
+            self.error_string = "torrent is None"
+            return False
+        if   self.client == "TR":
+            try:
+                self.torrent.locate_data(save_path)
+                return True
+            except Exception as err:
+                print(err) 
+                return False
+        elif self.client == "QB":
+            #TODO   QB待实现
+            self.error_string = "QB未实现该接口"
+            return False
+        else:
+            self.error_string = "unknown client type"
             return False
 
     def check_files(self,mIsNewDay):

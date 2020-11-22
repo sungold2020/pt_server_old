@@ -5,7 +5,6 @@ import requests
 from bs4 import BeautifulSoup
 import json
 
-from gen import Gen
 from log import *
 from database import *
 

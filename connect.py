@@ -73,7 +73,7 @@ class Socket:
 
     def send(self,Reply):
         try:
-            self.connect.send( bytes(Reply,encoding="utf-8") )
+            self.connect.sendall( bytes(Reply,encoding="utf-8") )
         except socket.timeout:
             Print("send timeout")
             return False

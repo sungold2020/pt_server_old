@@ -1,7 +1,12 @@
 #!/usr/bin/python3
 # coding=utf-8
-
+import datetime
+import time
+import os
+import requests
 import feedparser
+import re
+import psutil
 
 import movie
 from rss import *
@@ -22,7 +27,7 @@ TORRENT_LIST_BACKUP = "data/pt.txt"  #种子信息备份目录（重要的是每
 TRACKER_LIST_BACKUP = "data/tracker.txt"               
 IGNORE_FILE = "data/ignore.txt"
 
-TR_KEEP_DIR = '/media/root/BT/keep/'   #TR种子缺省保存路径
+TR_KEEP_DIR='/media/root/BT/keep/'   #TR种子缺省保存路径
 
 class Torrents:
     def __init__(self):
@@ -43,14 +48,14 @@ class Torrents:
                 {'name':'HDSky'    ,'keyword':'hdsky'    ,'date_data':[]}]
         self.last_check_date = "1970-01-01"
         
-        # 读取IGNORE_FILE
+        #读取IGNORE_FILE
         self.ignore_list = []
         if os.path.isfile(IGNORE_FILE):
             for line in open(IGNORE_FILE):
-                path,name = line.split('|',1)
-                path = path.strip(); name = name.strip()
-                if name[-1:] == '\n' : name = name[:-1]
-                self.ignore_list.append({'Path':path,'Name':name})
+                Path,Name = line.split('|',1)
+                Path = Path.strip(); Name = Name.strip()
+                if Name[-1:] == '\n' : Name = Name[:-1]
+                self.ignore_list.append({'Path':Path,'Name':Name})
             ExecLog(f"read ignore from {IGNORE_FILE}")
         else :
             ExecLog(f"{IGNORE_FILE} does not exist")
@@ -150,7 +155,6 @@ class Torrents:
         读取备份目录下的pt.txt，用于恢复种子记录数据，仅当初始化启动时调用
         """
         if not os.path.isfile(TORRENT_LIST_BACKUP): ExecLog(TORRENT_LIST_BACKUP+" does not exist"); return False
-        tDate = "1970-01-01"
         for line in open(TORRENT_LIST_BACKUP):
             Client,HASH,Name,SiteName,Title,DownloadLink,AddStatusStr,TotalSizeStr,AddDateTime,DoubanID,IMDBID,IDStatusStr,DoubanStatusStr,DoubanScore,IMDBScore,tDateDataStr = line.split('|',15)
             if tDateDataStr [-1:] == '\n' :  tDateDataStr = tDateDataStr[:-1]  #remove '\n'
@@ -625,6 +629,7 @@ class Torrents:
 
                 if not WaitFree: 
                     ExecLog("new rss tobeadd:"+tTorrent.get_compiled_name())
+                    ExecLog("               :"+Detail)
                     ExecLog("               :{}/{}|{}/{}|{}|{}|{}|{}".format(tRSS.douban_id,tRSS.imdb_id,tRSS.douban_score,tRSS.imdb_score,tRSS.type,tRSS.nation,tRSS.movie_name,tRSS.director))
                     self.append_list(tTorrent)
                 else:
@@ -633,39 +638,6 @@ class Torrents:
             #end for Items
         return True
             
-    def set_spider_id(self,RequestList,mSocket=None):
-
-        if len(RequestList) != 2: return "invalid number of arguments"
-
-        tName = RequestList[0]
-        tID   = RequestList[1]
-        ExecLog("begin set {} {}".format(tName,tID))
-        tIndexList = []
-        for i in range(len(self.torrent_list)):
-            if tName in self.torrent_list[i].title or tName in self.torrent_list[i].name:
-                #ExecLog("find match torrent:"+self.torrent_list[i].name)
-                tIndexList.append(i)
-        if len(tIndexList) == 0: return "not find matching torrent"
-        elif len(tIndexList) == 1:
-            i = tIndexList[0]
-            if tID[:2] == 'tt': self.torrent_list[i].imdb_id = tID
-            else              : self.torrent_list[i].douban_id = tID
-
-            self.torrent_list[i].spider_status = RETRY
-            self.torrent_list[i].douban_Status = RETRY
-            return "success set {} {}".format(self.torrent_list[i].name,tID)
-        else: 
-            mSocket.send("2+ matching torrent")
-            for i in tIndexList:
-                mSocket.send("matching torrent:"+self.torrent_list[i].name)
-                if mSocket.receive() == "y":
-                    if tID[:2] == 'tt': self.torrent_list[i].imdb_id = tID
-                    else              : self.torrent_list[i].douban_id = tID
-                    ExecLog("set id:{}|{}".format(self.torrent_list[i].name,tID))
-            mSocket.send('end')
-                    
-            return "completed"
-
     def print_low_upload(self):
         reply = ""
         for i in range(len(self.torrent_list)):
@@ -675,6 +647,60 @@ class Torrents:
                 reply += '    {}|{}/{} \n'.format(tTorrent.info.movie_name,tTorrent.info.douban_score,tTorrent.info.imdb_score)
         return reply
 
+    def query_torrents(self,mList=[]):
+        """
+        根据mList请求，组装成json数组发出
+        mList =
+        []   : default qb+null
+        qb   : qb
+        all  : all
+        tr   : tr
+        null : null
+        """
+        if   len(mList) == 0: tClientList =  ['QB','']
+        elif len(mList) >= 2: ErrorLog("invalid arg mList="+' '.join(mList)); return ""
+        else                : # len(mList) == 1
+            if   mList[0].lower() == 'qb': tClientList = ['QB']
+            elif mList[0].lower() == 'tr': tClientList = ['TR']
+            elif mList[0].lower() == 'all': tClientList = ['QB','TR','']
+            elif mList[0].lower() == 'null': tClientList = ['']
+            elif mList[0].lower() == 'default': tClientList = ['QB','']
+            else: ErrorLog("invalid arg mList="+mList[0]); return ""
+
+        #qb，返回前刷新下状态
+        if mList[0].lower() == 'qb': self.check_torrents("QB")
+
+        tReply = ""
+        tempList = []
+        for i in range(len(self.torrent_list)):
+            if self.torrent_list[i].client in tClientList:
+                torrent = self.torrent_list[i]
+                tempDict =  {
+                        'client': torrent.client,
+                        'hash': torrent.get_hash(),
+                        'add_status':torrent.add_status,
+                        'name':torrent.get_compiled_name(),
+                        'rss_name':torrent.rss_name,
+                        'download_link':torrent.download_link,
+                        'detail_url':torrent.detail_url,
+                        'progress':torrent.progress,
+                        'torrent_status':torrent.torrent_status,
+                        'category':torrent.category,
+                        'tags':torrent.tags,
+                        'total_size':torrent.total_size,
+                        'add_datetime':torrent.add_datetime,
+                        'douban_id':torrent.douban_id,
+                        'imdb_id':torrent.imdb_id,
+                        'douban_score':torrent.douban_score if torrent.douban_score != "" else '-',
+                        'imdb_score':torrent.imdb_score if torrent.imdb_score != "" else '-',
+                        'movie_name':torrent.movie_name,
+                        'nation':torrent.nation,
+                        'poster':torrent.poster
+                    }
+                tempList.append(tempDict)
+        return json.dumps(tempList)
+
+    '''
     def query_torrents(self,mList=[]):
         """
         mList =
@@ -726,6 +752,7 @@ class Torrents:
                 tReply += self.torrent_list[i].nation+'|'
                 tReply += self.torrent_list[i].poster+'\n'
         return tReply
+    '''
 
 
     def request_set_id(self,mRequestStr):
