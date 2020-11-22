@@ -119,7 +119,7 @@ class RSS:
         return self._id_status
     @id_status.setter
     def id_status(self,id_status):
-        DebugLog("set id_status:{}|{}".format(id_status,self.title));
+        DebugLog(f"set id_status:{id_status}|{self.title}")
         self._id_status = id_status
 
 
@@ -280,7 +280,7 @@ class RSS:
 
         torrent_info = RSS.download_torrent_file(self.download_link,self._HASH)
         if torrent_info == None:
-            ErrorLog("failed to get info:"+self.download_link); 
+            ErrorLog("failed to get info:"+self.download_link)
             return False
 
         self._HASH         = torrent_info.info_hash
@@ -300,14 +300,14 @@ class RSS:
         if self.rss_name == "" or self.torrent_id == "": return NOK
 
         if self.retry_times >= 2: 
-            ExecLog("2 times for get id from detail:"+self.name); 
+            ExecLog("2 times for get id from detail:"+self.name)
             self.id_from_detail = NOK; return NOK
         
         if self.id_from_detail != RETRY: return self.id_from_detail
 
         return_code,douban_id,imdb_id = NexusPage.get_id_from_detail(self.rss_name,self.torrent_id)
         if return_code == NOK :  
-            ExecLog("can't find id from detail:"+self.name); 
+            ExecLog("can't find id from detail:"+self.name)
             self.id_from_detail = NOK
             return NOK #不在这里设id_status为NOK，还有可能从nfo获取
         if return_code == RETRY: self.retry_times += 1; return RETRY

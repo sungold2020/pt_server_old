@@ -86,9 +86,9 @@ def set_info(mRequestStr):
    
     tInfo = Info(DoubanID,IMDBID)
     tInfo.movie_name = MovieName
-    tInfo.nation     = nation
+    tInfo.nation     = Nation
     tInfo.director   = Director
-    tInfo.actors     = actors
+    tInfo.actors     = Actors
     tInfo.poster     = Poster
     tInfo.genre      = Genre
     tInfo.type       = int(TypeStr)

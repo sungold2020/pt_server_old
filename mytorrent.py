@@ -574,7 +574,7 @@ class MyTorrent:
             ErrorLog("failed to add torrent:"+tTorrentFile)
             return False               
         else:
-            ExecLog("move torrent to tr:"+tr_torrent.name+'::'+tr_torrent.hashString)
+            #ExecLog("move torrent to tr:"+tr_torrent.name+'::'+tr_torrent.hashString)
             time.sleep(5)
 
         if not self.set_category(""):
@@ -634,7 +634,7 @@ class MyTorrent:
                 DebugLog("insert download success")
                 return True
             else:
-                ErrorLog("error:"+up_sql+"::"+self.hash)
+                ErrorLog("error:"+in_sql+"::"+self.hash)
                 return False
 
 
