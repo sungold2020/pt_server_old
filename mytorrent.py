@@ -541,6 +541,7 @@ class MyTorrent:
         tMovie = Movie(TO_BE_PATH, DirName,"tobe")
         if tMovie.douban_id == "": tMovie.douban_id = self.douban_id
         if tMovie.imdb_id   == "": tMovie.imdb_id   = self.imdb_id
+        tMovie.total_size = int(self.total_size / (1024*1024))
         if tMovie.save_movie() != 1: ErrorLog("failed to check:"+DirName)  ; return False
         else                        : ExecLog("success insert table movies")
         
@@ -598,7 +599,7 @@ class MyTorrent:
             ErrorLog("failed to add torrent:"+tTorrentFile)
             return False               
         else:
-            ExecLog("move torrent to tr:"+tr_torrent.name+'::'+tr_torrent.hashString)
+            ExecLog("move torrent to tr:"+self.name+'::'+self.hash)
             time.sleep(5)
 
         if not self.set_category(""):
@@ -674,7 +675,7 @@ class MyTorrent:
                 DebugLog("insert download success")
                 return True
             else:
-                ErrorLog("error:"+up_sql+"::"+self.hash)
+                ErrorLog("error:"+in_sql+"::"+self.hash)
                 return False
 
 

@@ -1,13 +1,15 @@
 import mysql.connector
 from log import *
 
-DB_LOGIN = {'username':'dummy', 'password':'moonbeam', 'db_name':'db_movies'}
+DB_LOGIN = {'username': 'dummy', 'password': 'moonbeam', 'db_name': 'db_movies'}
 
-def compose_sql(sql,val):
+
+def compose_sql(sql, val):
     """把val填入sql组装sql语句"""
 
-    if val == None or len(val) == 0 : return sql
+    if val is None or len(val) == 0: return sql
 
+    i = -1
     for i in range(len(val)):
         sql = sql.replace('%s',str(val[i]),1)
 
@@ -63,6 +65,7 @@ def select_by_update(sql,val):
 def update(mSQL,mValue):
 
     select_by_update(mSQL,mValue)   #update之前先select获取update之前的值
+    tMyDB = None
     try:
         tMyDB = mysql.connector.connect(host="localhost", user=DB_LOGIN['username'], passwd=DB_LOGIN['password'], database=DB_LOGIN['db_name'])
         tMyCursor = tMyDB.cursor()
@@ -75,7 +78,7 @@ def update(mSQL,mValue):
         print(err)
         #database_log(err)
         ErrorLog("error:"+compose_sql(mSQL,mValue))
-        tMyDB.close()
+        if tMyDB != None: tMyDB.close()
         return False
     else:
         database_log(compose_sql(mSQL,mValue))
@@ -83,6 +86,7 @@ def update(mSQL,mValue):
         return True
 
 def insert(mSQL,mValue):
+    tMyDB = None
     try:
         tMyDB = mysql.connector.connect(host="localhost", user=DB_LOGIN['username'], passwd=DB_LOGIN['password'], database=DB_LOGIN['db_name'])
         tMyCursor = tMyDB.cursor()
@@ -90,7 +94,7 @@ def insert(mSQL,mValue):
         tMyDB.commit()
     except Exception as err:
         print(err)
-        tMyDB.close()
+        if tMyDB != None: tMyDB.close()
         #database_log(err)
         ErrorLog("error:"+compose_sql(mSQL,mValue))
         print("failed to exec:"+mSQL)
@@ -100,7 +104,8 @@ def insert(mSQL,mValue):
         tMyDB.close()
         return True
 
-def select(mSQL,mValue):
+def select(mSQL,mValue=None):
+    tMyDB = None
     try:
         tMyDB = mysql.connector.connect(host="localhost", user=DB_LOGIN['username'], passwd=DB_LOGIN['password'], database=DB_LOGIN['db_name'])
         tMyCursor = tMyDB.cursor()
@@ -112,7 +117,7 @@ def select(mSQL,mValue):
     except Exception as err:
         print(err)
         #database_log(err)
-        tMyDB.close()
+        if tMyDB != None: tMyDB.close()
         ErrorLog("error to exec:"+mSQL)
         return None
     else:

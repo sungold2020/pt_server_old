@@ -585,6 +585,7 @@ class Torrents:
             rss_log("==========begin {}==============".format(RSSName.ljust(10,' ')))
             try:
                 parser = feedparser.parse(url)
+                print(parser)
                 tEntries = parser.entries
             except Exception as err:
                 print(err)
@@ -603,12 +604,17 @@ class Torrents:
                     ErrorLog("error to get entry:")
                     continue
 
+                # debug
+                rss_log(f"{Title}")
+
                 if RSS.old_rss(HASH,RSSName):
                     rss_log("old rss:"+Title)
                     continue
                 #if not tRSS.filter_by_keywords(): continue
                 toBeDownloaded = to_be_downloaded(RSSName,Title)
-                if toBeDownloaded == IGNORE_DOWNLOAD: continue
+                if toBeDownloaded == IGNORE_DOWNLOAD: 
+                    rss_log("ignore it:"+Title)
+                    continue
                 addStatus = TO_BE_ADD if toBeDownloaded == AUTO_DOWNLOAD else MANUAL
 
                 tSummary = ""

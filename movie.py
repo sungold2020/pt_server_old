@@ -7,6 +7,7 @@ import shutil
 import datetime
 from pathlib import Path
 from moviepy.editor import VideoFileClip
+import torrentool.api
 
 from database import *
 from info import *
@@ -25,30 +26,52 @@ ENCODE       = 0
 BLUE_RAY     = 1
 
 class Movie:
+    """
+    一部电影存储在一个目录中，目录名带有电影的编号，名称，格式等信息
+    """
+
     #0表示测试，不执行修改，1表示执行修改
     ToBeExecDirName = True     # DirName名称
     ToBeExecRmdir   = False     # 从子文件夹将内容提上来 删除空子目录
 
-    def __init__(self,dir_path="",dir_name="",disk="",number=0,copy=0):
-        # 目录名称组成部分
-        self.number = number   #-1:error
-        self.copy = copy       #0表示正本，其他表示不同版本1:3D版，2:加长版
-        self.nation = ""       #
-        self.type = MOVIE      #0:Movie 1:TV 2:Record
-        self.name = ""         #
+    def __init__(self,dir_path="",dir_name="",disk=""):
+        self.dir_name = dir_name   # 目录名称
+        self.disk     = disk       # 磁盘名 例如sg3t-2
+        self.dir_path = dir_path   # 所在物理路径
+
+        self.number = -1           # -1:error
+        self.copy = 0              # 0 表示正本，其他表示不同版本1:3D版，2:加长版
+        self.nation = ""           #
+        self.type = MOVIE          # 0:Movie 1:TV 2:Record
+        self.name = ""             #
         self.min = 0
         self.format_type = ENCODE  # 文件格式类型，0：重编码，1：蓝光原盘 
-        self.format_str = "" 
-        self.dir_name = dir_name
-
-        self.disk    = disk
-        self.dir_path = dir_path #确保dir_path结束符不带/
-        self.dir_name_todo = False   #目录名称是否要修改        
-        self.collection = 0    #是否为合集
-        self.number2 = 0       #合集下的第二个数字
-        self.sub_movie = []     #合集下的对象
-        self.sub_movie_count = 0 #合集下的目录数量
         
+        # 从格式中获取的信息
+        self.radio = ""            # 分辨率
+        self.version = ""          # 版本，例如CC，DC
+        self.nation_version = ""   # 国家版本，如韩版，日版:JPN
+        self.special = ""          # 特别说明，例如rerip
+        self.source = ""           # 来源，如Blu-Ray，Web-DL
+        self.compress = ""         # 压缩算法,如x264
+        self.audio = ""            # 音频格式，如DTS
+        self.track = ""            # 音轨，如2audio 
+        self.bit = ""              # 色彩精度，10bit,8bit
+        self.HDR = ""              # HDR
+        self.zip_group = ""        # 压缩组
+        
+        self._total_size = 0       # 电影文件大小，unit:M 取值:torrent.total_size / (1024*1024)
+        self.deleted  = 0
+        self._douban_id = ""       #
+        self._imdb_id = ""         # 
+        self.update_time = ""
+        self.check_time = ""
+
+        self.checked = 1      #
+
+        self.english_name = ""     # 英文片名（也可能是其他语种）
+        self.year = 0              # 年份
+
         # 目录内容组成部分
         self.jpg = 0           #是否有海报图片 
         self.nfo = 0           #是否有nfo文件
@@ -63,33 +86,31 @@ class Movie:
         self.video_files =[] # 保存video文件名在数组中
         self.sample_video = ""  #
         
-        # 从格式中获取的信息
-        self.english_name = ""  #英文片名（也可能是其他语种）
-        self.year = 0          #年份
-        self.radio = ""        #分辨率
-        self.version = ""      #版本，例如CC，DC
-        self.nation_version = "" #国家版本，如韩版，日版:JPN
-        self.special = ""     #特别说明，例如rerip
-        self.source = ""       #来源，如Blu-Ray，Web-DL
-        self.compress = ""     #压缩算法,如x264
-        self.audio = ""        #音频格式，如DTS
-        self.track = ""        #音轨，如2audio 
-        self.bit = ""          #色彩精度，10bit,8bit
-        self.HDR = ""          #HDR
-        self.zip_group = ""     #压缩组
-        
-        self.deleted  = 0
-        self._imdb_id = ""
-        self._douban_id = ""
-        self.update_time = ""
-        self.check_time = ""
-        self.checked = 1      #
-
         self.hash = ""
         self.torrent_file = ""
         self.resume_file  = ""
         self.download_link = ""
         self.IsError = 0       # 检查完以后是否有错误
+
+
+        self.collection = 0    #是否为合集
+        self.number2 = 0       #合集下的第二个数字
+        self.sub_movie = []     #合集下的对象
+        self.sub_movie_count = 0 #合集下的目录数量
+
+        self.format_str = "" 
+        self.dir_name_todo = False   #目录名称是否要修改        
+
+    @staticmethod
+    def from_db(number=-1, copy=-1, total_size=0):
+        db_movie = Movie()
+        db_movie.number     = number
+        db_movie.copy       = copy
+        db_movie.total_size = total_size
+        if db_movie.select():
+            return db_movie
+        return None
+
     @property
     def douban_id(self):
         return self._douban_id
@@ -105,6 +126,21 @@ class Movie:
     @imdb_id.setter
     def imdb_id(self,imdb_id):
         self._imdb_id = Info.check_imdb_id(imdb_id)
+
+    @property
+    def total_size(self):
+        if self._total_size > 0: return self._total_size
+        if not self.get_torrent(): 
+            return 0
+        try:
+            torrent_info = torrentool.api.Torrent.from_file(self.torrent_file)
+            self._total_size = int(torrent_info.total_size / (1024*1024))
+        except Exception as err:
+            print(err)
+        return self._total_size
+    @total_size.setter
+    def total_size(self, total_size):
+        self._total_size = total_size
 
     def check_dir_name(self):
         """
@@ -1021,13 +1057,13 @@ class Movie:
         """
         if self.collection == 1:
             for i in range(len(self.sub_movie)):
-                if check_table(self.sub_movie[i]) != SUCCESS: return TABLE_ERROR
+                if self.check_table(self.sub_movie[i]) != SUCCESS: return TABLE_ERROR
             return SUCCESS
             
         if self.number <= 0 or self.copy < 0 : ErrorLog("number error:"+str(self.number)+"::"+str(self.copy)); return TABLE_ERROR
 
-        dbMovie = Movie(number=self.number,copy=self.copy)
-        if dbMovie.select() == False:  #数据库中不存在插入
+        dbMovie = Movie.from_db(number=self.number, copy=self.copy, total_size=self.total_size)
+        if dbMovie is None:  #数据库中不存在插入
             if self.insert():
                 ExecLog("insert movies:"+self.dir_name)
                 return SUCCESS
@@ -1051,10 +1087,10 @@ class Movie:
     def select(self,assign_value=True):
         if self.collection == 1 or self.number <= 0: return False
 
-        se_sql = "select \
-            nation,type,name,Min,FormatStr,DirName,Jpg,Nfo,NumberOfSP,NumberOfVideo,englishname,Year,Radio,Version,NationVersion,special,source,compress,audio,track,bit,HDR,ZipGroup,Deleted,disk,IMDBID,DoubanID \
-            from movies where number=%s and copy=%s"
-        se_val = (self.number,self.copy)    
+        se_sql = "select " \
+            + "nation,type,name,Min,DirName,Radio,Version,NationVersion,special,source,compress,audio,track,bit,HDR,ZipGroup,Deleted,disk,IMDBID,DoubanID,size " \
+            + "from movies where number=%s and copy=%s and size=%s"
+        se_val = (self.number, self.copy, self.total_size)
         tSelectResult = select(se_sql,se_val)
         if tSelectResult == None or len(tSelectResult) == 0: return False
         tSelect = tSelectResult[0]
@@ -1063,29 +1099,23 @@ class Movie:
             self.type          = tSelect[1] 
             self.name          = tSelect[2] 
             self.min           = tSelect[3] 
-            self.format_str     = tSelect[4] 
-            self.dir_name       = tSelect[5] 
-            self.jpg           = tSelect[6] 
-            self.nfo           = tSelect[7] 
-            self.number_of_SP    = tSelect[8]
-            self.number_of_video = tSelect[9] 
-            self.english_name   = tSelect[10]
-            self.year          = tSelect[11]
-            self.radio         = tSelect[12]
-            self.version       = tSelect[13]
-            self.nation_version = tSelect[14]
-            self.special       = tSelect[15]
-            self.source        = tSelect[16]
-            self.compress      = tSelect[17]
-            self.audio         = tSelect[18] 
-            self.track         = tSelect[19] 
-            self.bit           = tSelect[20]
-            self.HDR           = tSelect[21] 
-            self.zip_group      = tSelect[22] 
-            self.deleted       = tSelect[23] 
-            self.disk          = tSelect[24] 
-            self.imdb_id       = tSelect[25] 
-            self.douban_id     = tSelect[26] 
+            self.dir_name      = tSelect[4] 
+            self.radio         = tSelect[5]
+            self.version       = tSelect[6]
+            self.nation_version = tSelect[7]
+            self.special       = tSelect[8]
+            self.source        = tSelect[9]
+            self.compress      = tSelect[10]
+            self.audio         = tSelect[11] 
+            self.track         = tSelect[12] 
+            self.bit           = tSelect[13]
+            self.HDR           = tSelect[14] 
+            self.zip_group     = tSelect[15] 
+            self.deleted       = tSelect[16] 
+            self.disk          = tSelect[17] 
+            self.imdb_id       = tSelect[18] 
+            self.douban_id     = tSelect[19] 
+            self.total_size    = tSelect[20]
         return True
 
     def insert(self):
@@ -1093,10 +1123,10 @@ class Movie:
 
         tCurrentTime = datetime.datetime.now()
         tCurrentDateTime = tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')
-        in_sql = "INSERT INTO movies \
-                (number,copy,nation,type,name,min,FormatStr,DirName,Jpg,Nfo,NumberOfSP,NumberOfVideo,englishname,Year,Radio,Version,NationVersion,special,source,compress,audio,track,bit,HDR,ZipGroup,Deleted,disk,UpdateTime,CheckTime,checked,IMDBID,DoubanID) \
-          VALUES(%s    ,%s  ,%s    ,%s   ,%s ,%s ,%s       ,%s      ,%s,%s ,%s        ,%s           ,%s         ,%s  ,%s   ,%s     ,%s           ,%s     ,%s    ,%s      ,%s   ,%s   ,%s ,%s ,%s      ,%s     ,%s  ,%s        ,%s       ,%s     ,%s    ,%s )"
-        in_val= (self.number,self.copy,self.nation,self.type,self.name,self.min,self.format_str,self.dir_name,self.jpg,self.nfo,self.number_of_SP,self.number_of_video,self.english_name,self.year,self.radio,self.version,self.nation_version,self.special,self.source,self.compress,self.audio,self.track,self.bit,self.HDR,self.zip_group,self.deleted,self.disk,tCurrentDateTime,tCurrentDateTime,self.checked,self.imdb_id,self.douban_id)
+        in_sql = "INSERT INTO movies " \
+                +   "(number,copy,nation,type,name,min,DirName,Radio,Version,NationVersion,special,source,compress,audio,track,bit,HDR,ZipGroup,Deleted,disk,UpdateTime,CheckTime,checked,IMDBID,DoubanID,size) " \
+            + "VALUES(%s    ,%s  ,%s    ,%s   ,%s ,%s ,%s     ,%s   ,%s     ,%s           ,%s     ,%s    ,%s      ,%s   ,%s   ,%s ,%s ,%s      ,%s     ,%s  ,%s        ,%s       ,%s     ,%s    ,%s      ,%s)"
+        in_val= (self.number,self.copy,self.nation,self.type,self.name,self.min,self.dir_name,self.radio,self.version,self.nation_version,self.special,self.source,self.compress,self.audio,self.track,self.bit,self.HDR,self.zip_group,self.deleted,self.disk,tCurrentDateTime,tCurrentDateTime,self.checked,self.imdb_id,self.douban_id,self.total_size)
         return insert(in_sql,in_val)
 
     def update(self):
@@ -1109,14 +1139,7 @@ class Movie:
                 "type=%s,"
                 "name=%s,"
                 "Min=%s,"
-                "FormatStr=%s,"
                 "DirName=%s,"
-                "Jpg=%s,"
-                "Nfo=%s,"
-                "NumberOfSP=%s,"
-                "NumberOfVideo=%s,"
-                "englishname=%s,"
-                "Year=%s,"
                 "Radio=%s,"
                 "Version=%s,"
                 "NationVersion=%s,"
@@ -1133,20 +1156,13 @@ class Movie:
                 "updatetime=%s,"
                 "CheckTime=%s,"
                 "checked=%s "
-                "where number=%s and copy=%s")
+                "where number=%s and copy=%s and size=%s")
         up_val = (
                 self.nation,
                 self.type,
                 self.name,
                 self.min,
-                self.format_str,
                 self.dir_name,
-                self.jpg,
-                self.nfo,
-                self.number_of_SP,
-                self.number_of_video,
-                self.english_name,
-                self.year,
                 self.radio,
                 self.version,
                 self.nation_version,
@@ -1163,7 +1179,7 @@ class Movie:
                 tCurrentDateTime,
                 tCurrentDateTime,
                 self.checked,
-                self.number, self.copy)            
+                self.number, self.copy, self.total_size)
         if not update(up_sql,up_val): return False
 
         #id单独update，因为可能数据库id不为空，但是内存中为空的(例如手动checkmovie时)
@@ -1186,10 +1202,7 @@ class Movie:
         if self.type          != tMovie.type         : ExecLog("diff type:{}|{}".format(self.type,tMovie.type)); IsDiff = True
         if self.name          != tMovie.name         : ExecLog("diff name:{}|{}".format(self.name,tMovie.name)); IsDiff = True
         if self.min           != tMovie.min          : ExecLog("diff min:{}|{}".format(self.min,tMovie.min)); IsDiff = True
-        if self.format_str     != tMovie.format_str    : ExecLog("diff format_str:{}|{}".format(self.format_str,tMovie.format_str)); IsDiff = True
         if self.dir_name       != tMovie.dir_name      : ExecLog("diff dir_name:{}|{}".format(self.dir_name,tMovie.dir_name)); IsDiff = True
-        if self.english_name   != tMovie.english_name  : ExecLog("diff english_name:{}|{}".format(self.english_name,tMovie.english_name)); IsDiff = True
-        if self.year          != tMovie.year         : ExecLog("diff year:{}|{}".format(self.year,tMovie.year)); IsDiff = True
         if self.radio         != tMovie.radio        : ExecLog("diff radio:{}|{}".format(self.radio,tMovie.radio)); IsDiff = True
         if self.version       != tMovie.version      : ExecLog("diff version:{}|{}".format(self.version,tMovie.version)); IsDiff = True
         if self.nation_version != tMovie.nation_version: ExecLog("diff nation_version:{}|{}".format(self.nation_version,tMovie.nation_version)); IsDiff = True
@@ -1205,12 +1218,10 @@ class Movie:
         if self.deleted       != tMovie.deleted      : ExecLog("diff deleted:{}|{}".format(self.deleted,tMovie.deleted)); IsDiff = True
         if self.imdb_id != ""   and self.imdb_id   != tMovie.imdb_id   : ExecLog("diff imdb_id:{}|{}".format(self.imdb_id,tMovie.imdb_id)); IsDiff = True
         if self.douban_id != "" and self.douban_id != tMovie.douban_id : ExecLog("diff douban_id:{}|{}".format(self.douban_id,tMovie.douban_id)); IsDiff = True
-        
+        if self.total_size != 0 and self.total_size != tMovie.total_size: ExecLog("diff total_size:{}|{}".foat(self.totail_size,tMovie.total_size)); isDiff = True
         return IsDiff
 
     def get_torrent(self):
-        if self.number <= 0: return False
-
         tFullDirName = os.path.join(self.dir_path,self.dir_name) 
         
         #从目录下找torrent文件
@@ -1301,7 +1312,7 @@ def MoveDirFile(SrcDir,DestDir) :
         else: return UNKNOWN_FILE_TYPE
     
     #逐个移动文件到目标文件夹
-    while i in range(NumberOfFile):
+    for i in range(NumberOfFile):
         try:
             shutil.move(FileName[i],DestDir)
         except: 

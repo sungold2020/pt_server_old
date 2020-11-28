@@ -49,6 +49,7 @@ class Info:
         self.poster = ""
         self.episodes = 0
         self.genre = ""
+        self.viewed = 0
 
         if self.douban_id == "" and self.imdb_id == "": ErrorLog("Info.init():id is null")
         
@@ -181,7 +182,15 @@ class Info:
                     self.genre,
                     self.douban_status,
                     self.imdb_id)
-        return update(up_sql,up_val)
+        if not update(up_sql,up_val): return False
+
+        # 单独更新viewed，避免被内存中错误的标记更新。只有内存中的viewed=1才更新数据库
+        if self.viewed == 1:
+            if self.douban_id != "":
+                return update("update info set viewed=1 where doubanid = %s", (self.douban_id,))
+            else:
+                return update("update info set viewed=1 where imdbid = %s", (self.imdb_id,))
+        return True
 
     def select(self,assign_value=True):
         if self.imdb_id == "" and self.douban_id == "": return False
@@ -207,7 +216,8 @@ class Info:
                 "episodes,"
                 "genre,"
                 "doubanstatus,"
-                "year"
+                "year,"
+                "viewed"
                 " from info where imdbid = %s")
         sel_val = (self.imdb_id,)
         tSelectResult = select(sel_sql,sel_val)
@@ -239,6 +249,7 @@ class Info:
             if tSelectResult[0][14] != "": self.genre         = tSelectResult[0][14]
             if tSelectResult[0][15] != -2: self.douban_status = tSelectResult[0][15]
             if tSelectResult[0][16] != 0 : self.year          = tSelectResult[0][16]
+            if tSelectResult[0][17] != -1: self.viewed        = tSelectResult[0][17]
         return True
 
     def select_by_douban_id(self,assign_value=True):
@@ -261,7 +272,8 @@ class Info:
                 "episodes,"
                 "genre,"
                 "doubanstatus,"
-                "year"
+                "year,"
+                "viewed"
                 " from info where doubanid = %s")
         sel_val = (self.douban_id,)
         tSelectResult = select(sel_sql,sel_val)
@@ -293,6 +305,7 @@ class Info:
             if tSelectResult[0][14] != "": self.genre         = tSelectResult[0][14]
             if tSelectResult[0][15] != -2: self.douban_status = tSelectResult[0][15]
             if tSelectResult[0][16] != 0 : self.year          = tSelectResult[0][16]
+            if tSelectResult[0][17] != -1: self.viewed        = tSelectResult[0][17]
         return True
 
     def update_or_insert(self):
@@ -647,7 +660,14 @@ class Info:
 
 
 def find_end_number(mString):
-    #  1-15 / 374
+    """
+    输入格式举例：  "1-15 / 374"
+    return:
+        -1       : 解析出错
+        0        : 已经到达最后一页
+        endnumber: 本页的结束number，例如15
+    """
+
     mString = mString.strip('\n')
     mString = mString.strip()
     #print('-----------------')
@@ -658,7 +678,7 @@ def find_end_number(mString):
     if tIndex == -1: 
         ExecLog("can't find -:"+mString)
         return -1
-    tStartNumber = mString[:tIndex]
+    tStartNumber = mString[:tIndex]    # 本页起始number, 如1
     if not tStartNumber.isdigit():
         ExecLog("invalid start number:"+mString)
         return -1
@@ -668,12 +688,12 @@ def find_end_number(mString):
     if tIndex == -1: 
         ExecLog("can't find /:"+mString)
         return -1
-    tEndNumber = mString[:tIndex].strip()
+    tEndNumber = mString[:tIndex].strip() # 本页结束number，如15
     if not tEndNumber.isdigit():
         ExecLog("invalid end number:"+mString)
         return "error"
     
-    tTotal = mString[tIndex+1:].strip()
+    tTotal = mString[tIndex+1:].strip()  # 总数
     if not tEndNumber.isdigit():
         ExecLog("invalid total number:"+mString)
         return -1
@@ -704,8 +724,8 @@ def update_viewed(mOnlyFirstPage=True):
 
     my_headers = {}
     my_headers['User-Agent'] = USER_AGENT
-    tUrl = DOUBAN_VIEWED_URL
-    while True:
+    tUrl = DOUBAN_VIEWED_URL  # 观影记录首页
+    while True:   
         try:
             res = s.get(tUrl, headers=my_headers,timeout=120)
             soup = BeautifulSoup(res.text,'lxml')
@@ -713,21 +733,18 @@ def update_viewed(mOnlyFirstPage=True):
             print(err)
             ExecLog("except at get url")
             return False
-        """
-        text = open("viewed2.log").read()
-        soup = BeautifulSoup(text,'lxml')
-        #print(soup)
-        """
 
         try:
-            tSubjectNum = soup.find('span',class_="subject-num").get_text()
+            tSubjectNum = soup.find('span',class_="subject-num").get_text() # 举例 1-15 / 374
         except Exception as err:
             print(err)
             print(soup)
             ExecLog("except at find subject-num")
             return False
-        #print(num)
-        tNextStartNum = find_end_number(tSubjectNum)
+
+        # 获取下一页开始number
+        # 因url中的编号是从0开始的，而显示记录是从1开始的。下一页的开始number就是本页中的endnumber
+        tNextStartNum = find_end_number(tSubjectNum)    
         #print(tNextStartNum)
 
         try:
@@ -756,6 +773,27 @@ def update_viewed(mOnlyFirstPage=True):
                 continue
             #print("{}:{}".format(tTitle,tDoubanID))
 
+            #更新info表中的viewed标志
+            record = select("select viewed,name from info where doubanid=%s ", (tDoubanID,))
+            if record == None:
+                ErrorLog("error:执行数据库select错误")
+                return False
+            if len(record) == 0:
+                ExecLog(f"{tDoubanID} does not exist in table info")
+            elif len(record) > 1:
+                ExecLog(f"{tDoubanID} have more than 1 record in table info")
+            else:
+                viewed = record[0][0] 
+                name   = record[0][1]
+                if viewed == 0:
+                    if update("update info set viewed = 1 where doubanid=%s ", (tDoubanID,)):
+                        ExecLog(f"更新info表观影记录：{name}")
+                    else:
+                        ErrorLog(f"更新info表出错:{tDoubanID}")
+                else:
+                    DebugLog(f"{name} 已经更新过viewed=1")
+
+            """
             tReturn = select("select number,copy,dirname,viewed from movies where doubanid=%s",(tDoubanID,))
             if tReturn == None:
                 ErrorLog("error exec:select number,copy,dirname,viewed from movies where doubanid="+tDoubanID)
@@ -776,8 +814,9 @@ def update_viewed(mOnlyFirstPage=True):
                         ExecLog("set viewd=1:"+DirName)
                     else:
                         ErrorLog("error exec:update movies set viewed=1 where number={} and copy={}".format(Number,Copy))
+            """
 
-        if mOnlyFirstPage :  return True
+        if mOnlyFirstPage :  return True      # 如果仅更新第一页，就返回，否则继续获取下一页
         if tNextStartNum <= 0: return True   
         tNextStartString = 'start='+str(tNextStartNum)
         tUrl = site_url.replace('start=0',tNextStartString)

@@ -8,7 +8,7 @@ from log import *
 import torrentool.api
 
 """
-从link下载种子文件，解析种子文件，获取种子信息
+从link下载种子文件，解析种子文件，获取种子信息 
 """
 
 TORRENTS_DIR = 'data/torrents/'

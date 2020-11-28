@@ -5,6 +5,8 @@ import re
 import sys
 import shutil
 import datetime
+
+sys.path.append("..")
 from connect import *
 
 sys_argv = sys.argv

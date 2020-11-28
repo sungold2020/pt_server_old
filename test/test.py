@@ -44,9 +44,9 @@ if re.search(u"[\u4e00-\u9f50]+",string) != None:
     print("contain chinese")
 
 
-import json
-text = open('info_json.txt').read()
-text = text.replace('\\','\\\\')
-print(text)
-json_data = json.loads(text,strict=False)
-print(json_data.get("genre"))
+import sys
+sys.path.append("..")
+from torrents import *
+
+gTorrents = Torrents()
+gTorrents.request_rss("leagueHD")

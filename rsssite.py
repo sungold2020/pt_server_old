@@ -51,7 +51,7 @@ RSS_LIST = [
         'name':'LeagueHD', 
         'wait_free':False,   
         'time_interval':119,
-        'url':'https://leaguehd.com/torrentrss.php?rows=20&icat=1&ismalldescr=1&isize=1&linktype=dl&passkey=dfab9bb8e00a9445760abb17ec2fa772&inclbookmarked=1'
+        'url':'https://leaguehd.com/torrentrss.php?rows=30&linktype=dl&passkey=dfab9bb8e00a9445760abb17ec2fa772&inclbookmarked=1'
         }, 
     {
         'name':'LeagueHDAll', 

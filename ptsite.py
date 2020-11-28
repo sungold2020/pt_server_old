@@ -34,7 +34,7 @@ class NexusPage():
             'url':'https://pt.m-team.cc/movie.php',
             'first_url':'https://pt.m-team.cc/',
             'last_url':'&passkey=7044b36a9057090e36138df761ddfc5d&https=1',
-            #注意:mteam的cookie必须__cfduid在前，tp在后
+            # 注意:mteam的cookie必须__cfduid在前，tp在后
             'cookie':'__cfduid=d17a97d64b190205faa4c18fa946439a21603528410; tp=MzIzYWNhMmZhZjQzZDU5ZWM5ZmUwMzc4YmIyY2NiMDU3YWMxOTZjNw%3D%3D' 
             },
         {
@@ -167,11 +167,11 @@ class NexusPage():
         return False
 
     def request_detail_page(self,mTorrentID):
-        if not self.site : return False
+        if not self.site: return False
         self.detail_url = self.site['first_url']+'details.php?id='+mTorrentID+'&hit=1'
         site_log(self.detail_url)
 
-        #if self.get_error_count() >= NexusPage.max_error_count:
+        # if self.get_error_count() >= NexusPage.max_error_count:
         #    ExecLog("reach max error count:"+self.detail_url)
         #    return False    
         # Using Session to keep cookie
@@ -184,7 +184,7 @@ class NexusPage():
             'user-agent': NexusPage.user_agent}
         if self.site.get('referer'): myheaders['referer'] = self.site.get('referer')
         if self.site.get('host')   : myheaders['host']    = self.site.get('host')
-        #site_log(myheaders)
+        # site_log(myheaders)
         try:
             res = s.get(self.detail_url, headers=myheaders,timeout=120)
             site_log(res.text)
