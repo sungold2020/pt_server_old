@@ -4,7 +4,7 @@ from log import *
 
 class Config:
     def __init__(self):
-        self.sys_config = None
+        self.sys_config = None    # 系统配置
         self.site_config = None
         self.rss_config = None
 
