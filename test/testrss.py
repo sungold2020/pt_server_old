@@ -23,7 +23,7 @@ def request_rss(mRSSName="",mTimeInterval=-2):
     
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.82 Safari/537.36'}
 
-    DebugLog("request rss:{}::{}".format(mRSSName,mTimeInterval))
+    debug_log("request rss:{}::{}".format(mRSSName, mTimeInterval))
     tTorrentList = []
     for i in range(len(RSS_LIST)):
         if mRSSName.lower() == RSS_LIST[i]['name'].lower() or\
@@ -33,13 +33,13 @@ def request_rss(mRSSName="",mTimeInterval=-2):
             url      = RSS_LIST[i]['url']
         else: continue
 
-        DebugLog("==========begin {}==============".format(RSSName.ljust(10,' ')))
-        DebugLog("URL:"+ url)
+        debug_log("==========begin {}==============".format(RSSName.ljust(10, ' ')))
+        debug_log("URL:" + url)
         try: 
             page = requests.get(url, timeout=60, headers=headers)
         except Exception as err: 
             print(err)
-            ExecLog("failed to requests:"+RSSName)
+            exec_log("failed to requests:" + RSSName)
             continue
         page.encoding = 'utf-8'
         page_content = page.text
@@ -51,14 +51,14 @@ def request_rss(mRSSName="",mTimeInterval=-2):
             ID    = items[i].guid.string
             DownloadLink = items[i].enclosure.get('url')
             #TorrentID    = get_torrent_id(DownloadLink)
-            DebugLog(Title+":"+ID+":"+DownloadLink)
+            debug_log(Title + ":" + ID + ":" + DownloadLink)
 
-            if RSSName == "HDSky" and Title.find("x265") == -1 : DebugLog("hdsky not x265, ignore it:"+Title); continue
+            if RSSName == "HDSky" and Title.find("x265") == -1 : debug_log("hdsky not x265, ignore it:" + Title); continue
             #if RSSName == "MTeam" and Title.find("x264") >= 0  : DebugLog("mteam x264, ignore it:"+Title); continue
 
             tRSS = RSS(ID,RSSName,DownloadLink,Title)
             if tRSS.select(): 
-                DebugLog("old rss,ignore it:"+Title)
+                debug_log("old rss,ignore it:" + Title)
                 continue
 
             Type = -1
@@ -76,7 +76,7 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                 SummaryStr = re.sub(u'\xa0', u' ', SummaryStr)
                 SummaryStr = re.sub('&nbsp;',' ',  SummaryStr)
                 SummaryStr = SummaryStr.lower()
-                DebugLog(SummaryStr)
+                debug_log(SummaryStr)
                         
                 tInfo = Info()
                 tIndex = SummaryStr.find("豆瓣评分")
@@ -85,8 +85,8 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                     tSearch = re.search("[0-9]\.[0-9]",tempstr)
                     if tSearch : DoubanScore = tSearch.group()
                     else:        DoubanScore = ""
-                    DebugLog("douban score:"+DoubanScore)
-                else: DebugLog("douban score:not find")
+                    debug_log("douban score:" + DoubanScore)
+                else: debug_log("douban score:not find")
                 tInfo.douban_score = DoubanScore
                 
                 tIndex = SummaryStr.find("豆瓣链接")
@@ -96,12 +96,12 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                     if tIndex >= 0:
                         tempstr = tempstr[tIndex+6:]
                         tIndex = tempstr.find('\"')
-                        if tIndex >= 0 : DoubanLink = tempstr[:tIndex]; DebugLog("douban link:"+DoubanLink)
-                        else: DebugLog("douban link:error:not find \"")
-                    else: DebugLog("douban link:error:not find href=")
-                else: DebugLog("douban link:not find")
+                        if tIndex >= 0 : DoubanLink = tempstr[:tIndex]; debug_log("douban link:" + DoubanLink)
+                        else: debug_log("douban link:error:not find \"")
+                    else: debug_log("douban link:error:not find href=")
+                else: debug_log("douban link:not find")
                 DoubanID = get_id_from_link(DoubanLink, DOUBAN)
-                DebugLog("DoubanLink:"+DoubanLink)
+                debug_log("DoubanLink:" + DoubanLink)
                 tInfo.douban_id = DoubanID
                 tInfo.douban_link = DoubanLink
 
@@ -113,7 +113,7 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                     tempstr = SummaryStr[tIndex+6:tIndex+36]
                     tSearch = re.search("[0-9]\.[0-9]",tempstr)
                     if tSearch :  IMDBScore = tSearch.group()
-                DebugLog("imdb score:"+IMDBScore)
+                debug_log("imdb score:" + IMDBScore)
                 tInfo.imdb_score = IMDBScore
                 
                 if   SummaryStr.find("imdb链接")    >= 0: tIndex = SummaryStr.find("imdb链接")
@@ -128,7 +128,7 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                         tempstr = tempstr[tIndex+6:]
                         tIndex = tempstr.find('\"')
                         if tIndex >= 0 : IMDBLink = tempstr[:tIndex]
-                        else:  DebugLog("imdb link:error:not find \"")
+                        else:  debug_log("imdb link:error:not find \"")
                     else:
                         tIndex = tempstr.find('http')
                         if tIndex >= 0:
@@ -136,7 +136,7 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                             tIndex = tempstr.find('<')
                             if tIndex >= 0 : IMDBLink = tempstr[:tIndex] 
                 IMDBID = get_id_from_link(IMDBLink, IMDB)
-                DebugLog("imdb link:"+IMDBLink)
+                debug_log("imdb link:" + IMDBLink)
                 tInfo.imdb_id = IMDBID
 
                 if   SummaryStr.find("国  家")    >= 0: tIndex = SummaryStr.find("国  家")
@@ -155,15 +155,15 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                     elif Nation == '中国台湾': Nation = '台'
                     elif Nation == '日本'    : Nation = '日'
                     else : pass
-                    DebugLog("Nation:"+Nation)
-                else: DebugLog("failed find nation")
+                    debug_log("Nation:" + Nation)
+                else: debug_log("failed find nation")
                 tInfo.nation = Nation
 
                 tIndex = SummaryStr.find("类  别") 
                 if tIndex >= 0 and SummaryStr[tIndex:tIndex+100].find("纪录") >= 0 : Type = RECORD
                 elif SummaryStr.find("集  数") >= 0                                : Type = TV
                 else                                                               : Type = MOVIE
-                DebugLog("type:"+str(Type))
+                debug_log("type:" + str(Type))
                 tInfo.type = Type
 
                 if Nation == '港' or Nation == '国' or Nation == '台' : tIndex = SummaryStr.find("片  名")
@@ -173,11 +173,11 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                     if   Name.find("/")  >= 0 : Name = (Name[ :Name.find("/") ]).strip() 
                     elif Name.find("<")  >= 0 : Name = (Name[ :Name.find("<") ]).strip() 
                     elif Name.find('\n') >= 0 : Name = (Name[ :Name.find('\n') ]).strip()
-                    else: DebugLog("failed find name"); Name = ""
-                else: DebugLog("failed find name"); Name = ""
+                    else: debug_log("failed find name"); Name = ""
+                else: debug_log("failed find name"); Name = ""
                 #ExecLog("name:"+Name)
                 if Name.find('<') >= 0 : Name = Name[:Name.find('<')]
-                DebugLog("name:"+Name)
+                debug_log("name:" + Name)
                 tInfo.movie_name = Name
                 
                 tIndex = SummaryStr.find("导  演")
@@ -188,27 +188,27 @@ def request_rss(mRSSName="",mTimeInterval=-2):
                     else : Director = ""
                     Director = (Director[ :Director.find('<') ]).strip()
                 else :Director = ""
-                DebugLog("director:"+Director)
+                debug_log("director:" + Director)
                 tInfo.director = Director
 
                 tInfo.select() #尝试找下数据库的记录
                 if tInfo.imdb_id != "":
                     if not tInfo.update_or_insert():
-                        ExecLog("failed to update or insert info:"+tInfo.imdb_id)
+                        exec_log("failed to update or insert info:" + tInfo.imdb_id)
             #end if RSSName ==
             
             tRSS.douban_id = DoubanID
             tRSS.imdb_id = IMDBID
             if not tRSS.insert():  #记录插入rss数据库
-                ExecLog("failed to insert into rss:{}|{}".format(RSSName,ID))
+                exec_log("failed to insert into rss:{}|{}".format(RSSName, ID))
                 continue
             tTorrent = MyTorrent(None,tRSS,tInfo,TO_BE_ADD)
 
             if not WaitFree: 
-                ExecLog("new rss to be add torrent:"+tTorrent.title)
-                ExecLog("doubanID:{}|DoubanScore:{}|IMDBID:{}|IMDBScore:{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(DoubanID,DoubanScore,IMDBID,IMDBScore,Type,Nation,Name,Director))
+                exec_log("new rss to be add torrent:" + tTorrent.title)
+                exec_log("doubanID:{}|DoubanScore:{}|IMDBID:{}|IMDBScore:{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(DoubanID, DoubanScore, IMDBID, IMDBScore, Type, Nation, Name, Director))
                 tTorrentList.append(tTorrent)
             else:
-                DebugLog("doubanID:{}|DoubanScore:{}|IMDBID:{}|IMDBScore:{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(DoubanID,DoubanScore,IMDBID,IMDBScore,Type,Nation,Name,Director))
+                debug_log("doubanID:{}|DoubanScore:{}|IMDBID:{}|IMDBScore:{}|Type:{}|Nation:{}|Name:{}|Director:{}|".format(DoubanID, DoubanScore, IMDBID, IMDBScore, Type, Nation, Name, Director))
 
         #end for Items

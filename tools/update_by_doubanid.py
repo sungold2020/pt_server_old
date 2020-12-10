@@ -38,16 +38,16 @@ for tSelect in result:
     tInfo = Info(dbDoubanID,dbIMDBID)
     tToBeUpdate = False
     if tInfo.douban_id == "" or tInfo.imdb_id == "" or tInfo.poster == "" or dbDoubanID == "" or dbIMDBID == "":
-        DebugLog("id is empty:"+dbDirName)
+        debug_log("id is empty:" + dbDirName)
         tToBeUpdate = True
     if not(dbName in tInfo.movie_name or tInfo.movie_name in dbName):
-        ExecLog("different name:{}|{}|{}".format(dbName,tInfo.movie_name,dbDirName))
+        exec_log("different name:{}|{}|{}".format(dbName, tInfo.movie_name, dbDirName))
         tToBeUpdate = True
     if dbNation != tInfo.nation :
-        ExecLog("different nation:{}|{}|{}".format(dbNation,tInfo.nation,dbDirName))
+        exec_log("different nation:{}|{}|{}".format(dbNation, tInfo.nation, dbDirName))
         tToBeUpdate = True
     if abs(dbYear-tInfo.year) >= 2:
-        ExecLog("different year:{}|{}|{}".format(dbYear,tInfo.year,dbDirName))
+        exec_log("different year:{}|{}|{}".format(dbYear, tInfo.year, dbDirName))
         tToBeUpdate = True
 
     tToBeUpdate = False
@@ -57,21 +57,21 @@ for tSelect in result:
 
     #ExecLog("tobeexec:"+dbDirName)
     if not tInfo.douban_detail():
-        ExecLog("failed to douban detail"+dbDoubanID)
+        exec_log("failed to douban detail" + dbDoubanID)
         continue
 
     if tInfo.update_or_insert():
-        ExecLog("success to update or insert info:"+dbDirName)
+        exec_log("success to update or insert info:" + dbDirName)
     else:
-        ExecLog("failed to update or insert info:"+dbDirName)
+        exec_log("failed to update or insert info:" + dbDirName)
     
     if dbIMDBID == "" and tInfo.imdb_id != "": 
         up_sql = "update movies set imdbid=%s where number=%s and copy=%s"
         up_val = (tInfo.imdb_id,dbNumber,dbCopy)
         if  update(up_sql,up_val):
-            ExecLog("update movies set imdbid={} where dirname={}".format(tInfo.imdb_id,dbDirName))
+            exec_log("update movies set imdbid={} where dirname={}".format(tInfo.imdb_id, dbDirName))
         else:
-            ExecLog("failed to exec:{}|{}".format(up_sql,up_val))
+            exec_log("failed to exec:{}|{}".format(up_sql, up_val))
         
     tSeconds = random.randint(120,600)
     print("sleep {} Seconds:".format(tSeconds))

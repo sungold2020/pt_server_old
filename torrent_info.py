@@ -34,11 +34,11 @@ class TorrentInfo:
                 with open(DestFullFile,"wb") as code:
                     code.write(f.content)
             except Exception as err:
-                Print(err)
-                DebugLog("failed to download torrent file from:"+self.download_link)
+                log_print(err)
+                debug_log("failed to download torrent file from:" + self.download_link)
                 return False
             else : 
-                DebugLog("success download torrent file from:"+self.download_link)
+                debug_log("success download torrent file from:" + self.download_link)
                 self.torrent_file = DestFullFile
 
         self.torrent = torrentool.api.Torrent.from_file(self.torrent_file)
@@ -122,11 +122,11 @@ class TorrentInfo:
             with open(temp_torrent_file ,"wb") as code:
                 code.write(f.content)
         except Exception as err:
-            Print(err)
-            DebugLog("failed to download torrent file from:"+download_link)
+            log_print(err)
+            debug_log("failed to download torrent file from:" + download_link)
             return ""
         else : 
-            DebugLog("success download torrent file from:"+download_link)
+            debug_log("success download torrent file from:" + download_link)
 
         #获取torrent（包含hash等信息）
         torrent = torrentool.api.Torrent.from_file(temp_torrent_file)
@@ -138,7 +138,7 @@ class TorrentInfo:
             os.rename(temp_torrent_file,torrent_file)
         except Exception as err:
             print(err)
-            ErrorLog("error: rename {} to {}".format(temp_torrent_file,torrent_file))
+            error_log("error: rename {} to {}".format(temp_torrent_file, torrent_file))
             return ""
         return torrent.info_hash
 

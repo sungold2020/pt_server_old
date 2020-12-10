@@ -2,94 +2,101 @@
 # coding=utf-8
 import datetime
 import traceback
-import time
 import os
 
-
-ExecLogFile  = "log/pt.log"               #运行日志
-DebugLogFile = "log/pt.debug"             #调试日志，可以是相对路径，也可以是绝对路径
-ErrorLogFile = "log/pt.error"             #错误日志
-
-INFO_LOG_FILE='log/info.log'
-RSS_LOG_FILE='log/rss.log'
-DATABASE_LOG_FILE = 'log/database.log'
-PTSITE_LOG_FILE ='log/site.log'
-MOVIE_LOG_FILE ='log/movie.log'
-SOCKET_LOG_FILE='log/socket.log'
+from config import *
 
 global lastLogDay
 lastLogDay = "1970-01-01"
-def info_log(tStr):
-    Log(INFO_LOG_FILE,tStr)
 
-def rss_log(tStr):
-    Log(RSS_LOG_FILE,tStr)
 
-def database_log(tStr):
-    Log(DATABASE_LOG_FILE,tStr)
+def info_log(log_str):
+    pt_log(g_config.INFO_LOG_FILE, log_str)
 
-def site_log(tStr):
-    Log(PTSITE_LOG_FILE,tStr)
 
-def movie_log(tStr):
-    Log(MOVIE_LOG_FILE,tStr)
+def rss_log(log_str):
+    pt_log(g_config.RSS_LOG_FILE, log_str)
 
-def socket_log(tStr):
-    Log(SOCKET_LOG_FILE,tStr)
 
-def LogClear(FileName="") :
-    if FileName == "":
-        if os.path.isfile(INFO_LOG_FILE+".old"):    os.remove(INFO_LOG_FILE+".old")
-        if os.path.isfile(INFO_LOG_FILE)       :    os.rename(INFO_LOG_FILE,INFO_LOG_FILE+".old")
-        if os.path.isfile(RSS_LOG_FILE+".old"):     os.remove(RSS_LOG_FILE+".old")
-        if os.path.isfile(RSS_LOG_FILE)       :     os.rename(RSS_LOG_FILE,RSS_LOG_FILE+".old")
-        if os.path.isfile(PTSITE_LOG_FILE+".old"):  os.remove(PTSITE_LOG_FILE+".old")
-        if os.path.isfile(PTSITE_LOG_FILE)       :  os.rename(PTSITE_LOG_FILE,PTSITE_LOG_FILE+".old")
-        if os.path.isfile(SOCKET_LOG_FILE+".old"):  os.remove(SOCKET_LOG_FILE+".old")
-        if os.path.isfile(SOCKET_LOG_FILE)       :  os.rename(SOCKET_LOG_FILE,SOCKET_LOG_FILE+".old")
+def database_log(log_str):
+    pt_log(g_config.DATABASE_LOG_FILE, log_str)
 
-def Print(Str):
-    tCurrentTime = datetime.datetime.now()
-    print(tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')+"::" , end='')
-    print(Str)
 
-def LogClear(FileName="") :
-    if FileName == "":
-        if os.path.isfile(INFO_LOG_FILE+".old"):    os.remove(INFO_LOG_FILE+".old")
-        if os.path.isfile(INFO_LOG_FILE)       :    os.rename(INFO_LOG_FILE,INFO_LOG_FILE+".old")
-        if os.path.isfile(RSS_LOG_FILE+".old"):     os.remove(RSS_LOG_FILE+".old")
-        if os.path.isfile(RSS_LOG_FILE)       :     os.rename(RSS_LOG_FILE,RSS_LOG_FILE+".old")
-        if os.path.isfile(PTSITE_LOG_FILE+".old"):  os.remove(PTSITE_LOG_FILE+".old")
-        if os.path.isfile(PTSITE_LOG_FILE)       :  os.rename(PTSITE_LOG_FILE,PTSITE_LOG_FILE+".old")
+def site_log(log_str):
+    pt_log(g_config.PTSITE_LOG_FILE, log_str)
 
-    if os.path.isfile(FileName):
-        if os.path.isfile(FileName+".old"):    os.remove(FileName+".old")
-        os.rename(FileName,FileName+".old")
-      
-def Log(FileName,Str,time_flag=True) :
-    fo = open(FileName,"a+")
-    tCurrentDayTime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    if time_flag == True: fo.write(f"{tCurrentDayTime[11:]}: ")
-    fo.write(Str+'\n')
+
+def movie_log(log_str):
+    pt_log(g_config.MOVIE_LOG_FILE, log_str)
+
+
+def socket_log(log_str):
+    pt_log(g_config.SOCKET_LOG_FILE, log_str)
+
+
+def log_clear(file_name=""):
+    if file_name == "":
+        if os.path.isfile(g_config.INFO_LOG_FILE+".old"):
+            os.remove(g_config.INFO_LOG_FILE+".old")
+        if os.path.isfile(g_config.INFO_LOG_FILE):
+            os.rename(g_config.INFO_LOG_FILE, g_config.INFO_LOG_FILE+".old")
+
+        if os.path.isfile(g_config.RSS_LOG_FILE+".old"):
+            os.remove(g_config.RSS_LOG_FILE+".old")
+        if os.path.isfile(g_config.RSS_LOG_FILE):
+            os.rename(g_config.RSS_LOG_FILE, g_config.RSS_LOG_FILE+".old")
+
+        if os.path.isfile(g_config.PTSITE_LOG_FILE+".old"):
+            os.remove(g_config.PTSITE_LOG_FILE+".old")
+        if os.path.isfile(g_config.PTSITE_LOG_FILE):
+            os.rename(g_config.PTSITE_LOG_FILE, g_config.PTSITE_LOG_FILE+".old")
+
+        if os.path.isfile(g_config.SOCKET_LOG_FILE+".old"):
+            os.remove(g_config.SOCKET_LOG_FILE+".old")
+        if os.path.isfile(g_config.SOCKET_LOG_FILE):
+            os.rename(g_config.SOCKET_LOG_FILE, g_config.SOCKET_LOG_FILE+".old")
+    else:
+        if os.path.isfile(file_name+".oid"):
+            os.remove(file_name+".old")
+        if os.path.isfile(file_name):
+            os.rename(file_name, file_name + ".old")
+
+
+def log_print(log_str):
+    current_time = datetime.datetime.now()
+    print(current_time.strftime('%Y-%m-%d %H:%M:%S') + "::", end='')
+    print(log_str)
+
+
+def pt_log(file_name, log_str, time_flag=True):
+    fo = open(file_name, "a+")
+    current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if time_flag:
+        fo.write(f"{current_time[11:]}: ")
+    fo.write(log_str+'\n')
     fo.close()
 
-def DebugLog( Str, Mode = "np"):    
-    Log(DebugLogFile,Str)
-    if Mode == "p": Print(Str)
 
-def ExecLog(Str):
+def debug_log(log_str, mode="np"):
+    pt_log(g_config.DebugLogFile, log_str)
+    if mode == "p":
+        log_print(log_str)
+
+
+def exec_log(log_str):
     global lastLogDay
 
-    Print(Str)
-    tCurrentDayTime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    if tCurrentDayTime[:10] != lastLogDay: 
-        lastLogDay = tCurrentDayTime[:10]
-        ExecLog(f"new day: ----------------------{lastLogDay}----------------------- ")
-    DebugLog(Str)
-    Log(ExecLogFile,Str)    
-    
-def ErrorLog(Str):
-    Print(Str)
-    ExecLog(Str)
-    Log(ErrorLogFile,Str)
+    log_print(log_str)
+    current_day_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if current_day_time[:10] != lastLogDay:
+        lastLogDay = current_day_time[:10]
+        exec_log(f"new day: ----------------------{lastLogDay}----------------------- ")
+    debug_log(log_str)
+    pt_log(g_config.ExecLogFile, log_str)
+
+
+def error_log(log_str):
+    log_print(log_str)
+    exec_log(log_str)
+    pt_log(g_config.ErrorLogFile, log_str)
     traceback.print_stack()

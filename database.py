@@ -1,125 +1,147 @@
 import mysql.connector
 from log import *
 
-DB_LOGIN = {'username': 'dummy', 'password': 'moonbeam', 'db_name': 'db_movies'}
+global g_config
 
 
 def compose_sql(sql, val):
     """把val填入sql组装sql语句"""
-
-    if val is None or len(val) == 0: return sql
+    if val is None or len(val) == 0:
+        return sql
 
     i = -1
     for i in range(len(val)):
-        sql = sql.replace('%s',str(val[i]),1)
+        sql = sql.replace('%s', str(val[i]), 1)
 
-    if i != len(val) -1: ErrorLog("error sql:{}|{}".format(sql,val))
+    if i != len(val) - 1:
+        error_log("error sql:{}|{}".format(sql, val))
     return sql
 
-def select_by_update(sql,val):
+
+def select_by_update(sql, val):
     """
     根据update语句，组装select语句，获取update之前数据库的值
     例如:
     update movies set doubanid=%s,imdbid=%s where number=%s and copy=%s (arv1,arv2,argv3,argv4)
     select doubanid,imdbid from movies where number=arv3 and copy=argv4
     """
-    tNewSQL = "select "
+    t_new_sql = "select "
     sql = sql.lower()
-    #remove update
-    tIndex = sql.find("update")
-    sql = sql[tIndex+6:]
-    #get table name
-    tIndex = sql.find("set")
-    tTableName = sql[:tIndex].strip()
-    sql = sql[tIndex+3:]
-    
-    tIndex = sql.find("where")
-    if tIndex == -1: ErrorLog("warning:no where in update sql:"+sql); return False
-    tUpdateSQL = sql[:tIndex]
-    tWhereSQL = sql[tIndex:]
-    tColumnList=[]
+    # remove update
+    t_index = sql.find("update")
+    sql = sql[t_index + 6:]
+    # get table name
+    t_index = sql.find("set")
+    t_table_name = sql[:t_index].strip()
+    sql = sql[t_index + 3:]
+
+    t_index = sql.find("where")
+    if t_index == -1:
+        error_log("warning:no where in update sql:" + sql)
+        return False
+    t_update_sql = sql[:t_index]
+    t_where_sql = sql[t_index:]
+    t_column_list = []
     i = 0
     while True:
-        tIndex = tUpdateSQL.find("=")
-        if tIndex == -1 : break
-        tColumnList.append(tUpdateSQL[:tIndex].strip())
-        tIndex = tUpdateSQL.find(",")
-        if tIndex >= 0:
-            if tUpdateSQL[:tIndex].find('%s') >= 0: i += 1
-        else:
-            if tUpdateSQL.find('%s') >= 0: i += 1
+        t_index = t_update_sql.find("=")
+        if t_index == -1:
             break
-        tUpdateSQL = tUpdateSQL[tIndex+1:]
+        t_column_list.append(t_update_sql[:t_index].strip())
+        t_index = t_update_sql.find(",")
+        if t_index >= 0:
+            if t_update_sql[:t_index].find('%s') >= 0:
+                i += 1
+        else:
+            if t_update_sql.find('%s') >= 0:
+                i += 1
+            break
+        t_update_sql = t_update_sql[t_index + 1:]
 
-    tNewSQL = tNewSQL+','.join(tColumnList)+' from '+tTableName+' '+tWhereSQL
-    database_log(compose_sql(tNewSQL,val[i:]))
-    tResult = select(tNewSQL,val[i:])
-    if tResult == None : return False
-    for tValue in tResult:
-        tString = ""
-        for i in range(len(tValue)):
-            tString += "{}|".format(tValue[i])
-        database_log(tString)
+    t_new_sql = t_new_sql + ','.join(t_column_list) + ' from ' + t_table_name + ' ' + t_where_sql
+    database_log(compose_sql(t_new_sql, val[i:]))
+    t_result = select(t_new_sql, val[i:])
+    if t_result is None:
+        return False
+    for t_value in t_result:
+        t_string = ""
+        for i in range(len(t_value)):
+            t_string += "{}|".format(t_value[i])
+        database_log(t_string)
     return True
-        
-def update(mSQL,mValue):
 
-    select_by_update(mSQL,mValue)   #update之前先select获取update之前的值
-    tMyDB = None
+
+def update(sql, value):
+    select_by_update(sql, value)  # update之前先select获取update之前的值
+    t_my_db = None
     try:
-        tMyDB = mysql.connector.connect(host="localhost", user=DB_LOGIN['username'], passwd=DB_LOGIN['password'], database=DB_LOGIN['db_name'])
-        tMyCursor = tMyDB.cursor()
-        if mValue == None:
-            tMyCursor.execute(mSQL)
+        t_my_db = mysql.connector.connect(host="localhost",
+                                          user=g_config.DB_LOGIN['username'],
+                                          passwd=g_config.DB_LOGIN['password'],
+                                          database=g_config.DB_LOGIN['db_name'])
+        t_my_cursor = t_my_db.cursor()
+        if value is None:
+            t_my_cursor.execute(sql)
         else:
-            tMyCursor.execute(mSQL,mValue)
-        tMyDB.commit()
+            t_my_cursor.execute(sql, value)
+        t_my_db.commit()
     except Exception as err:
         print(err)
-        #database_log(err)
-        ErrorLog("error:"+compose_sql(mSQL,mValue))
-        if tMyDB != None: tMyDB.close()
+        # database_log(err)
+        error_log("error:" + compose_sql(sql, value))
+        if t_my_db is not None:
+            t_my_db.close()
         return False
     else:
-        database_log(compose_sql(mSQL,mValue))
-        tMyDB.close()
+        database_log(compose_sql(sql, value))
+        t_my_db.close()
         return True
 
-def insert(mSQL,mValue):
-    tMyDB = None
+
+def insert(sql, value):
+    t_my_db = None
     try:
-        tMyDB = mysql.connector.connect(host="localhost", user=DB_LOGIN['username'], passwd=DB_LOGIN['password'], database=DB_LOGIN['db_name'])
-        tMyCursor = tMyDB.cursor()
-        tMyCursor.execute(mSQL,mValue)
-        tMyDB.commit()
+        t_my_db = mysql.connector.connect(host="localhost",
+                                          user=g_config.DB_LOGIN['username'],
+                                          passwd=g_config.DB_LOGIN['password'],
+                                          database=g_config.DB_LOGIN['db_name'])
+        t_my_cursor = t_my_db.cursor()
+        t_my_cursor.execute(sql, value)
+        t_my_db.commit()
     except Exception as err:
         print(err)
-        if tMyDB != None: tMyDB.close()
-        #database_log(err)
-        ErrorLog("error:"+compose_sql(mSQL,mValue))
-        print("failed to exec:"+mSQL)
+        if t_my_db is not None:
+            t_my_db.close()
+        # database_log(err)
+        error_log("error:" + compose_sql(sql, value))
+        print("failed to exec:" + sql)
         return False
     else:
-        database_log(compose_sql(mSQL,mValue))
-        tMyDB.close()
+        database_log(compose_sql(sql, value))
+        t_my_db.close()
         return True
 
-def select(mSQL,mValue=None):
-    tMyDB = None
+
+def select(sql, value=None):
+    t_my_db = None
     try:
-        tMyDB = mysql.connector.connect(host="localhost", user=DB_LOGIN['username'], passwd=DB_LOGIN['password'], database=DB_LOGIN['db_name'])
-        tMyCursor = tMyDB.cursor()
-        if mValue == None:
-            tMyCursor.execute(mSQL)
+        t_my_db = mysql.connector.connect(host="localhost",
+                                          user=g_config.DB_LOGIN['username'],
+                                          passwd=g_config.DB_LOGIN['password'],
+                                          database=g_config.DB_LOGIN['db_name'])
+        t_my_cursor = t_my_db.cursor()
+        if value is None:
+            t_my_cursor.execute(sql)
         else:
-            tMyCursor.execute(mSQL,mValue)
-        tSelectResult = tMyCursor.fetchall()
+            t_my_cursor.execute(sql, value)
+        t_select_result = t_my_cursor.fetchall()
     except Exception as err:
         print(err)
-        #database_log(err)
-        if tMyDB != None: tMyDB.close()
-        ErrorLog("error to exec:"+mSQL)
+        # database_log(err)
+        if t_my_db is not None:
+            t_my_db.close()
+        error_log("error to exec:" + sql)
         return None
     else:
-        tMyDB.close()
-        return tSelectResult
+        t_my_db.close()
+        return t_select_result

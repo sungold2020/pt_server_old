@@ -44,9 +44,10 @@ if re.search(u"[\u4e00-\u9f50]+",string) != None:
     print("contain chinese")
 
 
-import sys
-sys.path.append("..")
-from torrents import *
-
-gTorrents = Torrents()
-gTorrents.request_rss("leagueHD")
+import json
+rss_list = json.load(open("rss.json"))
+print(rss_list)
+for site in rss_list:
+    if site.get('wait_free') == 1: site['wait_free'] = True
+    else: site['wait_free'] = False
+print(rss_list)

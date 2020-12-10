@@ -492,8 +492,8 @@ if __name__ == '__main__' :
     movie.Movie.ErrorLogFile  =  ErrorLogFile
     movie.Movie.ExecLogFile  =  ExecLogFile
     movie.Movie.DebugLogFile  =  DebugLogFile
-    movie.Movie.ToBeExecDirName  =  ToBeExecDirName
-    movie.Movie.ToBeExecRmdir  =  ToBeExecRmdir               
+    movie.Movie.tobe_exec_dir_name  =  ToBeExecDirName
+    movie.Movie.tobe_exec_rmdir  =  ToBeExecRmdir
     if not os.path.isdir(g_CheckDiskPath) :  print(g_CheckDiskPath+"is not  a dir"); exit()
     print("begin check disk:"+g_CheckDiskPath)
     if CheckDiskMovie(g_CheckDiskPath) == -1 : exit()

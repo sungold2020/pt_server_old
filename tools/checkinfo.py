@@ -112,7 +112,7 @@ def check_info():
 
         if ToBeUpdate == False: continue
         print("begin:"+tInfo.douban_id+'|'+tInfo.movie_name)
-        Log(INFO_IGNORE_FILE,tInfo.douban_id+'|'+tInfo.movie_name,time_flag=False)
+        pt_log(INFO_IGNORE_FILE, tInfo.douban_id + '|' + tInfo.movie_name, time_flag=False)
 
         if not tInfo.spider_douban():
             print("failed to douban detail:"+tInfo.douban_id)
