@@ -208,7 +208,11 @@ class Torrent:
                 t_progress = int((t_torrent_files[i]['completed'] / t_torrent_files[i]['size']) * 100)
                 t_files.append({'name': t_name, 'size': t_size, 'progress': t_progress})
         elif self.client == "QB":
-            t_torrent_files = self.torrent.files
+            try:
+                t_torrent_files = self.torrent.files
+            except Exception as err:
+                print(err)
+                return []
             for i in range(len(t_torrent_files)):
                 t_name = t_torrent_files[i].name
                 t_size = t_torrent_files[i].size

@@ -60,12 +60,12 @@ class NexusPage:
             'name': 'LeagueHD',
             'error_count': 0,
             'time_interval': 0,
-            'url': 'https://leaguehd.com/torrents.php',
-            'detail_url': 'https://leaguehd.com/details_movie.php?id=%s',
-            'download_url': 'https://leaguehd.com/download.php?https=1&id=%s&passkey=dfab9bb8e00a9445760abb17ec2fa772',
-            'first_url': 'https://leaguehd.com/',
+            'url': 'https://lemonhd.org/torrents.php',
+            'detail_url': 'https://lemonhd.org/details_movie.php?id=%s',
+            'download_url': 'https://lemonhd.org/download.php?https=1&id=%s&passkey=dfab9bb8e00a9445760abb17ec2fa772',
+            'first_url': 'https://lemonhd.org/',
             'last_url': '&passkey=dfab9bb8e00a9445760abb17ec2fa772',
-            'cookie': 'c_secure_ssl=eWVhaA%3D%3D; c_secure_uid=MTI5NjQ%3D; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D; __cfduid=d31edf1d44395d5664d5d78a7063c3fc91605575200; c_secure_pass=43ba4bf8d502792998450ea87db84f9a'
+            'cookie': '__cfduid=db7284db0af779af650c77653022595191608769247; c_secure_uid=MTI5NjQ%3D; c_secure_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D; c_secure_pass=79d3a50be48a646aadc421e519cd072b; c_secure_tracker_ssl=bm9wZQ%3D%3D'
         },
         {
             'name': 'PTSBao',
@@ -474,6 +474,7 @@ class NexusPage:
         if t_site.get('host'):
             myheaders['host'] = t_site.get('host')
         # site_log(myheaders)
+        print(myheaders)
 
         try:
             res = s.get(detail_url, headers=myheaders, timeout=120)
