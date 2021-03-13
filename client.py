@@ -112,6 +112,7 @@ class PTClient:
         """
         if download_link == "" and torrent_file == "" and torrent_hash == "":
             error_log("empty download link or torrent file")
+            self.error_string = "empty download link or torrent file"
             return None
 
         # 1，获取及校验torrent_file

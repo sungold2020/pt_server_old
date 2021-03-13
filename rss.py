@@ -18,8 +18,7 @@ class RSS:
         self._download_link = download_link
         self._detail_url = detail_url
         self.title = title
-        self._add_datetime = add_datetime if add_datetime != "" else datetime.datetime.now().strftime(
-            '%Y-%m-%d %H:%M:%S')
+        self._add_datetime = add_datetime if add_datetime != "" else datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self._total_size = total_size
 
         self.error_string = ""
@@ -214,6 +213,23 @@ class RSS:
             self.error_string = self.info.error_string
         return return_code
 
+    def print(self):
+        print(self.get_hash())
+        print(self.name)
+        print(self.rss_name)
+        print(self.title)
+        print(self.download_link)
+        print(self.add_status)
+        print(self.total_size)
+        print(self.ad_datetime)
+        print(self.douban_id)
+        print(self.imdb_id)
+        print(self.id_status)
+        print(self.douban_status)
+        print(self.douban_score)
+        print(self.imdb_score)
+        print(self.error_code)
+        print(self.error_string)
     def select(self, assign_value=True):
         if self.rss_name == "":
             return False
@@ -241,7 +257,7 @@ class RSS:
                 imdb_id = t_select_result[0][4]
                 self.downloaded = t_select_result[0][5]
                 self.torrent_id = t_select_result[0][6]
-                self.add_datetime = t_select_result[0][7]
+                self.add_datetime = t_select_result[0][7] if t_select_result[0][7] is not None else ""
                 self.total_size = t_select_result[0][8]
                 if douban_id != "" or imdb_id != "":
                     self.info = Info(douban_id, imdb_id)
@@ -422,7 +438,7 @@ class RSS:
 
     @staticmethod
     def get_torrent_id(download_link):
-        if download_link == "":
+        if download_link is None or download_link == "":
             return ""
         t_index = download_link.find("id=")
         if t_index == -1:
@@ -444,6 +460,8 @@ class RSS:
     def old_free(torrent_id, rss_name):
         t_return = select('select title from rss where rssname=%s and torrentid=%s', (rss_name, torrent_id))
         return False if t_return is None or len(t_return) == 0 else True
+
+
 
     @staticmethod
     def download_torrent_file(download_link, HASH=""):

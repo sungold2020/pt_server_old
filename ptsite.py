@@ -14,6 +14,7 @@ from rsssite import *
 
 class NexusPage:
     user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36"
+    """
     site_list = [
         {
             'name': 'HDSky',
@@ -133,7 +134,7 @@ class NexusPage:
             'cookie': 'c_secure_uid=MzI0Nw%3D%3D; c_secure_pass=7cddc5c333dfd4d14e445633343fd9d0; c_secure_ssl=eWVhaA%3D%3D; c_secure_tracker_ssl=eWVhaA%3D%3D; c_secure_login=bm9wZQ%3D%3D; __cfduid=ddfc65f35daa548ada5a996821ef0a96f1595507049'
         }
     ]
-
+    """
     free_tag = 'pro_free'
     free_tag2 = 'pro_free2up'
     torrents_class_name = '.torrentname'
@@ -150,26 +151,26 @@ class NexusPage:
         self.free_torrents = []
 
     def set_error_count(self, is_success):
-        for i in range(len(NexusPage.site_list)):
-            if NexusPage.site_list[i]['name'] == self.site['name']:
+        for i in range(len(g_config.site_config)):
+            if g_config.site_config[i]['name'] == self.site['name']:
                 if is_success:
-                    if NexusPage.site_list[i]['error_count'] == 0:
+                    if g_config.site_config[i]['error_count'] == 0:
                         return True
-                    NexusPage.site_list[i]['time_interval'] = NexusPage.site_list[i]['time_interval'] / \
-                                                              NexusPage.site_list[i]['error_count']
-                    NexusPage.site_list[i]['error_count'] = 0
+                    g_config.site_config[i]['time_interval'] = g_config.site_config[i]['time_interval'] / \
+                                                              g_config.site_config[i]['error_count']
+                    g_config.site_config[i]['error_count'] = 0
                     exec_log("reset {}.time_interval = {}".format(self.site['name'],
-                                                                  NexusPage.site_list[i]['time_interval']))
+                                                                  g_config.site_config[i]['time_interval']))
                 else:
-                    if NexusPage.site_list[i]['time_interval'] >= 120:
+                    if g_config.site_config[i]['time_interval'] >= 120:
                         return True
-                    NexusPage.site_list[i]['error_count'] += 1
-                    if NexusPage.site_list[i]['error_count'] >= 2:
-                        NexusPage.site_list[i]['time_interval'] = NexusPage.site_list[i]['time_interval'] * \
-                                                                  NexusPage.site_list[i]['error_count'] / (
-                                                                          NexusPage.site_list[i]['error_count'] - 1)
+                    g_config.site_config[i]['error_count'] += 1
+                    if g_config.site_config[i]['error_count'] >= 2:
+                        g_config.site_config[i]['time_interval'] = g_config.site_config[i]['time_interval'] * \
+                                                                  g_config.site_config[i]['error_count'] / (
+                                                                          g_config.site_config[i]['error_count'] - 1)
                     exec_log(
-                        "set {}.time_interval = {}".format(self.site['name'], NexusPage.site_list[i]['time_interval']))
+                        "set {}.time_interval = {}".format(self.site['name'], g_config.site_config[i]['time_interval']))
                 return True
         exec_log("not find site name in site_list:" + self.site['name'])
         # self.Print("error:"+self.error_string)
@@ -251,12 +252,21 @@ class NexusPage:
         cookie_dict = {"cookie": self.site['cookie']}
         s = requests.Session()
         s.cookies.update(cookie_dict)
-
+        myheaders = {
+            'cookie': self.site['cookie'],
+            'user-agent': NexusPage.user_agent}
+        if self.site.get('referer'):
+            myheaders['referer'] = self.site.get('referer')
+        if self.site.get('host'):
+            myheaders['host'] = self.site.get('host')
+        # site_log(myheaders)
         try:
-            if NexusPage.user_agent:
-                res = s.get(self.site['url'], headers={'User-Agent': NexusPage.user_agent}, timeout=120)
-            else:
-                res = s.get(self.site['url'], timeout=120)
+            print(myheaders)
+            res = s.get(self.site['url'], headers=myheaders, timeout=120)
+            #if NexusPage.user_agent:
+            #    res = s.get(self.site['url'], headers={'User-Agent': NexusPage.user_agent}, timeout=120)
+            #else:
+            #    res = s.get(self.site['url'], timeout=120)
         except Exception as err:
             print(err)
             exec_log("failed to request from " + self.site['url'])
@@ -302,11 +312,10 @@ class NexusPage:
             title = (entry.get_text()).strip()
             if title[-1:] == '\n':
                 title = title[:-1]  # 删除\n
-            # 组装下载链接
-            if self.site.get('download_url') is None:
-                download_url = self.site['first_url'] + 'download.php?id=' + torrent_id + self.site['last_url']
-            else:
-                download_url = self.site['download_url'].replace('%s', torrent_id)
+
+            # 载链接
+            download_url = NexusPage.get_download_link(self.site['name'], torrent_id)
+
             if entry.find(class_=NexusPage.free_tag) or entry.find(class_=NexusPage.free_tag2):
                 free = True
             else:
@@ -388,15 +397,66 @@ class NexusPage:
     '''
 
     @staticmethod
+    def get_download_link_from_detail(rss_name, torrent_id=None, detail_url=None):
+        if torrent_id is None and detail_url is None:
+            return ""
+
+        if detail_url is None:
+            detail_url = NexusPage.get_detail_url(rss_name, torrent_id)
+        if detail_url == "":
+            return ""
+
+        site = NexusPage.get_site(rss_name)
+        if site is None:
+            return ""
+        site_log(detail_url)
+        cookie_dict = {"cookie": site['cookie']}
+        s = requests.Session()
+        s.cookies.update(cookie_dict)
+        myheaders = {
+            'cookie': site['cookie'],
+            'user-agent': NexusPage.user_agent}
+        if site.get('referer'):
+            myheaders['referer'] = site.get('referer')
+        if site.get('host'):
+            myheaders['host'] = site.get('host')
+        try:
+            res = s.get(detail_url, headers=myheaders, timeout=120)
+        except Exception as err:
+            print(err)
+            exec_log("failed to request from " + site['url'])
+            # set_error_count(False)
+            return False
+        soup = bs4.BeautifulSoup(res.text, 'lxml')
+        site_log(res.text)
+        if res.text.find("次連續登錄失敗將導致你的IP位址被禁用") >= 0:
+            error_log(f"{site['name']} cookie失效")
+
+        pattern = f"download.php?id={torrent_id}&down"
+        for item in soup.find_all('a'):
+            if item['href'].find(pattern) >= 0:
+                site_log(f"find download_url:{item['href']}")
+                return item['href']
+        return ""
+
+    @staticmethod
+    def get_download_link_from_rss(rss_name, torrent_id):
+        t_return = select("select downloadlink from rss where rssname=%s and torrentid=%s", (rss_name, torrent_id))
+        return t_return[0][0] if t_return is not None and len(t_return) > 0 else ""
+
+    @staticmethod
     def get_download_link(rss_name, torrent_id):
-        for site in NexusPage.site_list:
+        if rss_name == "HDHome":
+            download_link = NexusPage.get_download_link_from_rss(rss_name+"All", torrent_id)
+            return download_link if download_link != "" else NexusPage.get_download_link_from_detail(rss_name, torrent_id)
+        for site in g_config.site_config:
             if site['name'].lower() in rss_name.lower():
                 return site['first_url'] + 'download.php?id=' + torrent_id + site['last_url']
         return ""
 
     @staticmethod
     def get_site(rss_name):
-        for site in NexusPage.site_list:
+        for site in g_config.site_config:
             if rss_name in site['name'] or site['name'] in rss_name:
                 return site
         return None
@@ -405,7 +465,7 @@ class NexusPage:
     def get_detail_url(rss_name, torrent_id):
         # 根据torrent_id来组装detail_url
 
-        for site in NexusPage.site_list:
+        for site in g_config.site_config:
             if rss_name in site['name'] or site['name'] in rss_name:
                 if site.get('detail_url') is None:
                     detail_url = site['first_url'] + 'details.php?id=' + torrent_id + '&hit=1'
@@ -425,7 +485,7 @@ class NexusPage:
         if detail_url.startswith("http"):
             return detail_url
 
-        for site in NexusPage.site_list:
+        for site in g_config.site_config:
             if rss_name in site['name'] or site['name'] in rss_name:
                 if site['first_url'][-1:] == '/':
                     return site['first_url'] + detail_url
@@ -521,3 +581,5 @@ class NexusPage:
             exec_log("failed to get from detail:" + detail_url)
             return_dict['error_string'] = 'failed to get id from summary'
             return return_dict
+
+

@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 # coding=utf-8
 import psutil
+
+import mylib
 import movie
 from connect import *
 from torrents import *
@@ -32,7 +34,7 @@ def handle_task(request):
         if len(request_list) > 0 : gTorrents.check_disk(request_list)
         else                    : gTorrents.check_disk(g_config.CHECK_DISK_LIST)
     elif task == 'rss'          :
-        for RSSName in request_list: gTorrents.request_rss(RSSName,-1)
+        for RSSName in request_list: gTorrents.request_rss(RSSName, -1)
     elif task == 'free'     :
         if len(request_list) > 0 : gTorrents.request_free(request_list[0])
         else                    : gTorrents.request_free('MTeam')
@@ -51,11 +53,13 @@ def handle_task(request):
     elif task == "get_tracker_message" : return gTorrents.request_tracker_message(request_list[0] if len(request_list) == 1 else "")
     elif task == "set_info"     : return set_info(request_list[0] if len(request_list) == 1 else "")
     elif task == "get_info"     : return get_info(request_list[0] if len(request_list) == 1 else "")
+    elif task == "set_remark"   : return set_remark(dict_request)
+    elif task == "bookmark"     : return gTorrents.handle_bookmark(dict_request)
     elif task == 'log'          : return get_log()
     elif task == 'speed'        : return get_speed()
     elif task == 'freespace'    : return get_free_space()
-    #elif task == "movie"        : return gTorrents.request_saved_movie(request_list[0] if len(request_list) == 1 else "")
     elif task == 'query_movies' : return query_movies(dict_request)
+    elif task == 'del_movie': return del_movie(dict_request)
     elif task == 'query_dbmovie_detail' : return query_dbmovie_detail(dict_request)
     elif task == 'set_viewed'   : return set_viewed(dict_request)
     elif task == 'set_dbmovie_info': return set_dbmovie_info(dict_request)
@@ -70,12 +74,21 @@ def handle_task(request):
 
 
 def get_log():
-    command = "tail -n 300 /root/pt/log/pt.log > log/temp.log"
-    if os.system(command) == 0:
-        socket_log("success exec:"+command)
-    with open('log/temp.log', 'r') as f1:
-        log_str = f1.read()
-    return ''.join(log_str)
+    last_lines = mylib.get_last_lines(g_config.ExecLogFile, 300)
+    return "\n".join(last_lines)
+    """
+    if g_config.os_type == "Windows":
+        # TODO
+    elif g_config.os_type == "Linux":
+        command = "tail -n 300 /root/pt/log/pt.log > log/temp.log"
+        if os.system(command) == 0:
+            socket_log("success exec:"+command)
+        with open('log/temp.log', 'r') as f1:
+            log_str = f1.read()
+        return ''.join(log_str)
+    else:
+        return "failed, unknown os_type"
+    """
 
 
 def get_speed():
@@ -88,8 +101,7 @@ def get_speed():
 
 
 def get_free_space():
-    bt_stat = os.statvfs(g_config.DOWNLOAD_FOLDER)
-    free_size = (bt_stat.f_bavail * bt_stat.f_frsize) / (1024 * 1024 * 1024)
+    free_size = mylib.get_free_size(g_config.DOWNLOAD_FOLDER)
     return "{:.0f}".format(free_size)
 
 
@@ -144,6 +156,23 @@ def get_info(request_str):
     return f"{info.douban_id}|{info.imdb_id}|{info.douban_score}|{info.imdb_score}|\
                 {info.movie_name}|{info.nation}|{info.type}|{info.director}|{info.actors}|{info.poster}|{info.genre}"
 
+def set_remark(request):
+    """
+    dict:request
+    
+    """
+    douban_id = request.get("douban_id","")
+    imdb_id   = request.get("imdb_id","")
+    remark    = request.get("remark","")
+    if douban_id == "" and imdb_id == "":
+        return "id is null"
+    info = Info(douban_id,imdb_id)
+    if not info.select():
+        return "table info have no record"
+    info.remark = remark
+    if not info.update():
+        return "failed to update table info"
+    return "Success"
 
 def query_movies(request):
     """
@@ -161,9 +190,13 @@ def query_movies(request):
     
     number = request.get('number')
     if number is not None:
+        number = number.replace(" ","")
         if where_sql != "":
             where_sql += ' and '
-        where_sql += f"movies.number={number}"
+        if number[0:1] == ">" or number[0:1] == "<" or number[0:1] == "=":
+            where_sql += f"movies.number{number}"
+        else:
+            where_sql += f"movies.number={number}"
 
     doubanid = request.get('douban_id')
     if doubanid is not None:
@@ -188,15 +221,16 @@ def query_movies(request):
         if where_sql != "":
             where_sql += ' and '
         if deleted == 0:
-            where_sql += 'deleted=0'
+            where_sql += 'movies.deleted=0'
         else:
-            where_sql += 'deleted=1'
+            where_sql += 'movies.deleted=1'
 
     nation = request.get('nation')
     viewed = request.get('viewed')
     genre = request.get('genre')
-    if nation is not None or viewed is not None or genre is not None:
-        select_sql = "select movies.number, movies.dirname, movies.disk, movies.size, \
+    remark = request.get('remark')
+    if nation is not None or viewed is not None or genre is not None or remark is not None:
+        select_sql = "select movies.number, movies.copy, movies.dirname, movies.disk, movies.size, \
                             movies.deleted, movies.doubanid, movies.imdbid from movies,info "
         if where_sql != "":
             where_sql += ' and '
@@ -204,9 +238,15 @@ def query_movies(request):
 
         if genre is not None:
             where_sql += f" and info.genre like '%{genre}%'"
+        
+        if remark is not None:
+            if remark != "":
+                where_sql += f" and info.remark like '%{remark}%'"
+            else:
+                where_sql += f" and info.remark = '' "
 
         if nation is not None:
-            if nation == "港澳台":
+            if nation == "国港台":
                 where_sql += " and (info.nation='港' or info.nation ='国' or info.nation='台')"
             elif nation == "韩":
                 where_sql += " and info.nation='韩'"
@@ -224,35 +264,52 @@ def query_movies(request):
             else:
                 where_sql += " and info.viewed=0"
     else:
-        select_sql = "select movies.number, movies.dirname, movies.disk, movies.size, \
+        select_sql = "select movies.number, movies.copy, movies.dirname, movies.disk, movies.size, \
                             movies.deleted, movies.doubanid, movies.imdbid from movies "
 
     records = select(select_sql+'where '+where_sql, None)
+    print(select_sql+'where '+where_sql)
     if records is None:
         return "failed"
     dict_list = []
     for record in records:
-        info = Info(record[5], record[6])
+        # print(record)
+        info = Info(record[6], record[7])
+        douban_score = info.douban_score if info.douban_score != "" else "-"
+        imdb_score = info.imdb_score if info.imdb_score != "" else "-"
         temp_dict = {
             'number': record[0],
-            'dir_name': record[1],
-            'disk': record[2],
-            'size': record[3],
-            'deleted': record[4],
-            'viewed': info.viewed
+            'copy': record[1],
+            'dir_name': record[2],
+            'disk': record[3],
+            'size': record[4],
+            'deleted': record[5],
+            'viewed': info.viewed,
+            'remark': info.remark,
+            'score' : f"{douban_score}/{imdb_score}"
         }
         dict_list.append(temp_dict)
     return json.dumps(dict_list)
 
 
+def del_movie(request):
+    number = request.get('number')
+    copy = request.get('copy',0)
+    size = request.get('size')
+    if delete("delete from movies where number=%s and copy=%s and size=%s",(number,copy,size)):
+        return "Success"
+    else:
+        return "failed"
+
 def query_dbmovie_detail(request):
     number = request.get('number')
+    copy = request.get('copy',0)
     size = request.get('size')
     
     # 获取doubanid,imdbid
-    records = select("select doubanid,imdbid from movies where number=%s and size = %s", (number, size))
+    records = select("select doubanid,imdbid from movies where number=%s and copy=%s and size=%s", (number, copy, size))
     if records is None or len(records) != 1:
-        exec_log(f"failed to exec:select doubanid imdbid from movies where number={number} and size={size}")
+        exec_log(f"failed to exec:select doubanid,imdbid from movies where number={number} and copy={copy} and size={size}")
         return "failed"
     doubanid = records[0][0]
     imdbid = records[0][1]
@@ -350,7 +407,6 @@ def backup_daily():
         d,table:rss
         e,ta:info
     """
-    # 1，backup torrents
     if g_config.QB_BACKUP_DIR[-1:] != '/':
         g_config.QB_BACKUP_DIR = g_config.QB_BACKUP_DIR+'/'
     if g_config.TR_BACKUP_DIR[-1:] != '/':
@@ -360,33 +416,34 @@ def backup_daily():
     if g_config.TR_TORRENTS_BACKUP_DIR[-1:] != '/':
         g_config.TR_TORRENTS_BACKUP_DIR = g_config.TR_TORRENTS_BACKUP_DIR+'/'
 
-    qb_copy_command = "cp -n "+g_config.QB_BACKUP_DIR+"* "+g_config.QB_TORRENTS_BACKUP_DIR
-    if os.system(qb_copy_command) == 0:
-        exec_log("success exec:" + qb_copy_command)
+    # 1，backup QB的torrents目录
+    if mylib.copy(g_config.QB_BACKUP_DIR, g_config.QB_TORRENTS_BACKUP_DIR, mylib.IGNORE):
+        exec_log(f"success exec:copy({g_config.QB_BACKUP_DIR},{g_config.QB_TORRENTS_BACKUP_DIR})")
     else:
-        exec_log("failed to exec:" + qb_copy_command)
+        exec_log(f"failed to exec:copy({g_config.QB_BACKUP_DIR},{g_config.QB_TORRENTS_BACKUP_DIR})")
         return False
 
-    tr_copy_command1 = "cp -n "+g_config.TR_BACKUP_DIR+"torrents/* "+g_config.TR_TORRENTS_BACKUP_DIR
-    if os.system(tr_copy_command1) == 0:
-        exec_log("success exec:" + tr_copy_command1)
+    # 2.1，backup TR的torrents目录
+    if mylib.copy(g_config.TR_BACKUP_DIR+"torrents/", g_config.TR_TORRENTS_BACKUP_DIR, mylib.IGNORE):
+        exec_log(f'success exec:copy({g_config.TR_BACKUP_DIR+"torrents/"},{g_config.TR_TORRENTS_BACKUP_DIR})')
     else:
-        exec_log("failed to exec:" + tr_copy_command1)
+        exec_log(f'failed to exec:copy({g_config.TR_BACKUP_DIR+"torrents/"},{g_config.TR_TORRENTS_BACKUP_DIR})')
         return False
-    tr_copy_command2 = "cp -n "+g_config.TR_BACKUP_DIR+"resume/* "+g_config.TR_TORRENTS_BACKUP_DIR
-    if os.system(tr_copy_command2) == 0:
-        exec_log("success exec:" + tr_copy_command2)
+    # 2.2，backup TR的resume目录
+    if mylib.copy(g_config.TR_BACKUP_DIR+"resume/", g_config.TR_TORRENTS_BACKUP_DIR, mylib.IGNORE):
+        exec_log(f'success exec:copy({g_config.TR_BACKUP_DIR+"resume/"},{g_config.TR_TORRENTS_BACKUP_DIR})')
     else:
-        exec_log("failed to exec:" + tr_copy_command2)
-        return False
-
-    # 2, exec backup_daily.sh
-    if os.system("/root/backup_daily.sh") == 0:
-        exec_log("success exec:/root/backup_daily.sh")
-    else:
-        exec_log("failed to exec:/root/backup_daily.sh")
+        exec_log(f'failed to exec:copy({g_config.TR_BACKUP_DIR+"resume/"},{g_config.TR_TORRENTS_BACKUP_DIR})')
         return False
 
+    """
+    # 3, 执行每日备份脚本
+    if os.system(g_config.BACKUP_DAILY_SHELL) == 0:
+        exec_log(f"success exec:{g_config.BACKUP_DAILY_SHELL}")
+    else:
+        exec_log(f"failed to exec:{g_config.BACKUP_DAILY_SHELL}")
+        return False
+    """
 
 def listen_socket():
     while True:
@@ -462,6 +519,7 @@ def keep_torrents(disk_path):
 
 
 if __name__ == '__main__':
+    g_config.os_type = platform.system()
 
     log_clear()
 
@@ -503,8 +561,8 @@ if __name__ == '__main__':
             backup_daily()
             # 一月备份一次qb，tr,data
             if gToday[8:10] == '01':
-                os.system("/root/backup.sh")
-                exec_log("exec:/root/backup.sh")
+                os.system(g_config.BACKUP_MONTHLY_SHELL)
+                exec_log(f"exec:{g_config.BACKUP_MONTHLY_SHELL}")
             if gToday[8:10] == '01' or gToday[8:10] == '15':
                 update_viewed(True)    # 半月更新一次viewed
         else:
@@ -519,7 +577,7 @@ if __name__ == '__main__':
         # 检查一下内存占用
         tMem = psutil.virtual_memory()
         debug_log("memory percent used:" + str(tMem.percent))
-        if tMem.percent >= 92:
+        if tMem.percent >= 95:
             exec_log("memory percent used:" + str(tMem.percent))
             PTClient("QB").restart()
 

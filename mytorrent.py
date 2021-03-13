@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # coding=utf-8
 
+import mylib
 from movie import *
 
 from torrent import *
@@ -9,18 +10,8 @@ from ptsite import *
 from client import PTClient
 
 global g_config
-# DOWNLOAD_FOLDER = "/media/root/BT/movies"
-# TO_BE_PATH = "/media/root/BT/tobe/"           #保存的电影所在临时目录
-# TR_KEEP_DIR = "/media/root/BT/keep/"
 
-# QB的备份目录BT_backup，我的运行环境目录如下，如有不同请搜索qbittorrent在不同OS下的配置
-# QB_BACKUP_DIR  = "/root/.local/share/data/qBittorrent/BT_backup"
-# TR_BACKUP_DIR = "/root/.config/transmission"
-
-# 转移做种以后，把种子文件和快速恢复文件转移到QBTorrentsBackupDir目录进行保存，以备需要
-# QB_TORRENTS_BACKUP_DIR = "data/qb_backup"
-# TR_TORRENTS_BACKUP_DIR = "data/tr_backup"
-
+BOOKMARK = -2
 MANUAL = -1
 TO_BE_ADD = 0
 TO_BE_START = 1
@@ -383,9 +374,9 @@ class MyTorrent:
     @property
     def add_datetime(self):
         if self.torrent.torrent is not None:
-            return self.torrent.add_datetime
+            return self.torrent.add_datetime if self.torrent.add_datetime is not None else ""
         else:
-            return self.rss.add_datetime
+            return self.rss.add_datetime if self.rss.add_datetime is not None else ""
 
     @add_datetime.setter
     def add_datetime(self, add_datetime):
@@ -520,8 +511,7 @@ class MyTorrent:
         if not self.rss.update_downloaded():
             error_log("failed to update rss:" + self.name + ':' + self.HASH)
 
-        t_bt_stat = os.statvfs(g_config.DOWNLOAD_FOLDER)
-        t_free_size = (t_bt_stat.f_bavail * t_bt_stat.f_frsize) / (1024 * 1024 * 1024)
+        t_free_size = mylib.get_free_size(g_config.DOWNLOAD_FOLDER)
         # DebugLog("free size:"+str(tFreeSize))
         t_size = self.torrent.total_size / (1024 * 1024 * 1024)
         # DebugLog("Size:"+str(tSize))
@@ -919,3 +909,54 @@ class MyTorrent:
             else:
                 error_log("error:" + in_sql + "::" + self.hash)
                 return False
+
+    def to_dict(self):
+        temp_dict = {
+                'client': self.client,
+                'hash': self.get_hash(),
+                'add_status': self.add_status,
+                'name': self.get_compiled_name(),
+                'rss_name': self.rss_name,
+                'download_link': self.download_link,
+                'detail_url': self.detail_url,
+                'progress': self.progress,
+                'torrent_status': self.torrent_status,
+                'category': self.category,
+                'tags': self.tags,
+                'total_size': self.total_size,
+                'add_datetime': self.add_datetime,
+                'douban_id': self.douban_id,
+                'imdb_id': self.imdb_id,
+                'douban_score': self.douban_score if self.douban_score != "" else '-',
+                'imdb_score': self.imdb_score if self.imdb_score != "" else '-',
+                'movie_name': self.movie_name,
+                'nation': self.nation,
+                'poster': self.poster,
+                'error_code': self.error_code,
+                'error_string': self.error_string
+            }
+        return temp_dict
+        
+
+    def save_bookmark(self):
+        # save to table bookmark 
+        sql = "insert into bookmarks\
+            (hash,name,rssname,title,downloadlink,detailurl,size,adddatetime,doubanid,imdbid,torrentid)\
+             values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+
+        val = (
+                self.get_hash(),
+                self.name,
+                self.rss_name,
+                self.title,
+                self.download_link,
+                self.detail_url,
+                self.total_size,
+                self.add_datetime,
+                self.douban_id,
+                self.imdb_id,
+                self.torrent_id)
+        if insert(sql, val):
+            return "Success"
+        else:
+            return "failed"

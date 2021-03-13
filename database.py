@@ -97,6 +97,32 @@ def update(sql, value):
         t_my_db.close()
         return True
 
+def delete(sql, value):
+    #select_by_delete(sql, value)
+    t_my_db = None
+    try:
+        t_my_db = mysql.connector.connect(host="localhost",
+                                          user=g_config.DB_LOGIN['username'],
+                                          passwd=g_config.DB_LOGIN['password'],
+                                          database=g_config.DB_LOGIN['db_name'])
+        t_my_cursor = t_my_db.cursor()
+        if value is None:
+            t_my_cursor.execute(sql)
+        else:
+            t_my_cursor.execute(sql, value)
+        t_my_db.commit()
+    except Exception as err:
+        print(err)
+        # database_log(err)
+        error_log("error:" + compose_sql(sql, value))
+        if t_my_db is not None:
+            t_my_db.close()
+        return False
+    else:
+        database_log(compose_sql(sql, value))
+        t_my_db.close()
+        return True
+
 
 def insert(sql, value):
     t_my_db = None

@@ -46,6 +46,7 @@ class Info:
         self.episodes = 0
         self.genre = ""
         self.viewed = 0
+        self.remark = ""
 
         if self.douban_id == "" and self.imdb_id == "":
             error_log("Info.init():id is null")
@@ -128,7 +129,8 @@ class Info:
                       "poster=%s,"
                       "episodes=%s,"
                       "genre=%s,"
-                      "doubanstatus=%s"
+                      "doubanstatus=%s,"
+                      "remark=%s"
                       " where doubanid=%s")
             up_val = (
                 self.imdb_id,
@@ -148,6 +150,7 @@ class Info:
                 self.episodes,
                 self.genre,
                 self.douban_status,
+                self.remark,
                 self.douban_id)
         else:
             up_sql = ("update info set "
@@ -167,7 +170,8 @@ class Info:
                       "poster=%s,"
                       "episodes=%s,"
                       "genre=%s,"
-                      "doubanstatus=%s"
+                      "doubanstatus=%s,"
+                      "remark=%s"
                       " where imdbid=%s")
             up_val = (
                 self.douban_id,
@@ -187,6 +191,7 @@ class Info:
                 self.episodes,
                 self.genre,
                 self.douban_status,
+                self.remark,
                 self.imdb_id)
         if not update(up_sql, up_val):
             return False
@@ -226,7 +231,8 @@ class Info:
                    "genre,"
                    "doubanstatus,"
                    "year,"
-                   "viewed"
+                   "viewed,"
+                   "remark"
                    " from info where imdbid = %s")
         sel_val = (self.imdb_id,)
         t_select_result = select(sel_sql, sel_val)
@@ -260,6 +266,7 @@ class Info:
             if t_select_result[0][15] != -2: self.douban_status = t_select_result[0][15]
             if t_select_result[0][16] != 0: self.year = t_select_result[0][16]
             if t_select_result[0][17] != -1: self.viewed = t_select_result[0][17]
+            if t_select_result[0][18] != "": self.remark = t_select_result[0][18]
         return True
 
     def select_by_douban_id(self, assign_value=True):
@@ -283,7 +290,8 @@ class Info:
                    "genre,"
                    "doubanstatus,"
                    "year,"
-                   "viewed"
+                   "viewed,"
+                   "remark"
                    " from info where doubanid = %s")
         sel_val = (self.douban_id,)
         t_select_result = select(sel_sql, sel_val)
@@ -317,6 +325,7 @@ class Info:
             if t_select_result[0][15] != -2: self.douban_status = t_select_result[0][15]
             if t_select_result[0][16] != 0: self.year = t_select_result[0][16]
             if t_select_result[0][17] != -1: self.viewed = t_select_result[0][17]
+            if t_select_result[0][18] != "": self.remark = t_select_result[0][18]
         return True
 
     def update_or_insert(self):
@@ -389,7 +398,8 @@ class Info:
             "type": self.type,
             "genre": self.genre,
             "poster": self.poster,
-            "viewed": self.viewed
+            "viewed": self.viewed,
+            "remark": self.remark
         }
         return info_dict
 
@@ -434,6 +444,8 @@ class Info:
             info.poster = dict_info.get('poster')
         if dict_info.get('viewed', -1) != "": 
             info.viewed = dict_info.get('viewed')
+        if dict_info.get("remark", "") != "":
+            info.remark = dict_info.get("remark")
         return info
 
     @staticmethod
@@ -510,11 +522,11 @@ class Info:
         if str(soup).find("异常请求") >= 0:
             error_log("failed to request douban detail")
             self.error_string = "failed to request douban detail"
-            error_log(res.text)
+            info_log(res.text)
             return False
         if "页面不存在" in soup.title.text:
             error_log("the douban id does not exist:" + self.douban_id)
-            error_log(res.text)
+            info_log(res.text)
             self.error_string = f"the douban_id does not exist:{self.douban_id}"
             return False
 
@@ -629,9 +641,10 @@ class Info:
 
         self.remove_special_char()
         if self.nation != '' and self.movie_name != "":
+            self.douban_status = OK
             if not self.update_or_insert(): 
                 exec_log(f"插入/更新表info出现错误:{self.douban_id}|{self.imdb_id}|{self.movie_name}")
-            self.douban_status = OK
+                self.douban_status = NOK
             # self.spider_status = OK
             return True
         else:

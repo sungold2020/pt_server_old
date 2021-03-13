@@ -1,4 +1,5 @@
 import json
+import platform
 from log import *
 
 
@@ -7,6 +8,7 @@ class Config:
         self.sys_config = None    # 系统配置
         self.site_config = None   # pt-site
         self.rss_config = None
+        self.os_type = platform.system()
 
     @property
     def CHECK_DISK_LIST(self):
@@ -132,6 +134,12 @@ class Config:
     def TORRENTS_DIR(self, TORRENTS_DIR):
         if self.sys_config is not None:
             self.sys_config['TORRENTS_DIR'] = TORRENTS_DIR
+    @property
+    def BACKUP_DAILY_SHELL(self):
+        return self.sys_config.get("BACKUP_DAILY_SHELL","") if self.sys_config is not None else ""
+    @property
+    def BACKUP_MONTHLY_SHELL(self):
+        return self.sys_config.get("BACKUP_MONTHLY_SHELL","") if self.sys_config is not None else ""
     @property
     def rss_list(self):
         return self.rss_config

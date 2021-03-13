@@ -161,7 +161,7 @@ class Torrents:
                     else:
                         self.torrent_list[i].add_status = MANUAL   # 出现错误，改成待确认状态
                         self.torrent_list[i].error_code = ERROR_FAILED_TO_ADD
-                        self.torrent_list[i].error_string = pt_client.error_String
+                        self.torrent_list[i].error_string = pt_client.error_string
                         error_log("failed to add torrent:" + self.torrent_list[i].get_compiled_name())
                 elif self.torrent_list[i].add_status == MANUAL:
                     self.torrent_list[i].check_movie_info()
@@ -180,9 +180,9 @@ class Torrents:
             exec_log(f"torrent_list_backup:{g_config.TORRENT_LIST_BACKUP} does not exist")
             return False
         for line in open(g_config.TORRENT_LIST_BACKUP):
-            client, torrent_hash, name, site_name, title, download_link, add_status_str, total_size_str, \
+            client, torrent_hash, name, site_name, title, download_link, detail_url, add_status_str, total_size_str, \
                 add_date_time, douban_id, imdb_id, id_status_str, douban_status_str, douban_score, imdb_score, \
-                error_code, error_string, t_date_data_str = line.split('|', 17)
+                error_code, error_string, t_date_data_str = line.split('|', 18)
             if t_date_data_str[-1:] == '\n':
                 t_date_data_str = t_date_data_str[:-1]  # remove '\n'
             t_date_data_list = t_date_data_str.split(',')
@@ -204,7 +204,7 @@ class Torrents:
             t_rss = RSS(torrent_hash,
                         site_name,
                         download_link,
-                        '',
+                        detail_url,
                         title,
                         douban_id,
                         imdb_id,
@@ -284,24 +284,30 @@ class Torrents:
                 t_date_data_list_str += t_date_data_str+','
             if t_date_data_list_str[-1:] == ',':
                 t_date_data_list_str = t_date_data_list_str[:-1]  # 去掉最后一个','
-            t_str  =     self.torrent_list[i].client+'|'
-            t_str +=     self.torrent_list[i].get_hash()+'|'
-            t_str +=     self.torrent_list[i].name.replace('|', '')+'|'
-            t_str +=     self.torrent_list[i].rss_name+'|'
-            t_str +=     self.torrent_list[i].title.replace('|', '')+'|'
-            t_str +=     self.torrent_list[i].download_link+'|'
-            t_str += str(self.torrent_list[i].add_status)+'|'
-            t_str += str(self.torrent_list[i].total_size)+'|'
-            t_str +=     self.torrent_list[i].add_datetime+'|'
-            t_str +=     self.torrent_list[i].douban_id+'|'
-            t_str +=     self.torrent_list[i].imdb_id+'|'
-            t_str += str(self.torrent_list[i].id_status)+'|'
-            t_str += str(self.torrent_list[i].douban_status)+'|'
-            t_str +=     self.torrent_list[i].douban_score+'|'
-            t_str +=     self.torrent_list[i].imdb_score+'|'
-            t_str += str(self.torrent_list[i].error_code)+'|'
-            t_str +=     self.torrent_list[i].error_string+'|'
-            t_str +=     t_date_data_list_str+'\n'
+            try:
+                t_str  =     self.torrent_list[i].client+'|'
+                t_str +=     self.torrent_list[i].get_hash()+'|'
+                t_str +=     self.torrent_list[i].name.replace('|', '')+'|'
+                t_str +=     self.torrent_list[i].rss_name+'|'
+                t_str +=     self.torrent_list[i].title.replace('|', '')+'|'
+                t_str +=     self.torrent_list[i].download_link+'|'
+                t_str +=     self.torrent_list[i].detail_url+'|'
+                t_str += str(self.torrent_list[i].add_status)+'|'
+                t_str += str(self.torrent_list[i].total_size)+'|'
+                t_str +=     self.torrent_list[i].add_datetime+'|'
+                t_str +=     self.torrent_list[i].douban_id+'|'
+                t_str +=     self.torrent_list[i].imdb_id+'|'
+                t_str += str(self.torrent_list[i].id_status)+'|'
+                t_str += str(self.torrent_list[i].douban_status)+'|'
+                t_str +=     self.torrent_list[i].douban_score+'|'
+                t_str +=     self.torrent_list[i].imdb_score+'|'
+                t_str += str(self.torrent_list[i].error_code)+'|'
+                t_str +=     self.torrent_list[i].error_string+'|'
+                t_str +=     t_date_data_list_str+'\n'
+            except Exception as err:
+                print(err)
+                self.torrent_list[i].print()
+                continue
             fo.write(t_str)
       
         fo.close()
@@ -648,7 +654,7 @@ class Torrents:
 
     def request_free(self, site_name="", time_interval=-1):
         debug_log(f"request free:{site_name}::{time_interval}")
-        for site in NexusPage.site_list:
+        for site in g_config.site_list:
             if site_name.lower() == site['name'].lower()\
                     or (site['time_interval'] != 0 and time_interval % site['time_interval'] == 0):
                 t_site = site
@@ -748,6 +754,7 @@ class Torrents:
                 try:
                     t_summary = BeautifulSoup(t_entry.summary, 'lxml').get_text()
                 except Exception as err:
+                    print(f"{title}:")
                     print(err)
                     pass
                 return_code, douban_id, imdb_id = Info.get_from_summary(t_summary)
@@ -835,86 +842,102 @@ class Torrents:
         for i in range(len(self.torrent_list)):
             if self.torrent_list[i].client in t_client_list:
                 torrent = self.torrent_list[i]
-                temp_dict = {
-                        'client': torrent.client,
-                        'hash': torrent.get_hash(),
-                        'add_status': torrent.add_status,
-                        'name': torrent.get_compiled_name(),
-                        'rss_name': torrent.rss_name,
-                        'download_link': torrent.download_link,
-                        'detail_url': torrent.detail_url,
-                        'progress': torrent.progress,
-                        'torrent_status': torrent.torrent_status,
-                        'category': torrent.category,
-                        'tags': torrent.tags,
-                        'total_size': torrent.total_size,
-                        'add_datetime': torrent.add_datetime,
-                        'douban_id': torrent.douban_id,
-                        'imdb_id': torrent.imdb_id,
-                        'douban_score': torrent.douban_score if torrent.douban_score != "" else '-',
-                        'imdb_score': torrent.imdb_score if torrent.imdb_score != "" else '-',
-                        'movie_name': torrent.movie_name,
-                        'nation': torrent.nation,
-                        'poster': torrent.poster,
-                        'error_code': torrent.error_code,
-                        'error_string': torrent.error_string
-                    }
-                temp_list.append(temp_dict)
+                temp_list.append(torrent.to_dict())
         return json.dumps(temp_list)
 
-    '''
-    def query_torrents(self,mList=[]):
-        """
-        mList =
-        []   : default qb+null
-        qb   : qb
-        all  : all
-        tr   : tr
-        null : null
-        """
-        if   len(mList) == 0: tClientList =  ['QB','']
-        elif len(mList) >= 2: ErrorLog("invalid arg mList="+' '.join(mList)); return ""
-        else                : # len(mList) == 1
-            if   mList[0].lower() == 'qb': tClientList = ['QB']
-            elif mList[0].lower() == 'tr': tClientList = ['TR']
-            elif mList[0].lower() == 'all': tClientList = ['QB','TR','']
-            elif mList[0].lower() == 'null': tClientList = ['']
-            elif mList[0].lower() == 'default': tClientList = ['QB','']
-            else: ErrorLog("invalid arg mList="+mList[0]); return ""
 
-        #qb，返回前刷新下状态
-        if mList[0].lower() == 'qb': self.check_torrents("QB")
+    def handle_bookmark(self,request):
+        action = request.get("action")
+        if action is None:
+            return "failed, no action"
+        if action == "query":
+            return Torrents.query_all_bookmarks()
+        elif action == "save":
+            HASH = request.get("hash")
+            if HASH is None:
+                return "failed, no hash"
+            my_torrent = self.get_torrent("QB",HASH)
+            reply = my_torrent.save_bookmark()
+            if reply == "Success":
+                self.del_torrent("QB",HASH)
+            return reply
+        elif action == "search":
+            reply = Torrents.search_bookmarks(request)
+            
 
-        tReply = ""
-        for i in range(len(self.torrent_list)):
-            if self.torrent_list[i].client in tClientList:
-                tReply += self.torrent_list[i].client+'|'
-                tReply += self.torrent_list[i].get_hash()+'|'
-                tReply += str(self.torrent_list[i].add_status)+'|'
-                tReply += self.torrent_list[i].get_compiled_name()+'|'
-                tReply += self.torrent_list[i].rss_name+'|'
-                tReply += self.torrent_list[i].download_link+'|'
-                tReply += str(self.torrent_list[i].progress)+'|'
-                tReply += str(self.torrent_list[i].torrent_status)+'|'
-                tReply += self.torrent_list[i].category+'|'
-                tReply += self.torrent_list[i].tags+'|'
-                tReply += str(self.torrent_list[i].total_size)+'|'
-                tReply += self.torrent_list[i].add_datetime+'|'
-                tReply += self.torrent_list[i].douban_id+'|'
-                tReply += self.torrent_list[i].imdb_id+'|'
-                if self.torrent_list[i].douban_score == "":
-                    tReply += '-'+'|'
-                else:
-                    tReply += self.torrent_list[i].douban_score+'|'
-                if self.torrent_list[i].imdb_score == "":
-                    tReply += '-'+'|'
-                else:
-                    tReply += self.torrent_list[i].imdb_score+'|'
-                tReply += self.torrent_list[i].movie_name+'|'
-                tReply += self.torrent_list[i].nation+'|'
-                tReply += self.torrent_list[i].poster+'\n'
-        return tReply
-    '''
+    @staticmethod
+    def query_all_bookmarks():
+        temp_list = []
+        results = select("select hash,name,rssname,title,downloadlink,detailurl,size,adddatetime,doubanid,imdbid,torrentid from bookmarks", None)
+        for result in results:
+            HASH = result[0]
+            name = result[1]
+            rss_name = result[2]
+            title = result[3]
+            download_link = result[4]
+            detail_url = result[5]
+            size = result[6]
+            add_datetime = result[7]
+            douban_id = result[8]
+            imdb_id = result[9]
+            torrent_id = result[10]
+            if douban_id == "" and imdb_id == "":
+                rss = RSS(HASH,rss_name,download_link,detail_url,title,douban_id,imdb_id,add_datetime,size)
+            else:
+                rss = RSS(HASH,rss_name,download_link,detail_url,title,douban_id,imdb_id,add_datetime,size,OK)
+            my_torrent = MyTorrent(None,rss,BOOKMARK)
+            temp_list.append(my_torrent.to_dict())
+        return json.dumps(temp_list)
+
+    @staticmethod
+    def search_bookmarks(request):
+        # by douban_id and imdb_id
+        douban_id = request.get("douban_id", "")
+        imdb_id = request.get("imdb_id", "")
+        temp_list = []
+        if douban_id != "":
+            sql = "select hash,name,rssname,title,downloadlink,detailurl,size,adddatetime,doubanid,imdbid,torrentid from bookmarks where doubanid=%s"
+            results = select(sql, (douban_id,))
+            if results is not None:
+                for result in results:
+                    HASH = result[0]
+                    name = result[1]
+                    rss_name = result[2]
+                    title = result[3]
+                    download_link = result[4]
+                    detail_url = result[5]
+                    size = result[6]
+                    add_datetime = result[7]
+                    douban_id = result[8]
+                    imdb_id = result[9]
+                    torrent_id = result[10]
+                    rss = RSS(HASH,rss_name,download_link,detail_url,title,douban_id,imdb_id,add_datetime,size,OK)
+                    my_torrent = MyTorrent(None,rss,BOOKMARK)
+                    temp_list.append(my_torrent.to_dict())
+        elif imdb_id != "":
+            sql = "select hash,name,rssname,title,downloadlink,detailurl,size,adddatetime,doubanid,imdbid,torrentid from bookmarks where imdbid=%s"
+            results = select(sql, (imdb_id,))
+            if results is not None:
+                for result in results:
+                    HASH = result[0]
+                    name = result[1]
+                    rss_name = result[2]
+                    title = result[3]
+                    download_link = result[4]
+                    detail_url = result[5]
+                    size = result[6]
+                    add_datetime = result[7]
+                    douban_id = result[8]
+                    imdb_id = result[9]
+                    torrent_id = result[10]
+                    rss = RSS(HASH,rss_name,download_link,detail_url,title,douban_id,imdb_id,add_datetime,size,OK)
+                    my_torrent = MyTorrent(None,rss,BOOKMARK)
+                    temp_list.append(my_torrent.to_dict())
+        else:
+            return "failed, there is no douban_id or imdb_id"
+        return json.dumps(temp_list)
+                    
+                
 
     def request_set_id(self, request_str):
         """
@@ -965,7 +988,9 @@ class Torrents:
             exec_log("failed to connect " + t_client)
             return "failed to connect "+t_client
         if client.set_category(t_hash, t_category):
-            exec_log(f"set_category:{self.get_torrent(t_client, t_hash).get_compiled_name()}|{t_category}")
+            mytorrent = self.get_torrent(t_client, t_hash)
+            compiled_name = mytorrent.get_compiled_name() if mytorrent is not None else "未找到torrent"
+            exec_log(f"set_category:{compiled_name}|{t_category}")
             return "Success"
         else:
             return "failed to set category"
@@ -982,7 +1007,13 @@ class Torrents:
             return "error requeststr:" + request_str
         debug_log("to del {}|{}".format(t_client, t_hash))
         t_is_delete_file = (t_is_delete_file_str.lower() == "true")
-        return self.del_torrent(t_client, t_hash, t_is_delete_file)
+        if self.get_torrent("QB", t_hash) != None:
+            return self.del_torrent(t_client, t_hash, t_is_delete_file)
+        # 尝试从bookmarks表中删除
+        if delete("delete from bookmarks where hash=%s",(t_hash,)):
+            return "Success"
+        else:
+            return "failed, not found in bookmarks"
 
     def request_act_torrent(self, request_str):
         """

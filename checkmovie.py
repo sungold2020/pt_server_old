@@ -6,8 +6,19 @@ import shutil
 import re
 import datetime
 from movie import *
-import mysql.connector
 import config
+
+DISK_LIST = [
+        {"path": "/media/root/BT/tobe", "name": "tobe"},
+        {"path": "/media/root/wd2t", "name": "wd2t"},
+        {"path": "/media/root/wd2t-2", "name": "wd2t-2"},
+        {"path": "/media/root/sg3t", "name": "sg3t"},
+        {"path": "/media/root/sg3t-2", "name": "sg3t-2"},
+        {"path": "/media/root/wd4t", "name": "wd4t"},
+        {"path": "/media/root/SG8T", "name": "sg8t"},
+        {"path": "/media/root/WD12T", "name": "wd12t"}
+        ]
+
 
 CHECKERROR = -1
 CHECKNORMAL = 0
@@ -15,18 +26,18 @@ g_CheckDiskPath = ""
 g_CheckDisk = ""
 
 
-def check_movies(disk_path, t_disk_name):
+def check_movies(t_disk_path, t_disk_name):
     """
     对DiskPath下的每一个DirName加入对象实体到MyMovies[]并调用movie.CheckMovie()进行检查和处理，包括
     1)检查目录名称(CheckDirName)
     2)检查内容(CheckDirCont)
     3)进行目录重命名(RenameDirName)
     """
-    if not os.path.isdir(disk_path):
-        debug_log(disk_path + "is not  a dir")
+    if not os.path.isdir(t_disk_path):
+        debug_log(t_disk_path + "is not  a dir")
         return -1
-    for file in os.listdir(disk_path):
-        fullpathfile = os.path.join(disk_path, file)
+    for file in os.listdir(t_disk_path):
+        fullpathfile = os.path.join(t_disk_path, file)
         if os.path.isdir(fullpathfile):
             # 一些特殊文件夹忽略
             if file == 'lost+found' or \
@@ -39,7 +50,7 @@ def check_movies(disk_path, t_disk_name):
                 debug_log("ignore some dir:" + file)
                 continue
 
-            t_movie = Movie(disk_path, file, t_disk_name)
+            t_movie = Movie(t_disk_path, file, t_disk_name)
             if not t_movie.check_movie():
                 exec_log("CheckMovie error:" + t_movie.dir_name)
                 debug_log("")
@@ -50,11 +61,11 @@ def check_movies(disk_path, t_disk_name):
     return 1
 
 
-def check_disk(disk_path, t_disk_name):
+def check_disk(t_disk_path, t_disk_name):
     if not update("update movies set checked=0 where disk=%s", (t_disk_name,)):
         return False
 
-    if check_movies(disk_path, t_disk_name) == -1:
+    if check_movies(t_disk_path, t_disk_name) == -1:
         return -1
 
     # 对Disk=Disk，CheckTime != gCheckTime的所有记录进行set Delete=1
@@ -65,7 +76,7 @@ def check_disk(disk_path, t_disk_name):
 
     # 找出所有刚被置位的记录，记录日志
     # select from movies where number == tMovie.number and Copy == tMovie.Copy
-    se_sql = "select dir_name from movies where Deleted = 1 and Disk = %s and CheckTime >= %s"
+    se_sql = "select dirname from movies where Deleted = 1 and Disk = %s and CheckTime >= %s"
     se_val = (t_disk_name, gCheckTime)
     t_select_result = select(se_sql, se_val)
     for tSelect in t_select_result:
@@ -100,66 +111,37 @@ def check_disk(disk_path, t_disk_name):
 if __name__ == '__main__':
     global gCheckTime
 
-    Choise = None
+    choise = None
     if len(sys.argv) == 1:
-        print("please choose the diskpath:")
-        print("0       == /media/root/BT/movies")
-        print("bt      == /media/root/BT/movies")
-        print("1       == /media/root/wd4t")
-        print("wd4t    == /media/root/wd4t")
-        print("2       == /media/root/wd2t")
-        print("wd2t    == /media/root/wd2t")
-        print("3       == /media/root/wd2t-2")
-        print("wd2t-2  == /media/root/wd2t-2")
-        print("4       == /media/root/sg3t")
-        print("sg3t    == /media/root/sg3t")
-        print("5       == /media/root/sg3t-2")
-        print("sg3t-2  == /media/root/sg3t-2")
-        print("6       == /media/root/SG8T")
-        print("sg8t    == /media/root/SG8T")
-        print("7       == /media/root/BT/tobe")
-        print("tobe    == /media/root/BT/tobe")
-        print("8       == /media/root/WD12T")
-        print("wd12t   == /media/root/WD12T")
-        Choise = input("your choise is :")
-        print(Choise)
+        print("please choose the disk:")
+        for i in range(len(DISK_LIST)):
+            disk = DISK_LIST[i]
+            print(disk['name'].ljust(6)+str(i)+' -----> '+disk['path']+"\n")
+        choise = input("your choise is :")
+        print(choise)
     elif len(sys.argv) == 2:
-        Choise = sys.argv[1]
+        choise = sys.argv[1]
     else:
         print("too many argv:")
         exit()
 
-    disk_pash = disk_name = ""
-    if Choise == "0" or Choise.lower() == "bt":
-        disk_pash = "/media/root/BT/movies"
-        disk_name = "BT"
-    elif Choise == "1" or Choise.lower() == "wd4t":
-        disk_pash = "/media/root/wd4t"
-        disk_name = "wd4t"
-    elif Choise == "2" or Choise.lower() == "wd2t":
-        disk_pash = "/media/root/WD2T"
-        disk_name = "wd2t"
-    elif Choise == "3" or Choise.lower() == "wd2t-2":
-        disk_pash = "/media/root/WD2T-2"
-        disk_name = "wd2t-2"
-    elif Choise == "4" or Choise.lower() == "sg3t":
-        disk_pash = "/media/root/SG3T"
-        disk_name = "sg3t"
-    elif Choise == "5" or Choise.lower() == "sg3t-2":
-        disk_pash = "/media/root/sg3t-2"
-        disk_name = "sg3t-2"
-    elif Choise == "6" or Choise.lower() == "sg8t":
-        disk_pash = "/media/root/SG8T"
-        disk_name = "sg8t"
-    elif Choise == '7' or Choise.lower() == 'tobe':
-        disk_pash = "/media/root/BT/tobe"
-        disk_name = "tobe"
-    elif Choise == '8' or Choise.lower() == 'wd12t':
-        disk_pash = "/media/root/WD12T"
-        disk_name = "wd12t"
+    disk_path = disk_name = ""
+    if choise.isdigit():
+        index = int(choise)
+        if index >= len(DISK_LIST):
+            print(f"序号{index}越界了")
+            exit()
+        disk_path = DISK_LIST[index]['path']
+        disk_name = DISK_LIST[index]['name']
     else:
-        print("your choise is invalid:" + Choise)
-        exit()
+        for disk in DISK_LIST:
+            if disk['name'] == choise.lower():
+                disk_path = disk['path']
+                disk_name = disk['name']
+        if disk_path == "":
+            print(f"没有找到对应名称为{choise}的disk")
+            exit()
+    print("your choise is:" + choise)
 
     print("begin check " + disk_name + " in table_movies")
     # 获取CheckTime为当前时间
@@ -167,5 +149,5 @@ if __name__ == '__main__':
     gCheckTime = tCurrentTime.strftime('%Y-%m-%d %H:%M:%S')
     g_MyMovies = []
     g_Count = 0
-    check_disk(disk_pash, disk_name)
+    check_disk(disk_path, disk_name)
     print("complete check " + disk_name + " in table_movies")

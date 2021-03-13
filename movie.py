@@ -340,10 +340,10 @@ class Movie:
                         self.number_of_video += 1
                         self.video_files.append(file_name)
                 # jpg海报文件
-                elif file_name[-3:] == "jpg":
-                    if file_name == "cover.jpg":
+                elif file_name[-3:] == "jpg" or file_name.endswith(".png"):
+                    if file_name == "cover.jpg" or file_name == "cover.png":
                         cover_jpg = 1
-                    elif file_name == "poster.jpg":
+                    elif file_name == "poster.jpg" or file_name == "poster.png":
                         post_jpg = 1
                     else:
                         jpg_file_name = file_name
@@ -355,10 +355,12 @@ class Movie:
                     pass
                 elif file_name.endswith(".iso"):
                     self.format_type = BLUE_RAY
-                elif file_name.endswith(".srt") or file_name.endswith(".ass") or file_name.endswith(".sub"):
+                elif file_name.endswith(".srt") or file_name.endswith(".ass") or file_name.endswith(".ssa") or file_name.endswith(".idx") or file_name.endswith(".sub"):
+                    pass
+                elif file_name.endswith(".txt"):
                     pass
                 else:
-                    exec_log("other type file" + file_name)
+                    exec_log("other type file:" + file_name)
             else:
                 error_log("not file or dir :" + full_path_file)
                 self.IsError = 1
@@ -720,12 +722,13 @@ class Movie:
         # print(f"{self.douban_id}|{self.imdb_id}|{tInfo.movie_name}|{tInfo.director}|{tInfo.actors}|{tInfo.nation}")
         if t_info.douban_status == OK:
             # 比较影片名是否一致
-            if not (t_info.movie_name in self.name or self.name in t_info.movie_name):
-                movie_log(f"name is diff:{self.name}|{t_info.movie_name}")
-                return False
+            if not (t_info.movie_name in self.name or self.name in t_info.movie_name or self.name in t_info.other_names):
+                error_log(f"name is diff:{self.name}|{t_info.movie_name}")
+                # return False
             return True
 
         # print(tInfo.douban_status)
+        print(f"douban_status={t_info.douban_status},re-spider douban:{self.number}")
         # 3、重新爬取影片信息，
         t_info.douban_status = RETRY
         if t_info.spider_douban() != OK:
@@ -780,13 +783,13 @@ class Movie:
         if not self.check_info():
             error_log("failed check_info:" + self.dir_name)
             self.IsError = 1
-            return False
+            # return False
 
         # 4、检查dir中内容
         if not self.check_dir_cont():
             error_log("failed check_dir_cont:" + self.dir_name)
             self.IsError = 1
-            return False
+            # return False
 
         # 5、如果dirname中,min，format格式不全，补充完整后更新dirname
         if not self.rename_dir_name():
@@ -907,6 +910,7 @@ class Movie:
             # 国家版本
             elif temp_str.upper() == "JPN" or \
                     temp_str.upper() == "GBR" or \
+                    temp_str.upper() == "GER" or \
                     temp_str.upper() == "KOR" or \
                     temp_str.upper() == "ESP" or \
                     temp_str.upper() == "USA" or \
@@ -938,6 +942,7 @@ class Movie:
                     temp_str == "1080i" or \
                     temp_str.lower() == "4k" or \
                     temp_str.lower() == "60fps" or \
+                    re.match("[0-9][0-9][0-9][0-9]p", temp_str) is not None or \
                     re.match("[0-9][0-9][0-9][0-9]x[0-9][0-9][0-9]p", temp_str) is not None or \
                     re.match("[0-9][0-9][0-9][0-9]x[0-9][0-9][0-9][0-9]p", temp_str) is not None:
                 number_of_element += 1
@@ -967,6 +972,7 @@ class Movie:
                     temp_str == "itunes" or \
                     temp_str == "web-dl" or \
                     temp_str == "webrip" or \
+                    temp_str == "hddvd" or \
                     temp_str == "hdtv":
                 number_of_element += 1
                 last_index = i
@@ -1059,7 +1065,9 @@ class Movie:
                 self.track = format_list[i]
                 movie_log("find track" + self.track + "i=" + str(i))
             # 色彩精度，10bit
-            elif temp_str == "10bit" or temp_str == "8bit":
+            elif temp_str == "10bit" \
+                or temp_str == "10bits" \
+                or temp_str == "8bit":
                 number_of_element += 1
                 last_index = i
                 format_sign[i] = 1
@@ -1084,7 +1092,7 @@ class Movie:
                 else:
                     self.zip_group = format_list[i] + '-' + self.zip_group
                 movie_log("zip_group:" + self.zip_group + " i=" + str(i))
-            elif temp_str == "rev":
+            elif temp_str == "rev" or re.match("s0[0-9]", temp_str):
                 # 忽略它
                 number_of_element += 1
                 last_index = i
