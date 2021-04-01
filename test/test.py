@@ -1,53 +1,103 @@
 #!/usr/bin/python3
 # coding=utf-8
-downloadlink='https://pt.keepfrds.com/download.php?id=11284&passkey=97f4eab2ad32ebf39ee4889f6328800b'
-downloadlink='https://hdhome.org/download.php?id=59181&passkey=93581f449716e0adedc71620f78513d2 '
-downloadlink='https://hdsky.me/download.php?id=143622&passkey=c8c158c14e1762b0c93c91ab2ddc689a'
-downloadlink='https://pt.keepfrds.com/download.php?id=11287&passkey=97f4eab2ad32ebf39ee4889f6328800b'
-downloadlink='https://www.beitai.pt/download.php?id=2021&passkey=e193420544db01e767e2a214f30ec049'
+import sys
+import os
 
-list = ["ddd"]
-if "" in list:
-    print("correct")
-downloadlink='https://pt.keepfrds.com/download.php?id=11489&passkey=97f4eab2ad32ebf39ee4889f6328800b'
-#tTorrent = TorrentInfo(torrent_file='/root/pt/data/temp.torrent')
-#tTorrent = TorrentInfo(download_link = downloadlink)
-#tTorrent.get_info()
-#print(tTorrent.hash)
-#print(tTorrent.files)
+from config import *
+from ptsite2 import *
+from sites import *
+from use import *
+SysConfig.load_sys_config("config/sys.json")
+SysConfig.load_site_config("config/site.json")
+Sites.load(SysConfig.SITE_LIST)
+for site in Sites.site_list:
+    site.print()
+Use.run()
+Sites.reload(SysConfig.SITE_LIST)
+for site in Sites.site_list:
+    site.print()
+
 """
-tclient.connect()
-download_link='https://www.beitai.pt/download.php?id=2890&passkey=e193420544db01e767e2a214f30ec049'
-torrent = tclient.add_torrent(download_link=download_link,is_paused=True)
-print(torrent.hash)
-TR_LOGIN = {'host':"localhost", 'port':9091, 'username':'dummy', 'password':'moonbeam' }
-client = transmissionrpc.Client(TR_LOGIN['host'], port=TR_LOGIN['port'],user=TR_LOGIN['username'],password=TR_LOGIN['password'])
-torrent = client.add_torrent(download_link,download_dir='/dev/null',paused=True)
-print (torrent)
+from config import *
+
+for site in g_site_list:
+    print(f"----{site.site_name}")
+    print(site.url)
+    print(site.first_url)
+    print(site.last_url)
+    print(site.cookie)
+    print(site.detail_url)
+    print(site.download_url)
+    print(site.referer)
+    print(site.host)
+    print(site.time_interval)
+    print(site.auto)
+    print(site.manual)
+    print("  rss")
+    for rss in site.rss_list:
+        print(rss)
+
+if len(sys.argv) == 2:
+    input_name = sys.argv[1]
+else:
+    exit()
+dir_name, file_name = mylib.split(input_name)
+print(f"mylib.split:   {dir_name}, {file_name}")
+dir_name, file_name = os.path.split(input_name)
+print(f"os.path.split: {dir_name}, {file_name}")
+import ptmonitor
+ptmonitor.backup_daily()
+from client import *
+
+client = PTClient("TR")
+
+client.connect()
+
+torrents = client.get_all_torrents()
+#print(len(torrents))
+
+for torrent in torrents:
+   #print(torrent.name)
+   #print(torrent.save_path)
+   #torrent.stop()
+   torrent.torrent.locate_data("/media/root/BT")
+   #print(torrent.save_path)
+
+
+from client import *
+from torrents import *
+
+
+def in_torrent_list(saved_path, dir_name):
+
+    for i in range(len(torrent_list)):
+        t_src_dir_name = os.path.join(saved_path, dir_name)
+        if len(torrent_list[i].files) == 0:
+            continue
+        first_file = os.path.realpath(os.path.join(torrent_list[i].save_path,
+                                                   torrent_list[i].files[0]['name']))
+        if t_src_dir_name in first_file:
+            return True
+    return False
+
+
+client = PTClient("QB")
+client.connect()
+torrent_list = []
+for torrent in client.get_all_torrents():
+    torrent_list.append(MyTorrent(torrent,None))
+    first_file = os.path.realpath(os.path.join(torrent.save_path, torrent.files[0]['name']))
+    #print(first_file)
+
+disk_path="E:\movies"
+for file in os.listdir(disk_path):
+    fullpathfile = os.path.join(disk_path, file)
+    print(fullpathfile)
+    if in_torrent_list(disk_path, file):
+        #print(file + "::find in torrent list:")
+        pass
+    else:
+        print(file + "::not find in torrent list:")
+
+
 """
-
-download_link=" https://pt.m-team.cc/download.php?id=427572&passkey=7044b36a9057090e36138df761ddfc5d&https=1"
-download_link="https://pt.keepfrds.com/download.php?id=11509&passkey=97f4eab2ad32ebf39ee4889f6328800b"
-
-downloadlink='https://www.beitai.pt/download.php?id=2021&passkey=e193420544db01e767e2a214f30ec049'
-
-string = "avgv"
-print(f"{string.ljust(10)} ipload")
-
-        #tTorrentName = re.sub(u"[\u4e00-\u9f50]+","",self.name) #去掉name中的中文字符
-ch = '。'
-if '\u4e00' <= ch <= '\u9fff':
-    print("it is chinese")
-import re
-string = "hello world"
-if re.search(u"[\u4e00-\u9f50]+",string) != None:
-    print("contain chinese")
-
-
-import json
-rss_list = json.load(open("rss.json"))
-print(rss_list)
-for site in rss_list:
-    if site.get('wait_free') == 1: site['wait_free'] = True
-    else: site['wait_free'] = False
-print(rss_list)

@@ -2,17 +2,16 @@
 # coding=utf-8
 import psutil
 
-import mylib
 import movie
 from connect import *
 from torrents import *
-from config import *
+from sites import *
 
 
 def handle_task(request):
     global gTorrents
 
-    socket_log("accept request:" + request)
+    Log.socket_log("accept request:" + request)
     request_list = []
     dict_request = None
     # 尝试json解析
@@ -22,7 +21,7 @@ def handle_task(request):
     except json.JSONDecodeError:  # json解析失败，就按照以前方式解析
         request_list = request.split()
         if request_list is None or len(request_list) == 0:
-            exec_log(f"unknown request:{request}")
+            Log.exec_log(f"unknown request:{request}")
             return f"failed,unknown request {request}"
         task = request_list[0].lower()
         del request_list[0]
@@ -32,12 +31,12 @@ def handle_task(request):
 
     if   task == 'checkdisk'    :
         if len(request_list) > 0 : gTorrents.check_disk(request_list)
-        else                    : gTorrents.check_disk(g_config.CHECK_DISK_LIST)
+        else                    : gTorrents.check_disk(SysConfig.CHECK_DISK_LIST)
     elif task == 'rss'          :
-        for RSSName in request_list: gTorrents.request_rss(RSSName, -1)
+        for rss_name in request_list: gTorrents.request_torrents_from_rss_by_name(rss_name)
     elif task == 'free'     :
-        if len(request_list) > 0 : gTorrents.request_free(request_list[0])
-        else                    : gTorrents.request_free('MTeam')
+        if len(request_list) > 0 : gTorrents.request_torrents_from_page_by_name(request_list[0])
+        else                    : gTorrents.request_torrents_from_page_by_name('MTeam')
     elif task == 'checkqb'      : gTorrents.check_torrents("QB")
     elif task == 'checktr'      : gTorrents.check_torrents("TR")
     elif task == 'keep'         : return keep_torrents(request_list)
@@ -59,36 +58,22 @@ def handle_task(request):
     elif task == 'speed'        : return get_speed()
     elif task == 'freespace'    : return get_free_space()
     elif task == 'query_movies' : return query_movies(dict_request)
-    elif task == 'del_movie': return del_movie(dict_request)
+    elif task == 'del_movie'    : return del_movie(dict_request)
     elif task == 'query_dbmovie_detail' : return query_dbmovie_detail(dict_request)
     elif task == 'set_viewed'   : return set_viewed(dict_request)
     elif task == 'set_dbmovie_info': return set_dbmovie_info(dict_request)
     elif task == 'set_dbmovie_id': return set_dbmovie_id(dict_request)
     elif task == 'douban_cookie': return check_douban_cookie()
-    elif task == 'load_sys_config': return g_config.load_sys_config()
-    elif task == 'load_rss_config': return g_config.load_rss_config()
-    elif task == 'load_site_config': return g_config.load_site_config()
-    else                        : socket_log("unknown request task:"+task); return "unknown request task"
+    elif task == 'load_sys_config': return SysConfig.load_sys_config()
+    elif task == 'load_site_config': return SysConfig.load_site_config()
+    else                        : Log.socket_log("unknown request task:"+task); return "unknown request task"
     
     return "completed"
 
 
 def get_log():
-    last_lines = mylib.get_last_lines(g_config.ExecLogFile, 300)
+    last_lines = mylib.get_last_lines(Log.EXEC_LOG_FILE, 300)
     return "\n".join(last_lines)
-    """
-    if g_config.os_type == "Windows":
-        # TODO
-    elif g_config.os_type == "Linux":
-        command = "tail -n 300 /root/pt/log/pt.log > log/temp.log"
-        if os.system(command) == 0:
-            socket_log("success exec:"+command)
-        with open('log/temp.log', 'r') as f1:
-            log_str = f1.read()
-        return ''.join(log_str)
-    else:
-        return "failed, unknown os_type"
-    """
 
 
 def get_speed():
@@ -97,11 +82,12 @@ def get_speed():
     if not(qb_client.connect() and tr_client.connect()):
         return "速度:未知"
     return "QB: {:.1f}M/s↓ {:.2f}M/s↑\nTR: {:.1f}M/s↓ {:.2f}M/s↑".format(
-                qb_client.down_speed, qb_client.up_speed, tr_client.down_speed, tr_client.up_speed)
+                qb_client.down_speed/1024, qb_client.up_speed/1024,
+                tr_client.down_speed/1024, tr_client.up_speed/1024)
 
 
 def get_free_space():
-    free_size = mylib.get_free_size(g_config.DOWNLOAD_FOLDER)
+    free_size = mylib.get_free_size(SysConfig.DOWNLOAD_FOLDER)
     return "{:.0f}".format(free_size)
 
 
@@ -110,7 +96,7 @@ def set_info(request_str):
         douban_id, imdb_id, movie_name, nation, director, actors, poster, genre, type_str = request_str.split('|', 8)
     except Exception as err:
         print(err)
-        exec_log("failed to split:" + request_str)
+        Log.exec_log("failed to split:" + request_str)
         return "failed:error requeststr:" + request_str
    
     info = Info(douban_id, imdb_id)
@@ -147,7 +133,7 @@ def get_info(request_str):
         douban_id, imdb_id = request_str.split('|', 1)
     except Exception as err:
         print(err)
-        exec_log("failed to split:" + request_str)
+        Log.exec_log("failed to split:" + request_str)
         return "failed:error requeststr:" + request_str
     info = Info(douban_id, imdb_id)
     if info.douban_status != OK:
@@ -156,23 +142,25 @@ def get_info(request_str):
     return f"{info.douban_id}|{info.imdb_id}|{info.douban_score}|{info.imdb_score}|\
                 {info.movie_name}|{info.nation}|{info.type}|{info.director}|{info.actors}|{info.poster}|{info.genre}"
 
+
 def set_remark(request):
     """
     dict:request
     
     """
-    douban_id = request.get("douban_id","")
-    imdb_id   = request.get("imdb_id","")
-    remark    = request.get("remark","")
+    douban_id = request.get("douban_id", "")
+    imdb_id   = request.get("imdb_id", "")
+    remark    = request.get("remark", "")
     if douban_id == "" and imdb_id == "":
         return "id is null"
-    info = Info(douban_id,imdb_id)
+    info = Info(douban_id, imdb_id)
     if not info.select():
         return "table info have no record"
     info.remark = remark
     if not info.update():
         return "failed to update table info"
     return "Success"
+
 
 def query_movies(request):
     """
@@ -190,7 +178,7 @@ def query_movies(request):
     
     number = request.get('number')
     if number is not None:
-        number = number.replace(" ","")
+        number = number.replace(" ", "")
         if where_sql != "":
             where_sql += ' and '
         if number[0:1] == ">" or number[0:1] == "<" or number[0:1] == "=":
@@ -255,7 +243,7 @@ def query_movies(request):
             elif nation == '英美':
                 where_sql += " and (info.nation='美' or info.nation='英')"
             else:
-                error_log("unknown nation in query_movies:" + nation)
+                Log.error_log("unknown nation in query_movies:" + nation)
                 return "failed"
 
         if viewed is not None:
@@ -286,7 +274,7 @@ def query_movies(request):
             'deleted': record[5],
             'viewed': info.viewed,
             'remark': info.remark,
-            'score' : f"{douban_score}/{imdb_score}"
+            'score': f"{douban_score}/{imdb_score}"
         }
         dict_list.append(temp_dict)
     return json.dumps(dict_list)
@@ -294,22 +282,24 @@ def query_movies(request):
 
 def del_movie(request):
     number = request.get('number')
-    copy = request.get('copy',0)
+    copy = request.get('copy', 0)
     size = request.get('size')
-    if delete("delete from movies where number=%s and copy=%s and size=%s",(number,copy,size)):
+    if delete("delete from movies where number=%s and copy=%s and size=%s", (number, copy, size)):
         return "Success"
     else:
         return "failed"
 
+
 def query_dbmovie_detail(request):
     number = request.get('number')
-    copy = request.get('copy',0)
+    copy = request.get('copy', 0)
     size = request.get('size')
     
     # 获取doubanid,imdbid
     records = select("select doubanid,imdbid from movies where number=%s and copy=%s and size=%s", (number, copy, size))
     if records is None or len(records) != 1:
-        exec_log(f"failed to exec:select doubanid,imdbid from movies where number={number} and copy={copy} and size={size}")
+        Log.exec_log(f"failed to exec:select doubanid,imdbid from movies "
+                     f"where number={number} and copy={copy} and size={size}")
         return "failed"
     doubanid = records[0][0]
     imdbid = records[0][1]
@@ -317,7 +307,7 @@ def query_dbmovie_detail(request):
     # 根据doubanid/imdbid获取影片详情
     info = Info(doubanid, imdbid)
     if info.movie_name == "":
-        exec_log(f"there is no record in info:{doubanid}|{imdbid}, so try to douban_detail")
+        Log.exec_log(f"there is no record in info:{doubanid}|{imdbid}, so try to douban_detail")
         if doubanid != "":
             if not info.douban_detail():
                 return "failed"
@@ -368,7 +358,7 @@ def set_dbmovie_id(dict_request):
     info = Info(douban_id, imdb_id)
     if info.douban_status != OK:
         if not info.douban_detail():
-            exec_log(f"failed to douban_detail:{douban_id, imdb_id}")
+            Log.exec_log(f"failed to douban_detail:{douban_id, imdb_id}")
             return "failed, can't douban_detail"
     return "Success"
 
@@ -407,64 +397,43 @@ def backup_daily():
         d,table:rss
         e,ta:info
     """
-    if g_config.QB_BACKUP_DIR[-1:] != '/':
-        g_config.QB_BACKUP_DIR = g_config.QB_BACKUP_DIR+'/'
-    if g_config.TR_BACKUP_DIR[-1:] != '/':
-        g_config.TR_BACKUP_DIR = g_config.TR_BACKUP_DIR+'/'
-    if g_config.QB_TORRENTS_BACKUP_DIR[-1:] != '/':
-        g_config.QB_TORRENTS_BACKUP_DIR = g_config.QB_TORRENTS_BACKUP_DIR+'/'
-    if g_config.TR_TORRENTS_BACKUP_DIR[-1:] != '/':
-        g_config.TR_TORRENTS_BACKUP_DIR = g_config.TR_TORRENTS_BACKUP_DIR+'/'
+    if SysConfig.QB_BACKUP_DIR[-1:] != '/':
+        SysConfig.QB_BACKUP_DIR = SysConfig.QB_BACKUP_DIR+'/'
+    if SysConfig.TR_BACKUP_DIR[-1:] != '/':
+        SysConfig.TR_BACKUP_DIR = SysConfig.TR_BACKUP_DIR+'/'
+    if SysConfig.QB_TORRENTS_BACKUP_DIR[-1:] != '/':
+        SysConfig.QB_TORRENTS_BACKUP_DIR = SysConfig.QB_TORRENTS_BACKUP_DIR+'/'
+    if SysConfig.TR_TORRENTS_BACKUP_DIR[-1:] != '/':
+        SysConfig.TR_TORRENTS_BACKUP_DIR = SysConfig.TR_TORRENTS_BACKUP_DIR+'/'
 
     # 1，backup QB的torrents目录
-    if mylib.copy(g_config.QB_BACKUP_DIR, g_config.QB_TORRENTS_BACKUP_DIR, mylib.IGNORE):
-        exec_log(f"success exec:copy({g_config.QB_BACKUP_DIR},{g_config.QB_TORRENTS_BACKUP_DIR})")
+    if mylib.copy(SysConfig.QB_BACKUP_DIR, SysConfig.QB_TORRENTS_BACKUP_DIR, mylib.IGNORE):
+        Log.exec_log(f"success exec:copy({SysConfig.QB_BACKUP_DIR},{SysConfig.QB_TORRENTS_BACKUP_DIR})")
     else:
-        exec_log(f"failed to exec:copy({g_config.QB_BACKUP_DIR},{g_config.QB_TORRENTS_BACKUP_DIR})")
+        Log.exec_log(f"failed to exec:copy({SysConfig.QB_BACKUP_DIR},{SysConfig.QB_TORRENTS_BACKUP_DIR})")
         return False
 
     # 2.1，backup TR的torrents目录
-    if mylib.copy(g_config.TR_BACKUP_DIR+"torrents/", g_config.TR_TORRENTS_BACKUP_DIR, mylib.IGNORE):
-        exec_log(f'success exec:copy({g_config.TR_BACKUP_DIR+"torrents/"},{g_config.TR_TORRENTS_BACKUP_DIR})')
+    if mylib.copy(SysConfig.TR_BACKUP_DIR+"torrents/", SysConfig.TR_TORRENTS_BACKUP_DIR, mylib.IGNORE):
+        Log.exec_log(f'success exec:copy({SysConfig.TR_BACKUP_DIR+"torrents/"},{SysConfig.TR_TORRENTS_BACKUP_DIR})')
     else:
-        exec_log(f'failed to exec:copy({g_config.TR_BACKUP_DIR+"torrents/"},{g_config.TR_TORRENTS_BACKUP_DIR})')
+        Log.exec_log(f'failed to exec:copy({SysConfig.TR_BACKUP_DIR+"torrents/"},{SysConfig.TR_TORRENTS_BACKUP_DIR})')
         return False
     # 2.2，backup TR的resume目录
-    if mylib.copy(g_config.TR_BACKUP_DIR+"resume/", g_config.TR_TORRENTS_BACKUP_DIR, mylib.IGNORE):
-        exec_log(f'success exec:copy({g_config.TR_BACKUP_DIR+"resume/"},{g_config.TR_TORRENTS_BACKUP_DIR})')
+    if mylib.copy(SysConfig.TR_BACKUP_DIR+"resume/", SysConfig.TR_TORRENTS_BACKUP_DIR, mylib.IGNORE):
+        Log.exec_log(f'success exec:copy({SysConfig.TR_BACKUP_DIR+"resume/"},{SysConfig.TR_TORRENTS_BACKUP_DIR})')
     else:
-        exec_log(f'failed to exec:copy({g_config.TR_BACKUP_DIR+"resume/"},{g_config.TR_TORRENTS_BACKUP_DIR})')
+        Log.exec_log(f'failed to exec:copy({SysConfig.TR_BACKUP_DIR+"resume/"},{SysConfig.TR_TORRENTS_BACKUP_DIR})')
         return False
 
     """
     # 3, 执行每日备份脚本
-    if os.system(g_config.BACKUP_DAILY_SHELL) == 0:
-        exec_log(f"success exec:{g_config.BACKUP_DAILY_SHELL}")
+    if os.system(SysConfig.BACKUP_DAILY_SHELL) == 0:
+        exec_log(f"success exec:{SysConfig.BACKUP_DAILY_SHELL}")
     else:
-        exec_log(f"failed to exec:{g_config.BACKUP_DAILY_SHELL}")
+        exec_log(f"failed to exec:{SysConfig.BACKUP_DAILY_SHELL}")
         return False
     """
-
-def listen_socket():
-    while True:
-        # 监听Client是否有任务请求
-        if not gSocket.accept():
-            continue
-
-        request = gSocket.receive()
-        if request == "":
-            socket_log("empty request")
-            continue
-        socket_log("recv:"+request)
-
-        reply = handle_task(request)
-        # Print("begin send")
-        gSocket.send(reply)
-        if request.startswith('torrents') or request.startswith('log'):
-            pass   # not write reply in log
-        else:
-            socket_log("send:"+reply)
-        gSocket.close()
 
 
 def keep_torrents(disk_path):
@@ -483,25 +452,25 @@ def keep_torrents(disk_path):
     print(disk_path)
     dir_name_list = gTorrents.check_disk(disk_path)  # 检查tDiskPath,获取未保种的目录列表
     for dir_name in dir_name_list:
-        exec_log("begin to keep torrent:" + dir_name['DirPath'] + dir_name['DirName'])
+        Log.exec_log("begin to keep torrent:" + dir_name['DirPath'] + dir_name['DirName'])
         t_movie = movie.Movie(dir_name['DirPath'], dir_name['DirName'])
         if not t_movie.check_dir_name():
-            exec_log("failed to checkdirname:" + t_movie.dir_name)
+            Log.exec_log("failed to checkdirname:" + t_movie.dir_name)
             continue
         if not t_movie.get_torrent():
-            exec_log("can't get torrent:" + dir_name['DirName'])
+            Log.exec_log("can't get torrent:" + dir_name['DirName'])
             continue
         torrent = pt_client.add_torrent(torrent_hash="",
                                         download_link=t_movie.download_link,
                                         torrent_file=t_movie.torrent_file,
-                                        download_dir=g_config.TR_KEEP_DIR,
+                                        download_dir=SysConfig.TR_KEEP_DIR,
                                         is_paused=True)
         if torrent is not None:
-            exec_log("success add torrent to tr")
+            Log.exec_log("success add torrent to tr")
         else:
-            error_log("failed to add torrent:" + t_movie.torrent_file + "::" + t_movie.download_link)
+            Log.error_log("failed to add torrent:" + t_movie.torrent_file + "::" + t_movie.download_link)
             continue
-        t_link = os.path.join(g_config.TR_KEEP_DIR, torrent.name)
+        t_link = os.path.join(SysConfig.TR_KEEP_DIR, torrent.name)
         t_full_path_dir_name = os.path.join(dir_name['DirPath'] + dir_name['DirName'])
         if os.path.exists(t_link):
             os.remove(t_link)
@@ -509,26 +478,131 @@ def keep_torrents(disk_path):
             os.symlink(t_full_path_dir_name, t_link)
         except Exception as err:
             print(err)
-            error_log("failed create link:ln -s " + t_full_path_dir_name + " " + t_link)
+            Log.error_log("failed create link:ln -s " + t_full_path_dir_name + " " + t_link)
         else:
-            exec_log("create link: ln -s " + t_full_path_dir_name + " " + t_link)
+            Log.exec_log("create link: ln -s " + t_full_path_dir_name + " " + t_link)
 
     # 把新加入的种子加入列表
     gTorrents.check_torrents("TR")
     return "completed"
 
 
-if __name__ == '__main__':
-    g_config.os_type = platform.system()
+def check_upload_limit():
+    """
+    检查一下是否需要进行/解除upload_limit
+    当上传速度达到5M以上时进行限制，当上传速度低于4M时解除限制
+    """
+    # 获取qb/tr的上传速度
+    qb_up_speed = PTClient.get_up_speed("QB")
+    tr_up_speed = PTClient.get_up_speed("TR")
+    total_speed = qb_up_speed + tr_up_speed
+    # 限制状态下，如果速度低于4000KB/s 则进行解除
+    if gTorrents.upload_limit_state:
+        if total_speed <= 4000:
+            gTorrents.set_upload_limit(-1)
+            Log.exec_log("解除上传速度限制")
+            gTorrents.upload_limit_state = False
+    else:
+        if total_speed >= 5000:
+            gTorrents.set_upload_limit(200)
+            Log.exec_log("开始上传速度限制(每个种子200KB/s)")
+            gTorrents.upload_limit_state = True
 
-    log_clear()
+
+def thread_listen_socket():
+    while True:
+        # 监听Client是否有任务请求
+        if not gSocket.accept():
+            continue
+
+        request = gSocket.receive()
+        if request == "":
+            Log.socket_log("empty request")
+            continue
+        Log.socket_log("recv:"+request)
+
+        reply = handle_task(request)
+        # Print("begin send")
+        gSocket.send(reply)
+        if request.startswith('torrents') or request.startswith('log'):
+            pass   # not write reply in log
+        else:
+            Log.socket_log("send:"+reply)
+        gSocket.close()
+
+
+def thread_pt_monitor():
+    global gLastCheckDate
+
+    loop_times = 0
+    while True:
+        loop_times += 1
+        Log.log_print("loop times :" + str(loop_times % 120))
+
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+
+        # RSS和FREE种子订阅及查找
+        gTorrents.request_torrents_from_rss_by_time(loop_times)
+        gTorrents.request_torrents_from_page_by_time(loop_times)
+
+        if today != gLastCheckDate:  # new day
+            gTorrents.count_upload("QB")
+            gTorrents.count_upload("TR")
+            gTorrents.write_pt_backup()
+            gTorrents.tracker_data()  # tracker_data执行要在count_upload()之后，这样才有新的记录
+            gTorrents.count_upload_traffic()
+            gTorrents.check_disk(SysConfig.CHECK_DISK_LIST)
+            backup_daily()
+            # 一月备份一次qb，tr,data
+            if today[8:10] == '01':
+                os.system(SysConfig.BACKUP_MONTHLY_SHELL)
+                Log.exec_log(f"exec:{SysConfig.BACKUP_MONTHLY_SHELL}")
+            if today[8:10] == '01' or today[8:10] == '15':
+                update_viewed(True)  # 半月更新一次viewed
+        else:
+            if loop_times % 5 == 0:
+                gTorrents.check_torrents("QB")
+
+        # gLastCheckDate = datetime.datetime.now().strftime("%Y-%m-%d")
+        gLastCheckDate = today
+        gTorrents.last_check_date = gLastCheckDate
+        Log.debug_log("update gLastCheckDate=" + gLastCheckDate)
+
+        # 检查一下内存占用
+        memory = psutil.virtual_memory()
+        Log.debug_log("memory percent used:" + str(memory.percent))
+        if memory.percent >= 95:
+            Log.exec_log("memory percent used:" + str(memory.percent))
+            PTClient("QB").restart()
+
+        # 检查下是否要进行限制/解除上传速度
+        if loop_times % 10 == 0:
+            check_upload_limit()
+
+        time.sleep(60)
+
+
+if __name__ == '__main__':
+    # SysConfig.os_type = platform.system()
+    global SysConfig
+    Log.log_clear()
+
+    #
+    SysConfig.load_sys_config("config/sys.json")
+    SysConfig.load_site_config("config/site.json")
+    Sites.load(SysConfig.SITE_LIST)
+    # TODO 调测用traffic.txt，同步tracker_list运行一段时间
+    Sites.read_tracker_data_backup("data/traffic.txt")
 
     # 初始化，建立torrents对象
     gTorrents = Torrents()
+    Log.exec_log("begin check_torrents(QB)")
     if gTorrents.check_torrents("QB") == -1:
         exit()
+    Log.exec_log("begin check_torrents(TR)")
     if gTorrents.check_torrents("TR") == -1:
         exit()
+    Log.exec_log("write_pt_backup")
     gTorrents.write_pt_backup()
     
     # 初始化Socket对象
@@ -538,47 +612,21 @@ if __name__ == '__main__':
         exit()
    
     gLastCheckDate = gTorrents.last_check_date
-    thread_socket = threading.Thread(target=listen_socket)
+    thread_socket = threading.Thread(target=thread_listen_socket)
+    Log.exec_log("begin thread_socket")
     thread_socket.start()
 
-    LoopTimes = 0
+    thread_monitor = threading.Thread(target=thread_pt_monitor)
+    Log.exec_log("begin thread_monitor")
+    thread_monitor.start()
+
     while True:
-        LoopTimes += 1
-        log_print("loop times :" + str(LoopTimes % 120))
-
-        gToday = datetime.datetime.now().strftime('%Y-%m-%d')
-
-        # RSS和FREE种子订阅及查找
-        gTorrents.request_rss("", LoopTimes)
-        gTorrents.request_free("", LoopTimes)
-
-        if gToday != gLastCheckDate:  # new day
-            gTorrents.count_upload("QB") 
-            gTorrents.count_upload("TR")
-            gTorrents.write_pt_backup()
-            gTorrents.tracker_data()                   # tracker_data执行要在count_upload()之后，这样才有新的记录
-            gTorrents.check_disk(g_config.CHECK_DISK_LIST)
-            backup_daily()
-            # 一月备份一次qb，tr,data
-            if gToday[8:10] == '01':
-                os.system(g_config.BACKUP_MONTHLY_SHELL)
-                exec_log(f"exec:{g_config.BACKUP_MONTHLY_SHELL}")
-            if gToday[8:10] == '01' or gToday[8:10] == '15':
-                update_viewed(True)    # 半月更新一次viewed
-        else:
-            if LoopTimes % 5 == 0:
-                gTorrents.check_torrents("QB")
-        
-        # gLastCheckDate = datetime.datetime.now().strftime("%Y-%m-%d")
-        gLastCheckDate = gToday
-        gTorrents.last_check_date = gLastCheckDate
-        debug_log("update gLastCheckDate=" + gLastCheckDate)
-
-        # 检查一下内存占用
-        tMem = psutil.virtual_memory()
-        debug_log("memory percent used:" + str(tMem.percent))
-        if tMem.percent >= 95:
-            exec_log("memory percent used:" + str(tMem.percent))
-            PTClient("QB").restart()
-
+        if not thread_socket.is_alive():
+            print("restart thread_socket")
+            thread_socket = threading.Thread(target=thread_listen_socket)
+            thread_socket.start()
+        if not thread_monitor.is_alive():
+            print("restart thread_pt_monitor")
+            thread_monitor = threading.Thread(target=thread_pt_monitor)
+            thread_monitor.start()
         time.sleep(60)

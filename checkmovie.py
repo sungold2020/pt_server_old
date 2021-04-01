@@ -1,22 +1,18 @@
 #!/usr/bin/python3
 # coding=utf-8
-import os
 import sys
-import shutil
-import re
-import datetime
 from movie import *
-import config
+
 
 DISK_LIST = [
-        {"path": "/media/root/BT/tobe", "name": "tobe"},
+        {"path": "E:\\tobe", "name": "tobe"},
         {"path": "/media/root/wd2t", "name": "wd2t"},
         {"path": "/media/root/wd2t-2", "name": "wd2t-2"},
         {"path": "/media/root/sg3t", "name": "sg3t"},
         {"path": "/media/root/sg3t-2", "name": "sg3t-2"},
         {"path": "/media/root/wd4t", "name": "wd4t"},
         {"path": "/media/root/SG8T", "name": "sg8t"},
-        {"path": "/media/root/WD12T", "name": "wd12t"}
+        {"path": "F:\\", "name": "wd12t"}
         ]
 
 
@@ -34,7 +30,7 @@ def check_movies(t_disk_path, t_disk_name):
     3)进行目录重命名(RenameDirName)
     """
     if not os.path.isdir(t_disk_path):
-        debug_log(t_disk_path + "is not  a dir")
+        Log.debug_log(t_disk_path + "is not  a dir")
         return -1
     for file in os.listdir(t_disk_path):
         fullpathfile = os.path.join(t_disk_path, file)
@@ -47,16 +43,16 @@ def check_movies(t_disk_path, t_disk_name):
                     file[0:5] == 'cover' or \
                     file[0:4] == '0000':
                 print("ignore some dir:" + file)
-                debug_log("ignore some dir:" + file)
+                Log.debug_log("ignore some dir:" + file)
                 continue
 
             t_movie = Movie(t_disk_path, file, t_disk_name)
             if not t_movie.check_movie():
-                exec_log("CheckMovie error:" + t_movie.dir_name)
-                debug_log("")
-                debug_log("")
+                Log.exec_log("CheckMovie error:" + t_movie.dir_name)
+                Log.debug_log("")
+                Log.debug_log("")
             else:
-                debug_log("correct movie:" + t_movie.dir_name)
+                Log.debug_log("correct movie:" + t_movie.dir_name)
 
     return 1
 
@@ -80,8 +76,8 @@ def check_disk(t_disk_path, t_disk_name):
     se_val = (t_disk_name, gCheckTime)
     t_select_result = select(se_sql, se_val)
     for tSelect in t_select_result:
-        error_log("warning:set deleted=1:" + tSelect[0])
-    debug_log(str(len(t_select_result)) + " records deleted:" + t_disk_name)
+        Log.error_log("warning:set deleted=1:" + tSelect[0])
+    Log.debug_log(str(len(t_select_result)) + " records deleted:" + t_disk_name)
 
     # 找出所有重复的imdbid和doubanid
     se_sql = "select imdbid,doubanid,dirname,number from movies where deleted=0"

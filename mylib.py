@@ -42,7 +42,7 @@ def get_free_size(dir_name):
 
 
 def get_last_lines(inputfile, n):
-    dat_file = open(inputfile, 'r')
+    dat_file = open(inputfile, 'r', encoding='UTF-8')
     lines = dat_file.readlines()
     count = len(lines)
     if count < n:
@@ -259,3 +259,34 @@ def copy(src_dir, dest_dir, mode=IGNORE):
     else:
         print(f"error:copy, 源{src_dir}的文件类型未知")
         return False
+
+
+def get_site_name_from_rss_name(rss_name: str) -> str:
+    rss_name = rss_name.lower()
+    if rss_name.find('frds') >= 0:
+        return 'FRDS'
+    elif rss_name.find('mteam') >= 0:
+        return 'MTeam'
+    elif rss_name.find('soulvoice') >= 0:
+        return 'SoulVoice'
+    elif rss_name.find('leaguehd') >= 0:
+        return 'LeagueHD'
+    elif rss_name.find('hdsky') >= 0:
+        return 'HDSky'
+    elif rss_name.find('hdhome') >= 0:
+        return 'HDHome'
+    elif rss_name.find('pthome') >= 0:
+        return 'PTHome'
+    elif rss_name.find('ptsbao') >= 0:
+        return 'PTSbao'
+    elif rss_name.find('joyhd') >= 0:
+        return 'JoyHD'
+    elif rss_name.find('hdarea') >= 0:
+        return 'HDArea'
+    elif rss_name.find('avgv') >= 0:
+        return 'avgv'
+    elif rss_name.find('beitai') >= 0:
+        return 'BeiTai'
+    else:
+        print(f"unknown rss_name:{rss_name}")
+        return ''

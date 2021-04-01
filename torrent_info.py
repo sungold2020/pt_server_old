@@ -1,20 +1,20 @@
 #import libtorrent as lt
 import os
-import hashlib
-import bencode
+# import hashlib
+# import bencode
 import requests
 
 from log import *
 import torrentool.api
 
 """
+已废弃
 从link下载种子文件，解析种子文件，获取种子信息 
 """
 
 TORRENTS_DIR = 'data/torrents/'
 
 
-#class TorrentInfo(torrentool.api.Torrent):
 class TorrentInfo:
     def __init__(self,download_link=None,torrent_file=None):
         self.torrent_file = torrent_file

@@ -1,7 +1,5 @@
 import mysql.connector
-from log import *
-
-global g_config
+from config import *
 
 
 def compose_sql(sql, val):
@@ -14,7 +12,7 @@ def compose_sql(sql, val):
         sql = sql.replace('%s', str(val[i]), 1)
 
     if i != len(val) - 1:
-        error_log("error sql:{}|{}".format(sql, val))
+        Log.error_log("error sql:{}|{}".format(sql, val))
     return sql
 
 
@@ -37,7 +35,7 @@ def select_by_update(sql, val):
 
     t_index = sql.find("where")
     if t_index == -1:
-        error_log("warning:no where in update sql:" + sql)
+        Log.error_log("warning:no where in update sql:" + sql)
         return False
     t_update_sql = sql[:t_index]
     t_where_sql = sql[t_index:]
@@ -59,7 +57,7 @@ def select_by_update(sql, val):
         t_update_sql = t_update_sql[t_index + 1:]
 
     t_new_sql = t_new_sql + ','.join(t_column_list) + ' from ' + t_table_name + ' ' + t_where_sql
-    database_log(compose_sql(t_new_sql, val[i:]))
+    Log.database_log(compose_sql(t_new_sql, val[i:]))
     t_result = select(t_new_sql, val[i:])
     if t_result is None:
         return False
@@ -67,7 +65,7 @@ def select_by_update(sql, val):
         t_string = ""
         for i in range(len(t_value)):
             t_string += "{}|".format(t_value[i])
-        database_log(t_string)
+        Log.database_log(t_string)
     return True
 
 
@@ -76,9 +74,9 @@ def update(sql, value):
     t_my_db = None
     try:
         t_my_db = mysql.connector.connect(host="localhost",
-                                          user=g_config.DB_LOGIN['username'],
-                                          passwd=g_config.DB_LOGIN['password'],
-                                          database=g_config.DB_LOGIN['db_name'])
+                                          user=SysConfig.DB_LOGIN['username'],
+                                          passwd=SysConfig.DB_LOGIN['password'],
+                                          database=SysConfig.DB_LOGIN['db_name'])
         t_my_cursor = t_my_db.cursor()
         if value is None:
             t_my_cursor.execute(sql)
@@ -88,23 +86,24 @@ def update(sql, value):
     except Exception as err:
         print(err)
         # database_log(err)
-        error_log("error:" + compose_sql(sql, value))
+        Log.error_log("error:" + compose_sql(sql, value))
         if t_my_db is not None:
             t_my_db.close()
         return False
     else:
-        database_log(compose_sql(sql, value))
+        Log.database_log(compose_sql(sql, value))
         t_my_db.close()
         return True
 
+
 def delete(sql, value):
-    #select_by_delete(sql, value)
+    # select_by_delete(sql, value)
     t_my_db = None
     try:
         t_my_db = mysql.connector.connect(host="localhost",
-                                          user=g_config.DB_LOGIN['username'],
-                                          passwd=g_config.DB_LOGIN['password'],
-                                          database=g_config.DB_LOGIN['db_name'])
+                                          user=SysConfig.DB_LOGIN['username'],
+                                          passwd=SysConfig.DB_LOGIN['password'],
+                                          database=SysConfig.DB_LOGIN['db_name'])
         t_my_cursor = t_my_db.cursor()
         if value is None:
             t_my_cursor.execute(sql)
@@ -114,12 +113,12 @@ def delete(sql, value):
     except Exception as err:
         print(err)
         # database_log(err)
-        error_log("error:" + compose_sql(sql, value))
+        Log.error_log("error:" + compose_sql(sql, value))
         if t_my_db is not None:
             t_my_db.close()
         return False
     else:
-        database_log(compose_sql(sql, value))
+        Log.database_log(compose_sql(sql, value))
         t_my_db.close()
         return True
 
@@ -128,9 +127,9 @@ def insert(sql, value):
     t_my_db = None
     try:
         t_my_db = mysql.connector.connect(host="localhost",
-                                          user=g_config.DB_LOGIN['username'],
-                                          passwd=g_config.DB_LOGIN['password'],
-                                          database=g_config.DB_LOGIN['db_name'])
+                                          user=SysConfig.DB_LOGIN['username'],
+                                          passwd=SysConfig.DB_LOGIN['password'],
+                                          database=SysConfig.DB_LOGIN['db_name'])
         t_my_cursor = t_my_db.cursor()
         t_my_cursor.execute(sql, value)
         t_my_db.commit()
@@ -139,11 +138,11 @@ def insert(sql, value):
         if t_my_db is not None:
             t_my_db.close()
         # database_log(err)
-        error_log("error:" + compose_sql(sql, value))
+        Log.error_log("error:" + compose_sql(sql, value))
         print("failed to exec:" + sql)
         return False
     else:
-        database_log(compose_sql(sql, value))
+        Log.database_log(compose_sql(sql, value))
         t_my_db.close()
         return True
 
@@ -152,9 +151,9 @@ def select(sql, value=None):
     t_my_db = None
     try:
         t_my_db = mysql.connector.connect(host="localhost",
-                                          user=g_config.DB_LOGIN['username'],
-                                          passwd=g_config.DB_LOGIN['password'],
-                                          database=g_config.DB_LOGIN['db_name'])
+                                          user=SysConfig.DB_LOGIN['username'],
+                                          passwd=SysConfig.DB_LOGIN['password'],
+                                          database=SysConfig.DB_LOGIN['db_name'])
         t_my_cursor = t_my_db.cursor()
         if value is None:
             t_my_cursor.execute(sql)
@@ -166,7 +165,7 @@ def select(sql, value=None):
         # database_log(err)
         if t_my_db is not None:
             t_my_db.close()
-        error_log("error to exec:" + sql)
+        Log.error_log("error to exec:" + sql)
         return None
     else:
         t_my_db.close()

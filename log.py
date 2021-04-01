@@ -4,99 +4,118 @@ import datetime
 import traceback
 import os
 
-from config import *
 
-global lastLogDay
-lastLogDay = "1970-01-01"
+class Log:
 
+    INFO_LOG_FILE = "log/info.log"
+    RSS_LOG_FILE = "log/rss.log"
+    DATABASE_LOG_FILE = "log/database.log"
+    PTSITE_LOG_FILE = "log/site.log"         # record request url
+    PAGE_LOG_FILE = "log/page.log"           # record page_torrents
+    DETAIL_LOG_FILE = "log/detail.log"       # record get download_url/id from detail_url
+    MOVIE_LOG_FILE = "log/movie.log"
+    SOCKET_LOG_FILE = "log/socket.log"
 
-def info_log(log_str):
-    pt_log(g_config.INFO_LOG_FILE, log_str)
+    EXEC_LOG_FILE = "log/pt.log"
+    DEBUG_LOG_FILE = "log/pt.debug"
+    ERROR_LOG_FILE = "log/pt.error"
 
+    lastLogDay = "1970-01-01"
 
-def rss_log(log_str):
-    pt_log(g_config.RSS_LOG_FILE, log_str)
+    @staticmethod
+    def database_log(log_str):
+        Log.pt_log(Log.DATABASE_LOG_FILE, log_str)
 
+    @staticmethod
+    def info_log(log_str):
+        Log.pt_log(Log.INFO_LOG_FILE, log_str)
 
-def database_log(log_str):
-    pt_log(g_config.DATABASE_LOG_FILE, log_str)
+    @staticmethod
+    def rss_log(log_str):
+        Log.pt_log(Log.RSS_LOG_FILE, log_str)
 
+    @staticmethod
+    def page_log(log_str):
+        Log.pt_log(Log.PAGE_LOG_FILE, log_str)
 
-def site_log(log_str):
-    pt_log(g_config.PTSITE_LOG_FILE, log_str)
+    @staticmethod
+    def site_log(log_str):
+        Log.pt_log(Log.PTSITE_LOG_FILE, log_str)
 
+    @staticmethod
+    def detail_log(log_str):
+        Log.pt_log(Log.DETAIL_LOG_FILE, log_str)
 
-def movie_log(log_str):
-    pt_log(g_config.MOVIE_LOG_FILE, log_str)
+    @staticmethod
+    def movie_log(log_str):
+        Log.pt_log(Log.MOVIE_LOG_FILE, log_str)
 
+    @staticmethod
+    def socket_log(log_str):
+        Log.pt_log(Log.SOCKET_LOG_FILE, log_str)
 
-def socket_log(log_str):
-    pt_log(g_config.SOCKET_LOG_FILE, log_str)
+    @staticmethod
+    def log_clear(file_name=""):
+        if file_name == "":
+            if os.path.isfile(Log.INFO_LOG_FILE+".old"):
+                os.remove(Log.INFO_LOG_FILE+".old")
+            if os.path.isfile(Log.INFO_LOG_FILE):
+                os.rename(Log.INFO_LOG_FILE, Log.INFO_LOG_FILE+".old")
 
+            if os.path.isfile(Log.RSS_LOG_FILE+".old"):
+                os.remove(Log.RSS_LOG_FILE+".old")
+            if os.path.isfile(Log.RSS_LOG_FILE):
+                os.rename(Log.RSS_LOG_FILE, Log.RSS_LOG_FILE+".old")
 
-def log_clear(file_name=""):
-    if file_name == "":
-        if os.path.isfile(g_config.INFO_LOG_FILE+".old"):
-            os.remove(g_config.INFO_LOG_FILE+".old")
-        if os.path.isfile(g_config.INFO_LOG_FILE):
-            os.rename(g_config.INFO_LOG_FILE, g_config.INFO_LOG_FILE+".old")
+            if os.path.isfile(Log.PTSITE_LOG_FILE+".old"):
+                os.remove(Log.PTSITE_LOG_FILE+".old")
+            if os.path.isfile(Log.PTSITE_LOG_FILE):
+                os.rename(Log.PTSITE_LOG_FILE, Log.PTSITE_LOG_FILE+".old")
 
-        if os.path.isfile(g_config.RSS_LOG_FILE+".old"):
-            os.remove(g_config.RSS_LOG_FILE+".old")
-        if os.path.isfile(g_config.RSS_LOG_FILE):
-            os.rename(g_config.RSS_LOG_FILE, g_config.RSS_LOG_FILE+".old")
+            if os.path.isfile(Log.SOCKET_LOG_FILE+".old"):
+                os.remove(Log.SOCKET_LOG_FILE+".old")
+            if os.path.isfile(Log.SOCKET_LOG_FILE):
+                os.rename(Log.SOCKET_LOG_FILE, Log.SOCKET_LOG_FILE+".old")
+        else:
+            if os.path.isfile(file_name+".old"):
+                os.remove(file_name+".old")
+            if os.path.isfile(file_name):
+                os.rename(file_name, file_name + ".old")
 
-        if os.path.isfile(g_config.PTSITE_LOG_FILE+".old"):
-            os.remove(g_config.PTSITE_LOG_FILE+".old")
-        if os.path.isfile(g_config.PTSITE_LOG_FILE):
-            os.rename(g_config.PTSITE_LOG_FILE, g_config.PTSITE_LOG_FILE+".old")
+    @staticmethod
+    def log_print(log_str):
+        current_time = datetime.datetime.now()
+        print(current_time.strftime('%Y-%m-%d %H:%M:%S') + "::", end='')
+        print(log_str)
 
-        if os.path.isfile(g_config.SOCKET_LOG_FILE+".old"):
-            os.remove(g_config.SOCKET_LOG_FILE+".old")
-        if os.path.isfile(g_config.SOCKET_LOG_FILE):
-            os.rename(g_config.SOCKET_LOG_FILE, g_config.SOCKET_LOG_FILE+".old")
-    else:
-        if os.path.isfile(file_name+".oid"):
-            os.remove(file_name+".old")
-        if os.path.isfile(file_name):
-            os.rename(file_name, file_name + ".old")
+    @staticmethod
+    def pt_log(file_name, log_str, time_flag=True):
+        fo = open(file_name, "a+", encoding='UTF-8')
+        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if time_flag:
+            fo.write(f"{current_time[11:]}: ")
+        fo.write(log_str+'\n')
+        fo.close()
 
+    @staticmethod
+    def debug_log(log_str, mode="np"):
+        Log.pt_log(Log.DEBUG_LOG_FILE, log_str)
+        if mode == "p":
+            Log.log_print(log_str)
 
-def log_print(log_str):
-    current_time = datetime.datetime.now()
-    print(current_time.strftime('%Y-%m-%d %H:%M:%S') + "::", end='')
-    print(log_str)
+    @staticmethod
+    def exec_log(log_str):
+        Log.log_print(log_str)
+        current_day_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if current_day_time[:10] != Log.lastLogDay:
+            Log.lastLogDay = current_day_time[:10]
+            Log.exec_log(f"new day: ----------------------{Log.lastLogDay}----------------------- ")
+        Log.debug_log(log_str)
+        Log.pt_log(Log.EXEC_LOG_FILE, log_str)
 
-
-def pt_log(file_name, log_str, time_flag=True):
-    fo = open(file_name, "a+")
-    current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    if time_flag:
-        fo.write(f"{current_time[11:]}: ")
-    fo.write(log_str+'\n')
-    fo.close()
-
-
-def debug_log(log_str, mode="np"):
-    pt_log(g_config.DebugLogFile, log_str)
-    if mode == "p":
-        log_print(log_str)
-
-
-def exec_log(log_str):
-    global lastLogDay
-
-    log_print(log_str)
-    current_day_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    if current_day_time[:10] != lastLogDay:
-        lastLogDay = current_day_time[:10]
-        exec_log(f"new day: ----------------------{lastLogDay}----------------------- ")
-    debug_log(log_str)
-    pt_log(g_config.ExecLogFile, log_str)
-
-
-def error_log(log_str):
-    log_print(log_str)
-    exec_log(log_str)
-    pt_log(g_config.ErrorLogFile, log_str)
-    traceback.print_stack()
+    @staticmethod
+    def error_log(log_str):
+        Log.log_print(log_str)
+        Log.exec_log(log_str)
+        Log.pt_log(Log.ERROR_LOG_FILE, log_str)
+        traceback.print_stack()

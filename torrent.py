@@ -1,7 +1,8 @@
-import datetime
+
 import time
 import os
 
+TRACKER_UNKNOWN = -2
 TRACKER_ERROR = -1
 TRACKER_NOT_WORK = 0
 TRACKER_WORKING = 1
@@ -22,6 +23,28 @@ class Torrent:
         self.root_folder = ""  # 种子保存的路径所在根目录
 
         self.error_string = ""
+
+    def print(self):
+        print(self.hash)
+        print(self.name)
+        print(self.progress)
+        print(self.status)
+        print(self.category)
+        print(self.tags)
+        print(self.save_path)
+        print(self.add_datetime)
+        print(self.tracker)
+        print(self.uploaded)
+        print(self.total_size)
+        print(self.tracker_status)
+        print(self.torrent_status)
+
+    def update(self) -> bool:
+        """
+
+        :return:
+        """
+        self.torrent.update()
 
     @property
     def hash(self):
@@ -148,7 +171,7 @@ class Torrent:
     @property
     def tracker_status(self):
         if self.torrent is None:
-            return ""
+            return TRACKER_UNKNOWN
         if self.client == "QB":
             try:
                 trackers = self.torrent.trackers
@@ -174,10 +197,13 @@ class Torrent:
         if self.torrent is None:
             return ""
         if self.client == "QB":
-            for tracker in self.torrent.trackers:
-                if tracker.get('url').startswith('http'):
-                    return tracker.get('msg')
-            return ""
+            try:
+                for tracker in self.torrent.trackers:
+                    if tracker.get('url').startswith('http'):
+                        return tracker.get('msg')
+            except Exception as err:
+                print(err)
+                return ""
         elif self.client == "TR":
             # TODO
             return ""
@@ -221,6 +247,43 @@ class Torrent:
         else:
             pass
         return t_files
+
+    @property
+    def upload_limit(self):
+        if self.torrent is None:
+            return 0
+        if self.client == "TR":
+            return self.torrent.uploadLimit
+        elif self.client == "QB":
+            return self.torrent.up_limit
+        else:
+            self.error_string = "unknown client type"
+            return -1
+
+    @upload_limit.setter
+    def upload_limit(self, upload_limit):
+        self.set_upload_limit(upload_limit)
+
+    def set_upload_limit(self, upload_limit):
+        """
+        -1或者None代表解除限制，其他设为具体的限制值(Unit:KB/S)
+        """
+        if self.torrent is None:
+            self.error_string = "torrent is None"
+            return False
+        if self.client == "TR":
+            if upload_limit == -1:  # TR中None代表解除限制，所以要把-1转换为None 
+                upload_limit = None
+            self.torrent.upload_limit = upload_limit
+            return True
+        elif self.client == "QB":   # QB中-1代表解除限制，所以要把None转换为-1
+            if upload_limit is None:
+                upload_limit = -1
+            self.torrent.set_upload_limit(upload_limit*1024)
+            return True
+        else:
+            self.error_string = "unknown client type"
+            return False
 
     def stop(self):
         if self.torrent is None:
@@ -398,3 +461,16 @@ class Torrent:
                     return False
 
         return True
+
+    def get_last_day_upload_traffic(self) -> int:
+        """
+        获取最后一天的上传数据
+        :return:
+        """
+        if len(self.date_data) == 0:
+            return 0
+
+        elif len(self.date_data) == 1:
+            return self.date_data[0]['data']
+        else:
+            return self.date_data[-1]['data'] - self.date_data[-2]['data']

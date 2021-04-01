@@ -1,14 +1,11 @@
 #!/usr/bin/python3
 # coding=utf-8
-import os
 import shutil
-import datetime
 from moviepy.editor import VideoFileClip
 import torrentool.api
 
 from database import *
 from info import *
-from log import *
 
 SUCCESS = 1
 SRC_NOT_DIR = -1
@@ -165,13 +162,13 @@ class Movie:
         # 找出Number
         find_index = self.dir_name.find("-")
         if find_index == -1:
-            error_log("Error number:" + self.dir_name + "::")
+            Log.error_log("Error number:" + self.dir_name + "::")
             self.IsError = 1
             return False
         number_str = self.dir_name[0:find_index]
         lest = self.dir_name[find_index + 1:]
         if not (number_str.isdigit()):  # 不是数字的话。
-            error_log("invld Number1:" + self.dir_name + "::" + number_str)
+            Log.error_log("invld Number1:" + self.dir_name + "::" + number_str)
             self.IsError = 1
             return False
         self.number = int(number_str)
@@ -182,7 +179,7 @@ class Movie:
         # 继续找nation或者Copy或者Number2
         find_index = lest.find("-")
         if find_index == -1:
-            error_log("Error nation:" + self.dir_name + "::")
+            Log.error_log("Error nation:" + self.dir_name + "::")
             self.IsError = 1
             return False
         self.nation = lest[0:find_index]
@@ -196,19 +193,19 @@ class Movie:
             elif len(self.nation) >= 4:  # 合集
                 self.number2 = int(self.nation)
                 if self.number2 <= self.number:  # 合集的第二个数字应该大于第一个
-                    error_log("Error number2:" + self.dir_name + "::" + self.nation)
+                    Log.error_log("Error number2:" + self.dir_name + "::" + self.nation)
                     self.IsError = 1
                     return False
                 self.collection = 1
             else:
-                error_log("4- number2:" + self.dir_name + "::" + self.nation)
+                Log.error_log("4- number2:" + self.dir_name + "::" + self.nation)
                 self.IsError = 1
                 return False
 
             # 继续找nation
             find_index = lest.find("-")
             if find_index == -1:
-                error_log("Error nation in collection:" + self.dir_name + "::" + lest)
+                Log.error_log("Error nation in collection:" + self.dir_name + "::" + lest)
                 self.IsError = 1
                 return False
             self.nation = lest[0:find_index]
@@ -216,7 +213,7 @@ class Movie:
 
         # 判断nation长度
         if len(self.nation) > 5:
-            error_log("5+length nation:" + self.dir_name + "::" + lest)
+            Log.error_log("5+length nation:" + self.dir_name + "::" + lest)
             self.IsError = 1
             return False
 
@@ -229,7 +226,7 @@ class Movie:
             self.type = MOVIE
         if self.type != MOVIE:  # 电视剧或者纪录片
             if lest[3:4] != "-":
-                error_log("Error：not - :" + self.dir_name)
+                Log.error_log("Error：not - :" + self.dir_name)
                 self.IsError = 1
                 return False
             lest = lest[4:]
@@ -245,23 +242,23 @@ class Movie:
         # 继续找min
         find_index = lest.find("Min")
         if find_index == -1:
-            # movie_log ("No Min:"+self.dir_name)
+            # Log.movie_log ("No Min:"+self.dir_name)
             self.format_str = lest
             return True
         else:
             # Min后面没有了format
             if len(lest) == find_index + 3:
                 self.min = int(lest[0:find_index].lstrip())
-                # movie_log("no format after Min:"+self.dir_name+"::"+str(self.min))
+                # Log.movie_log("no format after Min:"+self.dir_name+"::"+str(self.min))
                 return True
             # Min后的第一个字符是不是空格，如果不是表示Min可能是格式中的字符，例如Mind
             elif lest[find_index + 3:find_index + 4] != ' ':
-                # movie_log ("Min之后不是空格:"+Lest[FindIndex+3:FindIndex+4]+"::"+self.dir_name)
+                # Log.movie_log ("Min之后不是空格:"+Lest[FindIndex+3:FindIndex+4]+"::"+self.dir_name)
                 self.format_str = lest
             else:
                 min_str = lest[0:find_index].lstrip()  # Min之前的字符为MinStr,并去掉左边的空格符
                 if not min_str.isdigit():
-                    error_log("Invalid Min:" + self.dir_name + "::" + min_str)
+                    Log.error_log("Invalid Min:" + self.dir_name + "::" + min_str)
                     self.IsError = 1
                     return False
                 self.min = int(min_str)
@@ -298,7 +295,7 @@ class Movie:
         """
 
         if self.collection == 1:
-            error_log("Error:it is collection in CheckCont:" + self.dir_name)
+            Log.error_log("Error:it is collection in CheckCont:" + self.dir_name)
             self.IsError = 1
             return False
 
@@ -313,10 +310,10 @@ class Movie:
             if os.path.isdir(full_path_file):
                 if file_name[0:2] == "SP" or file_name[0:3] == "srt" \
                         or file_name[0:3] == "inf" or file_name[0:4] == "info":  # 忽略掉特殊文件夹
-                    movie_log("it is SP/srt/info DIR:" + file_name)
+                    Log.movie_log("it is SP/srt/info DIR:" + file_name)
                     continue
                 if os.path.islink(full_path_file):
-                    movie_log("it is a link:" + self.dir_name)
+                    Log.movie_log("it is a link:" + self.dir_name)
                     continue
                 if file_name == "BDMV" or file_name == "CERTIFICATE":
                     self.format_type = BLUE_RAY
@@ -330,11 +327,11 @@ class Movie:
                 if file_name[-3:] == "avi" or file_name[-3:] == "mkv" \
                         or file_name[-2:] == "ts" or file_name[-3:] == "mp4":
                     if file_name[0:2] == "SP":
-                        movie_log("find SP video:" + file_name)
+                        Log.movie_log("find SP video:" + file_name)
                         self.number_of_SP += 1
                     elif re.search("sample", file_name, re.I):
-                        movie_log("find sample video:" + file_name + "::" + self.dir_name)
-                        error_log("sample video:" + file_name + "::" + self.dir_name)  # 仅记录，不做处理，待手工处理
+                        Log.movie_log("find sample video:" + file_name + "::" + self.dir_name)
+                        Log.error_log("sample video:" + file_name + "::" + self.dir_name)  # 仅记录，不做处理，待手工处理
                         self.sample_video = file_name
                     else:
                         self.number_of_video += 1
@@ -355,14 +352,18 @@ class Movie:
                     pass
                 elif file_name.endswith(".iso"):
                     self.format_type = BLUE_RAY
-                elif file_name.endswith(".srt") or file_name.endswith(".ass") or file_name.endswith(".ssa") or file_name.endswith(".idx") or file_name.endswith(".sub"):
+                elif file_name.endswith(".srt") \
+                        or file_name.endswith(".ass") \
+                        or file_name.endswith(".ssa") \
+                        or file_name.endswith(".idx") \
+                        or file_name.endswith(".sub"):
                     pass
                 elif file_name.endswith(".txt"):
                     pass
                 else:
-                    exec_log("other type file:" + file_name)
+                    Log.exec_log("other type file:" + file_name)
             else:
-                error_log("not file or dir :" + full_path_file)
+                Log.error_log("not file or dir :" + full_path_file)
                 self.IsError = 1
                 return False
 
@@ -372,31 +373,31 @@ class Movie:
                 dest_dir = os.path.join(self.dir_path, self.dir_name)
                 if Movie.tobe_exec_rmdir:
                     if movie_dir_file(src_dir, dest_dir) == SUCCESS:
-                        exec_log("mv " + src_dir + " " + dest_dir)
+                        Log.exec_log("mv " + src_dir + " " + dest_dir)
                         return self.check_dir_cont()  # 已经移动文件夹成功，再重新检查
                     else:
-                        error_log("failed mv " + src_dir + " " + dest_dir)
+                        Log.error_log("failed mv " + src_dir + " " + dest_dir)
                         self.IsError = 1
                         return False
                 else:
-                    movie_log("todo mv " + src_dir + " " + dest_dir)
+                    Log.movie_log("todo mv " + src_dir + " " + dest_dir)
                     self.IsError = 1
                     return False
             else:  # 试图删除这个空的子目录，如果不成功，说明不是空的，报错
                 try:
                     os.rmdir(sub_dir_name)
-                    exec_log("rmdir " + sub_dir_name)
+                    Log.exec_log("rmdir " + sub_dir_name)
                 except Exception as err:
                     print(err)
-                    error_log("one not empty subdir:" + sub_dir_name)
+                    Log.error_log("one not empty subdir:" + sub_dir_name)
                     self.IsError = 1
                     return False
         elif number_of_sub_dir > 1:
-            error_log("1+ subdir:" + self.dir_name)
+            Log.error_log("1+ subdir:" + self.dir_name)
             self.IsError = 1
             return False
         else:
-            movie_log("no subdir" + self.dir_name)
+            Log.movie_log("no subdir" + self.dir_name)
 
         # 检查海报
         current_path = os.path.join(self.dir_path, self.dir_name)
@@ -406,11 +407,11 @@ class Movie:
                     src_file_name = os.path.join(current_path, "poster.jpg")
                     dest_file_name = os.path.join(current_path, "cover.jpg")
                     shutil.copyfile(src_file_name, dest_file_name)
-                    exec_log("cp poster.jpg cover.jpg in" + self.dir_name)
+                    Log.exec_log("cp poster.jpg cover.jpg in" + self.dir_name)
                     self.jpg = 1
                 except Exception as err:
                     print(err)
-                    error_log("failed cp poster.jpg in" + self.dir_name)
+                    Log.error_log("failed cp poster.jpg in" + self.dir_name)
                     self.IsError = 1
                     return False
             else:
@@ -421,43 +422,43 @@ class Movie:
                 src_file_name = os.path.join(current_path, "cover.jpg")
                 dest_file_name = os.path.join(current_path, "poster.jpg")
                 shutil.copyfile(src_file_name, dest_file_name)
-                exec_log("cp cover.jpg in" + self.dir_name)
+                Log.exec_log("cp cover.jpg in" + self.dir_name)
                 self.jpg = 1
             except Exception as err:
                 print(err)
-                error_log("failed cp cover.jpg in" + self.dir_name)
-                movie_log("failed cp cover.jpg in" + self.dir_name)
-                movie_log(src_file_name)
-                movie_log(dest_file_name)
+                Log.error_log("failed cp cover.jpg in" + self.dir_name)
+                Log.movie_log("failed cp cover.jpg in" + self.dir_name)
+                Log.movie_log(src_file_name)
+                Log.movie_log(dest_file_name)
                 self.IsError = 1
                 return False
         elif jpg_file_name != "":  # 但是还有其他jpg文件
             try:
                 src_file_name = os.path.join(current_path, jpg_file_name)
                 dest_file_name = os.path.join(current_path, "poster.jpg")
-                movie_log("To CP:" + src_file_name)
-                movie_log("      " + dest_file_name)
+                Log.movie_log("To CP:" + src_file_name)
+                Log.movie_log("      " + dest_file_name)
                 shutil.copyfile(src_file_name, dest_file_name)
-                exec_log("cp " + jpg_file_name + " poster.jpg in" + self.dir_name)
+                Log.exec_log("cp " + jpg_file_name + " poster.jpg in" + self.dir_name)
                 dest_file_name = os.path.join(current_path, "cover.jpg")
                 shutil.copyfile(src_file_name, dest_file_name)
-                movie_log("      " + dest_file_name)
-                exec_log("cp " + jpg_file_name + " cover.jpg in" + self.dir_name)
+                Log.movie_log("      " + dest_file_name)
+                Log.exec_log("cp " + jpg_file_name + " cover.jpg in" + self.dir_name)
                 self.jpg = 1
             except Exception as err:
                 print(err)
-                error_log("failed cp " + jpg_file_name + " in" + self.dir_name)
+                Log.error_log("failed cp " + jpg_file_name + " in" + self.dir_name)
                 self.IsError = 1
                 return False
         else:
-            error_log("no jpg file:" + self.dir_name)
+            Log.error_log("no jpg file:" + self.dir_name)
             self.jpg = 0  # 标记，但不返回，不影响后续检查操作
         # print("check jpg complete")
 
         # 检查视频文件
         if self.format_type == ENCODE:
             if self.number_of_video == 0:
-                error_log("no video in" + self.dir_name)
+                Log.error_log("no video in" + self.dir_name)
                 self.IsError = 1
                 return False
             elif self.number_of_video == 1:
@@ -473,10 +474,10 @@ class Movie:
                     length = len(self.video_files[0])
                     for i in range(self.number_of_video):
                         if len(self.video_files[i]) != length:
-                            error_log("diff len video:" + self.dir_name)
-                            movie_log("diff len video:" + self.dir_name)
-                            movie_log("  1:" + self.video_files[0])
-                            movie_log("  2:" + self.video_files[i])
+                            Log.error_log("diff len video:" + self.dir_name)
+                            Log.movie_log("diff len video:" + self.dir_name)
+                            Log.movie_log("  1:" + self.video_files[0])
+                            Log.movie_log("  2:" + self.video_files[i])
                             # self.number_of_video = -1
                             # self.IsError = 1 ; return False
         return True
@@ -489,7 +490,7 @@ class Movie:
         前置条件：执行过check_dir_cont，已经获取了self.video_files
         """
         if self.number_of_video <= 0:
-            movie_log("no video file:" + self.dir_name)
+            Log.movie_log("no video file:" + self.dir_name)
             return 0
         if self.type != MOVIE:
             return 0
@@ -505,7 +506,7 @@ class Movie:
                 clip.audio.reader.close_proc()
             except Exception as err:
                 print(err)
-                exec_log("error:get runtime:" + self.dir_name)
+                Log.exec_log("error:get runtime:" + self.dir_name)
                 return 0
         return t_min
 
@@ -521,7 +522,7 @@ class Movie:
         """
 
         if self.number_of_video == 0 :
-            #movie_log ("not 1 video:"+self.dir_name)
+            #Log.movie_log ("not 1 video:"+self.dir_name)
             return 0
         if self.type != MOVIE:
             return 0
@@ -529,25 +530,25 @@ class Movie:
         tMin = 0
         for i in range(self.number_of_video):
             if (self.video_files[i])[-3:] != "mkv" :
-                #movie_log ("not mkvfile:"+self.dir_name)
+                #Log.movie_log ("not mkvfile:"+self.dir_name)
                 return 0
 
             Path = os.path.join(self.dir_path,self.dir_name)
             MkvName = os.path.join(Path,self.video_files[i])
             RunTimeStr='mkvinfo --ui-language en_US "'+MkvName+'" | grep Duration'
-            movie_log(RunTimeStr)
-            #movie_log (RunTimeStr)
+            Log.movie_log(RunTimeStr)
+            #Log.movie_log (RunTimeStr)
             Line = os.popen(RunTimeStr).read()
-            #movie_log (Line[:24])
+            #Log.movie_log (Line[:24])
             Hour=Line[14:16]
             Min=Line[17:19]
-            #movie_log (Hour+" "+Min)
+            #Log.movie_log (Hour+" "+Min)
             if not ( Hour.isdigit() and Min.isdigit() ):
-                #movie_log ("Hour or Min isn't digit"+Hour+":"+Min)
+                #Log.movie_log ("Hour or Min isn't digit"+Hour+":"+Min)
                 return 0
 
             MinNumber = int(Hour)*60 + int(Min)
-            #movie_log ("Min="+str(MinNumber))
+            #Log.movie_log ("Min="+str(MinNumber))
             tMin += MinNumber
         return tMin
     '''
@@ -563,7 +564,7 @@ class Movie:
         """
 
         if not self.number_of_video == 1:
-            movie_log("2+Video,don't know how to find format from video")
+            Log.movie_log("2+Video,don't know how to find format from video")
             return False
 
         file_name = self.video_files[0]
@@ -597,60 +598,60 @@ class Movie:
         2、否则，记录执行日志（ToDo）
         """
 
-        # movie_log("begin rename_dir_name")
+        # Log.movie_log("begin rename_dir_name")
         if self.collection == 1:
-            error_log("Error:it is collection in rename_dir_name:" + self.dir_name)
+            Log.error_log("Error:it is collection in rename_dir_name:" + self.dir_name)
             self.IsError = 1
             return False
         if self.number <= 0 or self.number >= 10000:
-            error_log("ErrorNumber:" + self.dir_name + "::" + str(self.number))
+            Log.error_log("ErrorNumber:" + self.dir_name + "::" + str(self.number))
             self.IsError = 1
             return False
         if len(self.nation) == 0 or len(self.nation) >= 8:
-            error_log("8+nation :" + self.dir_name + "::" + self.nation)
+            Log.error_log("8+nation :" + self.dir_name + "::" + self.nation)
             self.IsError = 1
             return False
         if len(self.name) == 0 or len(self.name) >= 20:
-            error_log("20+name :" + self.dir_name + "::" + self.name)
+            Log.error_log("20+name :" + self.dir_name + "::" + self.name)
             self.IsError = 1
             return False
 
-        # movie_log (str(self.min))
+        # Log.movie_log (str(self.min))
         min_from_mkv = self.get_runtime()
-        # movie_log (str(min_from_mkv))
+        # Log.movie_log (str(min_from_mkv))
         if self.min == 0 and self.type == MOVIE:
             if min_from_mkv == 0:
-                error_log("not Found Min:" + self.dir_name)
+                Log.error_log("not Found Min:" + self.dir_name)
                 self.IsError = 1
                 return False
             else:
                 self.min = min_from_mkv
                 self.dir_name_todo = True
         if self.type == MOVIE and min_from_mkv != 0 and abs(self.min - min_from_mkv) >= 2:
-            movie_log("Min-min_from_mkv >= 2:{}|{}".format(self.min, min_from_mkv))
+            Log.movie_log("Min-min_from_mkv >= 2:{}|{}".format(self.min, min_from_mkv))
             self.min = min_from_mkv
             self.dir_name_todo = True
 
         self.format_str = self.format_str.strip()  # 去掉前后空格
-        movie_log("Current formatstr;" + self.format_str)
+        Log.movie_log("Current formatstr;" + self.format_str)
         if len(self.format_str) == 0:
             # 从video 文件名里提取出格式文件
             if not self.format_from_video_file():
-                error_log("not found Format:" + self.dir_name)
+                Log.error_log("not found Format:" + self.dir_name)
                 self.IsError = 1
                 return False
-            movie_log("find Format:" + self.format_str)
+            Log.movie_log("find Format:" + self.format_str)
             self.dir_name_todo = True
         elif len(self.format_str) <= 10:
-            error_log("10-Format:" + self.dir_name + "::" + self.format_str)
+            Log.error_log("10-Format:" + self.dir_name + "::" + self.format_str)
             self.IsError = 1
             return False
         else:
-            movie_log("correct format" + self.format_str)
+            Log.movie_log("correct format" + self.format_str)
 
         # 如果TODO=0，说明dir_name不需要修改
         if not self.dir_name_todo:
-            movie_log("Correct dir_name:" + self.dir_name)
+            Log.movie_log("Correct dir_name:" + self.dir_name)
             return True
 
         source_dir = os.path.join(self.dir_path, self.dir_name)
@@ -666,32 +667,32 @@ class Movie:
         elif self.type == RECORD:
             dest_dir_name = number_str + "-" + self.nation + "-纪录片-" + self.name + " " + self.format_str
         else:
-            error_log("Error type:" + self.dir_name + "::" + int(self.type))
+            Log.error_log("Error type:" + self.dir_name + "::" + int(self.type))
             self.IsError = 1
             return False
 
         dest_dir = os.path.join(self.dir_path, dest_dir_name)
 
-        movie_log("begin rename dirname:")
+        Log.movie_log("begin rename dirname:")
         if Movie.tobe_exec_dir_name:
             try:
                 os.rename(source_dir, dest_dir)
-                exec_log("mv " + self.dir_name)
-                exec_log("   " + dest_dir_name)
-                movie_log("rename success")
+                Log.exec_log("mv " + self.dir_name)
+                Log.exec_log("   " + dest_dir_name)
+                Log.movie_log("rename success")
                 self.dir_name = dest_dir_name
                 return True
             except Exception as err:
                 print(err)
-                error_log("mv failed:" + self.dir_name)
-                error_log("          " + dest_dir_name)
-                movie_log("Mv failed:" + source_dir)
-                movie_log("          " + dest_dir)
+                Log.error_log("mv failed:" + self.dir_name)
+                Log.error_log("          " + dest_dir_name)
+                Log.movie_log("Mv failed:" + source_dir)
+                Log.movie_log("          " + dest_dir)
                 self.IsError = 1
                 return False
         else:
-            movie_log("ToDo mv " + self.dir_name)
-            movie_log("        " + dest_dir_name)
+            Log.movie_log("ToDo mv " + self.dir_name)
+            Log.movie_log("        " + dest_dir_name)
             return True
 
     # end def rename_dir_name
@@ -711,7 +712,7 @@ class Movie:
         if self.imdb_id == "" and self.douban_id == "":
             if not self.get_id_from_table():
                 print(f"{self.number}")
-                movie_log("empty imdb_id and douban_id in:" + self.dir_name)
+                Log.movie_log("empty imdb_id and douban_id in:" + self.dir_name)
                 if self.get_id_from_rss():
                     self.update_id()
                 else:
@@ -722,8 +723,10 @@ class Movie:
         # print(f"{self.douban_id}|{self.imdb_id}|{tInfo.movie_name}|{tInfo.director}|{tInfo.actors}|{tInfo.nation}")
         if t_info.douban_status == OK:
             # 比较影片名是否一致
-            if not (t_info.movie_name in self.name or self.name in t_info.movie_name or self.name in t_info.other_names):
-                error_log(f"name is diff:{self.name}|{t_info.movie_name}")
+            if not (t_info.movie_name in self.name
+                    or self.name in t_info.movie_name
+                    or self.name in t_info.other_names):
+                Log.error_log(f"name is diff:{self.name}|{t_info.movie_name}")
                 # return False
             return True
 
@@ -732,7 +735,7 @@ class Movie:
         # 3、重新爬取影片信息，
         t_info.douban_status = RETRY
         if t_info.spider_douban() != OK:
-            exec_log("failed to spider_douban:" + self.dir_name)
+            Log.exec_log("failed to spider_douban:" + self.dir_name)
             return False
 
         # 4、下载poster及更新info表
@@ -748,58 +751,58 @@ class Movie:
 
         # 1、检查dirname，获取number,copy,name,nation,min,format等
         if not self.check_dir_name():
-            error_log("failed check_dir_name:" + self.dir_name)
+            Log.error_log("failed check_dir_name:" + self.dir_name)
             self.IsError = 1
             return False
 
         # 从dirname获取是否collection
         if self.collection == 1:
-            movie_log("Begin collection" + self.dir_name)
+            Log.movie_log("Begin collection" + self.dir_name)
             sub_dir_path = os.path.join(self.dir_path, self.dir_name)
             for file in os.listdir(sub_dir_path):
                 full_path_file = os.path.join(sub_dir_path, file)
                 if os.path.isdir(full_path_file):
                     self.sub_movie.append(Movie(sub_dir_path, file, self.disk))
                     if not self.sub_movie[-1].check_movie():
-                        error_log(f"check error:{full_path_file}")
+                        Log.error_log(f"check error:{full_path_file}")
                         return False
                     self.sub_movie_count += 1
-            movie_log("End collection" + self.dir_name)
+            Log.movie_log("End collection" + self.dir_name)
             if self.sub_movie_count > 0:
                 return True
             else:
-                error_log("empty collection:" + self.dir_name)
+                Log.error_log("empty collection:" + self.dir_name)
                 self.IsError = 1
                 return False
         # end if self.collection == 1
 
         # 2、检查format中的格式信息
         if self.split_format() == 0:
-            error_log("split_format:" + self.dir_name)
+            Log.error_log("split_format:" + self.dir_name)
             self.IsError = 1
             # return 0  只记录错误，不返回
 
         # 3、检查id和info信息
         if not self.check_info():
-            error_log("failed check_info:" + self.dir_name)
+            Log.error_log("failed check_info:" + self.dir_name)
             self.IsError = 1
             # return False
 
         # 4、检查dir中内容
         if not self.check_dir_cont():
-            error_log("failed check_dir_cont:" + self.dir_name)
+            Log.error_log("failed check_dir_cont:" + self.dir_name)
             self.IsError = 1
             # return False
 
         # 5、如果dirname中,min，format格式不全，补充完整后更新dirname
         if not self.rename_dir_name():
-            error_log("failed rename_dir_name:" + self.dir_name)
+            Log.error_log("failed rename_dir_name:" + self.dir_name)
             self.IsError = 1
             return False
 
         # 6、更新movie表信息
         if self.check_table() != SUCCESS:
-            error_log("check_table:" + self.dir_name)
+            Log.error_log("check_table:" + self.dir_name)
             self.IsError = 1
             return False
         return True
@@ -812,24 +815,24 @@ class Movie:
         """
 
         if not self.check_dir_name():
-            error_log("failed check_dir_name:" + self.dir_name)
+            Log.error_log("failed check_dir_name:" + self.dir_name)
             self.IsError = 1
             return False
 
         if self.split_format() == 0:
-            error_log("split_format:" + self.dir_name)
+            Log.error_log("split_format:" + self.dir_name)
             self.IsError = 1
 
         if not self.check_dir_cont():
-            error_log("failed check_dir_cont:" + self.dir_name)
+            Log.error_log("failed check_dir_cont:" + self.dir_name)
             self.IsError = 1
 
         if not self.rename_dir_name():
-            error_log("failed rename_dir_name:" + self.dir_name)
+            Log.error_log("failed rename_dir_name:" + self.dir_name)
             self.IsError = 1
 
         if self.check_table() != SUCCESS:
-            error_log("check_table:" + self.dir_name)
+            Log.error_log("check_table:" + self.dir_name)
             self.IsError = 1
             return 0
         return 1
@@ -845,7 +848,7 @@ class Movie:
 
         self.format_str = self.format_str.strip()
         if len(self.format_str) == 0:
-            error_log("no format:" + self.dir_name)
+            Log.error_log("no format:" + self.dir_name)
             self.IsError = 1
             return 0
 
@@ -856,7 +859,7 @@ class Movie:
             # 再尝试进行'.'分割
             format_list = self.format_str.split('.')
             if len(format_list) < 3:
-                error_log("3- format:" + self.format_str)
+                Log.error_log("3- format:" + self.format_str)
                 self.IsError = 1
                 return 0
             # else :
@@ -876,7 +879,7 @@ class Movie:
         i = 1
         format_sign.append(0)
         while i < len(format_list):
-            movie_log("FormatList:i=" + str(i) + "::" + format_list[i])
+            Log.movie_log("FormatList:i=" + str(i) + "::" + format_list[i])
             temp_str = format_list[i].lower()
             temp_str = temp_str.replace(' ', '')  # 删除空格并把它全部转换为小写，便于比较
             format_sign.append(0)
@@ -887,7 +890,7 @@ class Movie:
                 last_index = i
                 format_sign[i] = 1
                 self.year = int(format_list[i])
-                movie_log("find Year:" + str(self.year) + "i=" + str(i))
+                Log.movie_log("find Year:" + str(self.year) + "i=" + str(i))
             # 版本
             elif temp_str == "cc" or \
                     temp_str == "dc" or \
@@ -906,7 +909,7 @@ class Movie:
                     self.version = format_list[i]
                 else:
                     self.version += '-' + format_list[i]
-                movie_log("find Version:" + self.version + "i=" + str(i))
+                Log.movie_log("find Version:" + self.version + "i=" + str(i))
             # 国家版本
             elif temp_str.upper() == "JPN" or \
                     temp_str.upper() == "GBR" or \
@@ -925,7 +928,7 @@ class Movie:
                 last_index = i
                 format_sign[i] = 1
                 self.nation_version = format_list[i]
-                movie_log("find nation_version:" + self.nation_version + "i=" + str(i))
+                Log.movie_log("find nation_version:" + self.nation_version + "i=" + str(i))
             # 特别说明，例如rerip
             elif temp_str == "rerip" or \
                     temp_str == "remastered" or \
@@ -934,7 +937,7 @@ class Movie:
                 last_index = i
                 format_sign[i] = 1
                 self.special = format_list[i]
-                movie_log("find special:" + self.special + "i=" + str(i))
+                Log.movie_log("find special:" + self.special + "i=" + str(i))
             # 分辨率
             elif temp_str == "720p" or \
                     temp_str == "1080p" or \
@@ -952,13 +955,13 @@ class Movie:
                     self.radio = format_list[i]
                 else:
                     self.radio += '.' + format_list[i]
-                movie_log("find Radio:" + self.radio + "i=" + str(i))
+                Log.movie_log("find Radio:" + self.radio + "i=" + str(i))
             # ignore 2d
             elif temp_str == "2d":
                 number_of_element += 1
                 last_index = i
                 format_sign[i] = 1
-                movie_log("ignore 2d:" + "i=" + str(i))
+                Log.movie_log("ignore 2d:" + "i=" + str(i))
             # 来源
             elif temp_str == "bluray" or \
                     temp_str == "blu-ray" or \
@@ -981,7 +984,7 @@ class Movie:
                     self.source = format_list[i]
                 else:
                     self.source += '-' + format_list[i]
-                movie_log("find source:" + self.source + "i=" + str(i))
+                Log.movie_log("find source:" + self.source + "i=" + str(i))
             # 压缩算法
             elif temp_str == "x265.10bit" or \
                     temp_str == "x265 10bit" or \
@@ -991,7 +994,7 @@ class Movie:
                 format_sign[i] = 1
                 self.compress = "x265"
                 self.bit = "10bit"
-                movie_log("find compress and bit：x265.10bit")
+                Log.movie_log("find compress and bit：x265.10bit")
             elif temp_str == "x264" or \
                     temp_str == "h264" or \
                     temp_str == "x265" or \
@@ -1002,7 +1005,7 @@ class Movie:
                 last_index = i
                 format_sign[i] = 1
                 self.compress = format_list[i]
-                movie_log("find compress:" + self.compress + "i=" + str(i))
+                Log.movie_log("find compress:" + self.compress + "i=" + str(i))
             # 音频格式
             elif temp_str[0:3] == "dts" or \
                     temp_str[0:6] == "dts-hd" or \
@@ -1027,7 +1030,7 @@ class Movie:
                 last_index = i
                 format_sign[i] = 1
                 self.audio += format_list[i]
-                movie_log("find audio:" + self.audio + "i=" + str(i))
+                Log.movie_log("find audio:" + self.audio + "i=" + str(i))
 
                 # 音频格式比较复杂，后面可能还有信息被分割成下一个组了
                 # 所以，需要继续识别后面的组元素是否要加入音频格式
@@ -1056,23 +1059,23 @@ class Movie:
                         self.audio += format_list[i]
                     else:  # 只要有一个不满足条件就跳出循环
                         break
-                movie_log("find audio-end：" + self.audio)
+                Log.movie_log("find audio-end：" + self.audio)
             # 音轨，如2audio
             elif temp_str[-5:] == "audio" or temp_str[-6:] == "audios":
                 number_of_element += 1
                 last_index = i
                 format_sign[i] = 1
                 self.track = format_list[i]
-                movie_log("find track" + self.track + "i=" + str(i))
+                Log.movie_log("find track" + self.track + "i=" + str(i))
             # 色彩精度，10bit
             elif temp_str == "10bit" \
-                or temp_str == "10bits" \
-                or temp_str == "8bit":
+                    or temp_str == "10bits" \
+                    or temp_str == "8bit":
                 number_of_element += 1
                 last_index = i
                 format_sign[i] = 1
                 self.bit = format_list[i]
-                movie_log("find bit ：" + self.bit + "i=" + str(i))
+                Log.movie_log("find bit ：" + self.bit + "i=" + str(i))
             elif temp_str == "hdr" or \
                     temp_str == "hdr10" or \
                     temp_str == "hdrplus" or \
@@ -1081,7 +1084,7 @@ class Movie:
                 last_index = i
                 format_sign[i] = 1
                 self.HDR = format_list[i]
-                movie_log("find hdr" + "i=" + str(i))
+                Log.movie_log("find hdr" + "i=" + str(i))
             elif temp_str == "mnhd" or \
                     temp_str == "muhd":
                 number_of_element += 1
@@ -1091,7 +1094,7 @@ class Movie:
                     self.zip_group = format_list[i]
                 else:
                     self.zip_group = format_list[i] + '-' + self.zip_group
-                movie_log("zip_group:" + self.zip_group + " i=" + str(i))
+                Log.movie_log("zip_group:" + self.zip_group + " i=" + str(i))
             elif temp_str == "rev" or re.match("s0[0-9]", temp_str):
                 # 忽略它
                 number_of_element += 1
@@ -1102,7 +1105,7 @@ class Movie:
 
             if number_of_element == 1 and self.english_name == "":  # 第一次识别出关键字，那么之前的就是片名了
                 if i == 0:  # 第一个分割字符就是关键字，说明没有找到片名
-                    error_log("no name:" + self.dir_name)
+                    Log.error_log("no name:" + self.dir_name)
                     self.IsError = 1
                     return 0
                 j = 0
@@ -1112,7 +1115,7 @@ class Movie:
                     self.english_name += format_list[j]
                     format_sign[j] = 1
                     j += 1
-                movie_log("name=" + self.english_name)
+                Log.movie_log("name=" + self.english_name)
             i += 1
 
         # end while i < len(FormatList)
@@ -1126,14 +1129,14 @@ class Movie:
                 self.zip_group = format_list[i] + '-' + self.zip_group
             format_sign[i] = 1
             i += 1
-        movie_log("Group=" + self.zip_group)
+        Log.movie_log("Group=" + self.zip_group)
 
         # 找出所有未识别的元素
         i = 0
         error = 0
         while i < len(format_sign):
             if format_sign[i] == 0:
-                movie_log("unknown word:" + format_list[i])
+                Log.movie_log("unknown word:" + format_list[i])
                 error = 1
             i += 1
 
@@ -1168,7 +1171,7 @@ class Movie:
             string += self.track + "."
         if self.zip_group != "":
             string += self.zip_group
-        movie_log("new format:" + string)
+        Log.movie_log("new format:" + string)
         # self.format_str = string
         return 1
 
@@ -1187,38 +1190,38 @@ class Movie:
             return SUCCESS
 
         if self.number <= 0 or self.copy < 0:
-            error_log("number error:" + str(self.number) + "::" + str(self.copy))
+            Log.error_log("number error:" + str(self.number) + "::" + str(self.copy))
             return TABLE_ERROR
 
         db_movie = Movie.from_db(number=self.number, copy=self.copy, total_size=self.total_size)
         if db_movie is None:  # 数据库中不存在插入
             if self.insert():
-                exec_log("insert movies:" + self.dir_name)
+                Log.exec_log("insert movies:" + self.dir_name)
                 return SUCCESS
             else:
-                exec_log("failed to insert movies:" + self.dir_name)
+                Log.exec_log("failed to insert movies:" + self.dir_name)
                 return TABLE_ERROR
         # 已经存在就update
         else:
             if self.compare_movie(db_movie):  # 和数据库比较,有变化
                 if self.update():
-                    exec_log("update movies:" + self.dir_name)
+                    Log.exec_log("update movies:" + self.dir_name)
                     return SUCCESS
                 else:
-                    error_log("update error:" + self.dir_name)
+                    Log.error_log("update error:" + self.dir_name)
                     return TABLE_ERROR
             else:
                 update("update movies set checked=1 where number=%s and copy=%s", (self.number, self.copy))
-                movie_log("no change:" + self.dir_name)
+                Log.movie_log("no change:" + self.dir_name)
                 return SUCCESS
 
     def select(self, assign_value=True):
         if self.collection == 1 or self.number <= 0:
             return False
 
-        se_sql = "select " \
-                 + "nation,type,name,Min,DirName,Radio,Version,NationVersion,special,source,compress,audio,track,bit,HDR,ZipGroup,Deleted,disk,IMDBID,DoubanID,size " \
-                 + "from movies where number=%s and copy=%s and size=%s"
+        se_sql = "select nation,type,name,Min,DirName,Radio,Version,NationVersion,special,source,compress," \
+                 "audio,track,bit,HDR,ZipGroup,Deleted,disk,IMDBID,DoubanID,size " \
+                 "from movies where number=%s and copy=%s and size=%s"
         se_val = (self.number, self.copy, self.total_size)
         t_select_result = select(se_sql, se_val)
         if t_select_result is None or len(t_select_result) == 0:
@@ -1255,8 +1258,10 @@ class Movie:
         t_current_time = datetime.datetime.now()
         t_current_date_time = t_current_time.strftime('%Y-%m-%d %H:%M:%S')
         in_sql = "INSERT INTO movies " \
-                 + "(number,copy,nation,type,name,min,DirName,Radio,Version,NationVersion,special,source,compress,audio,track,bit,HDR,ZipGroup,Deleted,disk,UpdateTime,CheckTime,checked,IMDBID,DoubanID,size) " \
-                 + "VALUES(%s    ,%s  ,%s    ,%s   ,%s ,%s ,%s     ,%s   ,%s     ,%s           ,%s     ,%s    ,%s      ,%s   ,%s   ,%s ,%s ,%s      ,%s     ,%s  ,%s        ,%s       ,%s     ,%s    ,%s      ,%s)"
+                 "(number,copy,nation,type,name,min,DirName,Radio,Version,NationVersion,special,source,compress," \
+                 "audio,track,bit,HDR,ZipGroup,Deleted,disk,UpdateTime,CheckTime,checked,IMDBID,DoubanID,size) " \
+                 "VALUES(%s    ,%s  ,%s    ,%s   ,%s ,%s ,%s     ,%s   ,%s     ,%s           ,%s     ,%s    ,%s ," \
+                 "%s   ,%s   ,%s ,%s ,%s      ,%s     ,%s  ,%s        ,%s       ,%s     ,%s    ,%s      ,%s)"
         in_val = (self.number, self.copy, self.nation, self.type, self.name, self.min, self.dir_name, self.radio,
                   self.version, self.nation_version, self.special, self.source, self.compress, self.audio, self.track,
                   self.bit, self.HDR, self.zip_group, self.deleted, self.disk, t_current_date_time, t_current_date_time,
@@ -1341,67 +1346,67 @@ class Movie:
     def compare_movie(self, t_movie):
         is_diff = False
         if self.nation != t_movie.nation:
-            exec_log("diff nation:{}|{}".format(self.nation, t_movie.nation))
+            Log.exec_log("diff nation:{}|{}".format(self.nation, t_movie.nation))
             is_diff = True
         if self.type != t_movie.type:
-            exec_log("diff type:{}|{}".format(self.type, t_movie.type))
+            Log.exec_log("diff type:{}|{}".format(self.type, t_movie.type))
             is_diff = True
         if self.name != t_movie.name:
-            exec_log("diff name:{}|{}".format(self.name, t_movie.name))
+            Log.exec_log("diff name:{}|{}".format(self.name, t_movie.name))
             is_diff = True
         if self.min != t_movie.min:
-            exec_log("diff min:{}|{}".format(self.min, t_movie.min))
+            Log.exec_log("diff min:{}|{}".format(self.min, t_movie.min))
             is_diff = True
         if self.dir_name != t_movie.dir_name:
-            exec_log("diff dir_name:{}|{}".format(self.dir_name, t_movie.dir_name))
+            Log.exec_log("diff dir_name:{}|{}".format(self.dir_name, t_movie.dir_name))
             is_diff = True
         if self.radio != t_movie.radio:
-            exec_log("diff radio:{}|{}".format(self.radio, t_movie.radio))
+            Log.exec_log("diff radio:{}|{}".format(self.radio, t_movie.radio))
             is_diff = True
         if self.version != t_movie.version:
-            exec_log("diff version:{}|{}".format(self.version, t_movie.version))
+            Log.exec_log("diff version:{}|{}".format(self.version, t_movie.version))
             is_diff = True
         if self.nation_version != t_movie.nation_version:
-            exec_log("diff nation_version:{}|{}".format(self.nation_version, t_movie.nation_version))
+            Log.exec_log("diff nation_version:{}|{}".format(self.nation_version, t_movie.nation_version))
             is_diff = True
         if self.special != t_movie.special:
-            exec_log("diff special:{}|{}".format(self.special, t_movie.special))
+            Log.exec_log("diff special:{}|{}".format(self.special, t_movie.special))
             is_diff = True
         if self.source != t_movie.source:
-            exec_log("diff source:{}|{}".format(self.source, t_movie.source))
+            Log.exec_log("diff source:{}|{}".format(self.source, t_movie.source))
             is_diff = True
         if self.compress != t_movie.compress:
-            exec_log("diff compress:{}|{}".format(self.compress, t_movie.compress))
+            Log.exec_log("diff compress:{}|{}".format(self.compress, t_movie.compress))
             is_diff = True
         if self.audio != t_movie.audio:
-            exec_log("diff audio:{}|{}".format(self.audio, t_movie.audio))
+            Log.exec_log("diff audio:{}|{}".format(self.audio, t_movie.audio))
             is_diff = True
         if self.track != t_movie.track:
-            exec_log("diff track:{}|{}".format(self.track, t_movie.track))
+            Log.exec_log("diff track:{}|{}".format(self.track, t_movie.track))
             is_diff = True
         if self.bit != t_movie.bit:
-            exec_log("diff bit:{}|{}".format(self.bit, t_movie.bit))
+            Log.exec_log("diff bit:{}|{}".format(self.bit, t_movie.bit))
             is_diff = True
         if self.HDR != t_movie.HDR:
-            exec_log("diff HDR:{}|{}".format(self.HDR, t_movie.HDR))
+            Log.exec_log("diff HDR:{}|{}".format(self.HDR, t_movie.HDR))
             is_diff = True
         if self.zip_group != t_movie.zip_group:
-            exec_log("diff zip_group:{}|{}".format(self.zip_group, t_movie.zip_group))
+            Log.exec_log("diff zip_group:{}|{}".format(self.zip_group, t_movie.zip_group))
             is_diff = True
         if self.disk != t_movie.disk:
-            exec_log("diff disk:{}|{}".format(self.disk, t_movie.disk))
+            Log.exec_log("diff disk:{}|{}".format(self.disk, t_movie.disk))
             is_diff = True
         if self.deleted != t_movie.deleted:
-            exec_log("diff deleted:{}|{}".format(self.deleted, t_movie.deleted))
+            Log.exec_log("diff deleted:{}|{}".format(self.deleted, t_movie.deleted))
             is_diff = True
         if self.imdb_id != "" and self.imdb_id != t_movie.imdb_id:
-            exec_log("diff imdb_id:{}|{}".format(self.imdb_id, t_movie.imdb_id))
+            Log.exec_log("diff imdb_id:{}|{}".format(self.imdb_id, t_movie.imdb_id))
             is_diff = True
         if self.douban_id != "" and self.douban_id != t_movie.douban_id:
-            exec_log("diff douban_id:{}|{}".format(self.douban_id, t_movie.douban_id))
+            Log.exec_log("diff douban_id:{}|{}".format(self.douban_id, t_movie.douban_id))
             is_diff = True
         if self.total_size != 0 and self.total_size != t_movie.total_size:
-            exec_log("diff total_size:{}|{}".format(self.total_size, t_movie.total_size))
+            Log.exec_log("diff total_size:{}|{}".format(self.total_size, t_movie.total_size))
             is_diff = True
         return is_diff
 
@@ -1427,7 +1432,7 @@ class Movie:
                 line = open(t_download_txt_file).read()
             except Exception as err:
                 print(err)
-                error_log("failed to read download txt file:{}".format(t_download_txt_file))
+                Log.error_log("failed to read download txt file:{}".format(t_download_txt_file))
                 return False
             self.hash, self.download_link = line.split('|', 1)
         if self.hash != "" and self.download_link != "":
@@ -1436,7 +1441,7 @@ class Movie:
         # 从download表中找符合的记录
         # 通过hash找或者number，copy找
         if self.hash != "":
-            t_return = select("select downloadlink from download where hash=%s", (self.hash, ))
+            t_return = select("select downloadlink from download where hash=%s", (self.hash,))
             if len(t_return) == 1 and t_return[0][0] != "":
                 self.download_link = t_return[0][0]
                 return True
@@ -1472,14 +1477,14 @@ class Movie:
             return False
         t_select_result = select("select doubanid,imdbid from rss where hash=%s", (self.hash,))
         if t_select_result is None or len(t_select_result) == 0:
-            movie_log(f"can't find record from rss where hash={self.hash}")
+            Log.movie_log(f"can't find record from rss where hash={self.hash}")
             return False
         for tSelect in t_select_result:
             if tSelect[0] == "" or tSelect[1] == "":
                 continue
             self.douban_id = tSelect[0]
             self.imdb_id = tSelect[1]
-            movie_log(f"find id from rss:{self.douban_id}|{self.imdb_id}")
+            Log.movie_log(f"find id from rss:{self.douban_id}|{self.imdb_id}")
             return True
         return False
 

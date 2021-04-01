@@ -3,12 +3,13 @@
 import re
 import requests
 from bs4 import BeautifulSoup
-import json
 import time
+from typing import Tuple
+from typing import Union
+import database
+from config import *
 
-from database import *
 
-global g_config
 MAX_DOUBAN_RETRY_TIMES = 3
 
 MOVIE = 0
@@ -28,7 +29,10 @@ class Info:
         self._douban_id = douban_id
         self._imdb_id = imdb_id
         self.douban_status = douban_status  # 0 RETRY,1 OK, -1 NOK
-        self.douban_retry_times = 0
+
+        if self.douban_id == "" and self.imdb_id == "":
+            Log.error_log("Info.init():id is null")
+            return
 
         self.douban_score = ""
         self.imdb_score = ""
@@ -48,12 +52,14 @@ class Info:
         self.viewed = 0
         self.remark = ""
 
-        if self.douban_id == "" and self.imdb_id == "":
-            error_log("Info.init():id is null")
-
         self.error_string = ""
 
-        self.select()
+        self.douban_retry_times = 0
+        if self.douban_status == RETRY:
+            Log.debug_log(f"{douban_id}:{imdb_id}:douban_status is retry, try to select from info")
+            if not self.select(True):
+                Log.debug_log(f"no record in table info for:{douban_id}|{imdb_id}")
+                self.spider_douban()
 
     @property
     def douban_id(self):
@@ -78,10 +84,11 @@ class Info:
         # 查看数据库是否已经存在记录
         if self.select(False):
             return False
-        debug_log("插入info表记录:{}|{}".format(self.douban_id, self.imdb_id))
+        Log.debug_log("插入info表记录:{}|{}".format(self.douban_id, self.imdb_id))
 
         in_sql = ("insert into info"
-                  "(doubanid,imdbid,doubanscore,imdbscore,doubanlink,imdblink,name,foreignname,othernames,type,nation,year,director,actors,poster,episodes,genre,doubanstatus)"
+                  "(doubanid,imdbid,doubanscore,imdbscore,doubanlink,imdblink,name,foreignname,othernames,"
+                  "type,nation,year,director,actors,poster,episodes,genre,doubanstatus)"
                   "values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)")
         in_val = (
             self.douban_id,
@@ -102,14 +109,14 @@ class Info:
             self.episodes,
             self.genre,
             self.douban_status)
-        return insert(in_sql, in_val)
+        return database.insert(in_sql, in_val)
 
     def update(self):
         if self.imdb_id == "" and self.douban_id == "":
-            info_log("empty id for update info")
+            Log.info_log("empty id for update info")
             return False
 
-        debug_log("更新info表记录:{}|{}".format(self.douban_id, self.imdb_id))
+        Log.debug_log("更新info表记录:{}|{}".format(self.douban_id, self.imdb_id))
         # douban_id first
         if self.douban_id != "":
             up_sql = ("update info set "
@@ -193,15 +200,15 @@ class Info:
                 self.douban_status,
                 self.remark,
                 self.imdb_id)
-        if not update(up_sql, up_val):
+        if not database.update(up_sql, up_val):
             return False
 
         # 单独更新viewed，避免被内存中错误的标记更新。只有内存中的viewed=1才更新数据库
         if self.viewed == 1:
             if self.douban_id != "":
-                return update("update info set viewed=1 where doubanid = %s", (self.douban_id,))
+                return database.update("update info set viewed=1 where doubanid = %s", (self.douban_id,))
             else:
-                return update("update info set viewed=1 where imdbid = %s", (self.imdb_id,))
+                return database.update("update info set viewed=1 where imdbid = %s", (self.imdb_id,))
         return True
 
     def select(self, assign_value=True):
@@ -212,7 +219,7 @@ class Info:
     def select_by_imdb_id(self, assign_value=True):
         if self.imdb_id == "":
             return False
-        debug_log("select from info:" + self.imdb_id)
+        Log.debug_log("select from info:" + self.imdb_id)
         sel_sql = ("select  "
                    "doubanid,"
                    "doubanscore,"
@@ -235,15 +242,15 @@ class Info:
                    "remark"
                    " from info where imdbid = %s")
         sel_val = (self.imdb_id,)
-        t_select_result = select(sel_sql, sel_val)
+        t_select_result = database.select(sel_sql, sel_val)
         if t_select_result is None:
-            error_log("error to select from nfo{}::{}".format(self.imdb_id, sel_sql))
+            Log.error_log("error to select from nfo{}::{}".format(self.imdb_id, sel_sql))
             return False
         elif len(t_select_result) == 0:
             # print("not find nfo in table:"+self.imdb_id)
             return False
         elif len(t_select_result) >= 2:
-            error_log("2+ record select_by_imdb_id from nfo:{}".format(self.imdb_id))
+            Log.error_log("2+ record select_by_imdb_id from nfo:{}".format(self.imdb_id))
             return False
         else:
             pass
@@ -271,7 +278,7 @@ class Info:
 
     def select_by_douban_id(self, assign_value=True):
         if self.douban_id == "": return False
-        debug_log("select from info:" + self.douban_id)
+        Log.debug_log("select from info:" + self.douban_id)
         sel_sql = ("select  "
                    "imdbid,"
                    "doubanscore,"
@@ -294,15 +301,15 @@ class Info:
                    "remark"
                    " from info where doubanid = %s")
         sel_val = (self.douban_id,)
-        t_select_result = select(sel_sql, sel_val)
+        t_select_result = database.select(sel_sql, sel_val)
         if t_select_result is None:
-            info_log("error to select from nfo{}::{}".format(self.douban_id, sel_sql))
+            Log.info_log("error to select from nfo{}::{}".format(self.douban_id, sel_sql))
             return False
         elif len(t_select_result) == 0:
             # print("not find nfo in table:"+self.imdb_id)
             return False
         elif len(t_select_result) >= 2:
-            error_log("2+ record select_by_douban_id from nfo:{}".format(self.douban_id))
+            Log.error_log("2+ record select_by_douban_id from nfo:{}".format(self.douban_id))
             return False
         else:
             pass
@@ -353,13 +360,13 @@ class Info:
         if self.douban_id == "":
             self.douban_id = Info.get_douban_id_by_imdb_id(self.imdb_id)
             if self.douban_id == "":
-                error_log("failed to find douban_id from imdb_id:" + self.imdb_id)
+                Log.error_log("failed to find douban_id from imdb_id:" + self.imdb_id)
                 self.error_string = f"failed to find douban_id from imdb_id:{self.imdb_id}"
                 self.douban_status = NOK
                 return self.douban_status
 
         if self.douban_detail():
-            exec_log("  豆瓣详情:{}|{}|{}|{}|{}|{}/{}|".format(
+            Log.exec_log("  豆瓣详情:{}|{}|{}|{}|{}|{}/{}|".format(
                 self.movie_name, self.nation, self.douban_id, self.imdb_id, self.director, self.douban_score,
                 self.imdb_score))
             self.douban_status = OK
@@ -380,8 +387,8 @@ class Info:
             with open(dest_full_file, "wb") as code:
                 code.write(f.content)
         except Exception as err:
-            log_print(err)
-            error_log("failed to download poster.jpg from:" + self.poster)
+            print(err)
+            Log.error_log("failed to download poster.jpg from:" + self.poster)
             return False
         return True
 
@@ -416,11 +423,11 @@ class Info:
     def from_dict(dict_info):
         douban_id = dict_info.get('douban_id')
         if douban_id is None:
-            exec_log(f"json douban_id error:{dict_info}")
+            Log.exec_log(f"json douban_id error:{dict_info}")
             return None
         imdb_id = dict_info.get('imdb_id')
         if douban_id is None:
-            exec_log(f"json imdb_id error:{dict_info}")
+            Log.exec_log(f"json imdb_id error:{dict_info}")
             return None
         info = Info(douban_id, imdb_id)
 
@@ -453,19 +460,21 @@ class Info:
         if imdb_id == "":
             return False
 
-        cookie_dict = {"cookie": g_config.DOUBAN_COOKIE}
+        cookie_dict = {"cookie": SysConfig.DOUBAN_COOKIE}
         s = requests.Session()
         s.cookies.update(cookie_dict)
 
-        t_url = g_config.DOUBAN_SEARCH_URL + imdb_id
-        my_headers = {'User-Agent': g_config.USER_AGENT}
+        t_url = SysConfig.DOUBAN_SEARCH_URL + imdb_id
+        my_headers = {'User-Agent': SysConfig.USER_AGENT}
         try:
             res = s.get(t_url, headers=my_headers, timeout=120)
             time.sleep(60)  # 休眠1分钟，避免连续请求豆瓣被禁
-            soup = BeautifulSoup(res.text, 'lxml')
+            # print(res.text)
+            # soup = BeautifulSoup(res.text, 'lxml')
+            soup = BeautifulSoup(res.text, 'html.parser')
         except Exception as err:
             print(err)
-            error_log("except at get url:" + t_url)
+            Log.error_log("except at get url:" + t_url)
             return ""
         """
         text = open("detail2.log").read()
@@ -474,8 +483,8 @@ class Info:
         # print(soup)
 
         if str(soup).find("异常请求") >= 0:
-            error_log("failed to request douban search")
-            error_log(res.text)
+            Log.error_log("failed to request douban search")
+            Log.info_log(res.text)
             return False
 
         t_douban_id = ""
@@ -485,7 +494,7 @@ class Info:
                 if t_douban_id == "":
                     t_douban_id = t_douban_id2
                 elif t_douban_id2 != t_douban_id:
-                    error_log("find different douban_id:{}|{}".format(t_douban_id, t_douban_id2))
+                    Log.error_log("find different douban_id:{}|{}".format(t_douban_id, t_douban_id2))
                     return False
                 else:
                     pass
@@ -498,19 +507,21 @@ class Info:
         if self.douban_id == "":
             return False
 
-        cookie_dict = {"cookie": g_config.DOUBAN_COOKIE}
+        cookie_dict = {"cookie": SysConfig.DOUBAN_COOKIE}
         s = requests.Session()
         s.cookies.update(cookie_dict)
 
-        t_url = g_config.DOUBAN_URL + self.douban_id
-        my_headers = {'User-Agent': g_config.USER_AGENT}
+        t_url = SysConfig.DOUBAN_URL + self.douban_id
+        my_headers = {'User-Agent': SysConfig.USER_AGENT}
         try:
             res = s.get(t_url, headers=my_headers, timeout=120)
             time.sleep(60)  # 休眠1分钟，避免连续请求豆瓣被禁
-            soup = BeautifulSoup(res.text, 'lxml')
+            # print(res.text)
+            # soup = BeautifulSoup(res.text, 'lxml')
+            soup = BeautifulSoup(res.text, 'html.parser')
         except Exception as err:
             print(err)
-            error_log("except at get url:" + t_url)
+            Log.error_log("except at get url:" + t_url)
             self.error_string = str(err)
             return False
         """
@@ -520,13 +531,13 @@ class Info:
         # print(soup)
 
         if str(soup).find("异常请求") >= 0:
-            error_log("failed to request douban detail")
+            Log.error_log("failed to request douban detail")
             self.error_string = "failed to request douban detail"
-            info_log(res.text)
+            Log.info_log(res.text)
             return False
         if "页面不存在" in soup.title.text:
-            error_log("the douban id does not exist:" + self.douban_id)
-            info_log(res.text)
+            Log.error_log("the douban id does not exist:" + self.douban_id)
+            Log.info_log(res.text)
             self.error_string = f"the douban_id does not exist:{self.douban_id}"
             return False
 
@@ -534,13 +545,13 @@ class Info:
         self.movie_name = soup.title.text.replace("(豆瓣)", "").strip()
         foreign_name_item = soup.find('span', property="v:itemreviewed")
         self.foreign_name = foreign_name_item.text.replace(self.movie_name, '').strip() if foreign_name_item is not None else ""
-        info_log(self.movie_name)
-        info_log(self.foreign_name)
+        Log.info_log(self.movie_name)
+        Log.info_log(self.foreign_name)
 
         # 年代
         year_anchor = soup.find('span', class_='year')
         self.year = int(year_anchor.text[1:-1]) if year_anchor else 0
-        info_log(str(self.year))
+        Log.info_log(str(self.year))
 
         info = soup.find('div', id='info')
         # print (info)
@@ -548,7 +559,7 @@ class Info:
         # 其他电影名
         other_names_anchor = info.find('span', class_='pl', text=re.compile('又名'))
         self.other_names = other_names_anchor.next_element.next_element if other_names_anchor else ""
-        info_log(self.other_names)
+        Log.info_log(self.other_names)
 
         # 国家/地区
         nation_anchor = info.find('span', class_='pl', text=re.compile('制片国家/地区'))
@@ -556,15 +567,15 @@ class Info:
         if self.nation.find('/') >= 0:
             self.nation = (self.nation[:self.nation.find('/')]).strip()
         self.nation = self.trans_nation(self.nation)
-        info_log(self.nation)
+        Log.info_log(self.nation)
 
         # imdb链接和imdb_id
         imdb_anchor = info.find('a', text=re.compile("tt\d+"))
         # info_log (imdb_anchor)
         self.imdb_id = imdb_anchor.text if imdb_anchor else ""
         self.imdb_link = imdb_anchor['href'] if imdb_anchor else ""
-        info_log(self.imdb_id)
-        info_log(self.imdb_link)
+        Log.info_log(self.imdb_id)
+        Log.info_log(self.imdb_link)
 
         # 类型
         genre_anchor = info.find_all('span', property='v:genre')
@@ -573,13 +584,13 @@ class Info:
         for genre in genre_anchor:
             genre_list.append(genre.get_text())
         self.genre = '/'.join(genre_list)
-        info_log(self.genre)
+        Log.info_log(self.genre)
 
         # 集数
         episodes_anchor = info.find("span", class_="pl", text=re.compile("集数"))
         self.episodes = int(episodes_anchor.next_element.next_element) if episodes_anchor else 0  # 集数
         # print(episodes_anchor)
-        info_log(str(self.episodes))
+        Log.info_log(str(self.episodes))
 
         # type
         if self.genre.find('纪录') >= 0:
@@ -588,7 +599,7 @@ class Info:
             self.type = TV
         else:
             self.type = MOVIE
-        info_log(str(self.type))
+        Log.info_log(str(self.type))
 
         json_anchor = soup.find('script', type="application/ld+json")
         # print('-------------------------')
@@ -602,30 +613,30 @@ class Info:
 
         # json_string = json_string.replace('\t','')
         # json_string = re.sub('[\x00-\x09|\x0b-\x0c|\x0e-\x1f]','',json_string)
-        info_log(json_string)
+        Log.info_log(json_string)
         try:
             data = json.loads(json_string, strict=False)
         except Exception as err:
             print(err)
-            exec_log(f"解析json出现错误：{self.douban_id}")
+            Log.exec_log(f"解析json出现错误：{self.douban_id}")
             self.error_string = f"解析json出现错误：{self.douban_id}"
             return False
         # print(data)
         if data is None:
-            exec_log('爬取豆瓣详情出现错误:没有找到"json "')
+            Log.exec_log('爬取豆瓣详情出现错误:没有找到"json "')
             self.error_string = f"豆瓣详情页没有找到json：{self.douban_id}"
             return False
 
         t_type = data['@type']
-        info_log(str(t_type))
+        Log.info_log(str(t_type))
 
         # 海报
         self.poster = data['image']
-        info_log(self.poster)
+        Log.info_log(self.poster)
 
         # 豆瓣评分
         self.douban_score = data['aggregateRating']['ratingValue']
-        info_log(self.douban_score)
+        Log.info_log(self.douban_score)
 
         # 导演和演员
         def data_join(t_data, t_key):
@@ -636,14 +647,14 @@ class Info:
 
         self.director = data_join(data['director'], 'name')
         self.actors = data_join(data['actor'], 'name')
-        info_log(self.director)
-        info_log(self.actors)
+        Log.info_log(self.director)
+        Log.info_log(self.actors)
 
         self.remove_special_char()
         if self.nation != '' and self.movie_name != "":
             self.douban_status = OK
             if not self.update_or_insert(): 
-                exec_log(f"插入/更新表info出现错误:{self.douban_id}|{self.imdb_id}|{self.movie_name}")
+                Log.exec_log(f"插入/更新表info出现错误:{self.douban_id}|{self.imdb_id}|{self.movie_name}")
                 self.douban_status = NOK
             # self.spider_status = OK
             return True
@@ -652,74 +663,12 @@ class Info:
             self.error_string = f"爬取豆瓣详情页，没有找到影片名或者产地:{self.douban_id}"
             return False
 
-    @staticmethod
-    def get_from_detail(soup):
-        """
-        FRDS网站的电影信息不同于其他站，不能从电影简介中获取信息，而需要从html中获取链接
-        """
-        douban_id = imdb_id = ""
-        kdouban_anchor = soup.find('div', id='kdouban')
-        site_log("kdouban:{}".format(kdouban_anchor))
-        if kdouban_anchor:
-            douban_link_anchor = kdouban_anchor.find('a', class_='imdbwp__link')
-            douban_link = douban_link_anchor['href']
-            douban_id = Info.get_id_from_link(douban_link, DOUBAN)
-            site_log(douban_link)
-
-        kimdb_anchor = soup.find('div', id='kimdb')
-        site_log("kimdb:{}".format(kimdb_anchor))
-        if kimdb_anchor:
-            imdb_link_anchor = kimdb_anchor.find('a', class_='imdbwp__link')
-            imdb_link = imdb_link_anchor['href']
-            imdb_id = Info.get_id_from_link(imdb_link, IMDB)
-            site_log(imdb_link)
-
-        if douban_id != "" or imdb_id != "":
-            return True, douban_id, imdb_id
-        else:
-            return False, douban_id, imdb_id
-
-    @staticmethod
-    def get_from_summary(summary):
-        douban_id = imdb_id = ""
-        summary = summary.replace('　', ' ')
-        summary = summary.lower()
-
-        t_result = re.search("douban\.com/subject/\d+", summary)
-        if t_result is not None:
-            douban_link = "https://movie." + t_result.group()
-            douban_id = Info.get_id_from_link(douban_link, DOUBAN)
-        else:
-            t_result = re.search("douban\.com/movie/subject/\d+", summary)
-            if t_result is not None:
-                douban_link = "https://www." + t_result.group()
-                douban_id = Info.get_id_from_link(douban_link, DOUBAN)
-
-        t_result = re.search("imdb\.com/title/tt\d+", summary)
-        if t_result is not None:
-            imdb_link = "https://www." + t_result.group()
-            imdb_id = Info.get_id_from_link(imdb_link, IMDB)
-        else:
-            t_result = re.search("tt[0-9][0-9][0-9][0-9][0-9]+ ", summary)
-            if t_result is not None:
-                imdb_id = Info.check_imdb_id(t_result.group())
-            else:
-                t_result = re.search("tt[0-9][0-9][0-9][0-9][0-9]+\n", summary)
-                if t_result is not None:
-                    imdb_id = t_result.group()
-                    if imdb_id[-1:] == '\n': 
-                        imdb_id = imdb_id[:-1]
-
-        if douban_id != "" or imdb_id != "":
-            return True, douban_id, imdb_id
-        else:
-            return False, douban_id, imdb_id
 
     @staticmethod
     def check_douban_id(douban_id):
         douban_id = douban_id.strip()
         if douban_id != "" and not douban_id.isdigit(): 
-            error_log("invalid doubanid:" + douban_id) 
+            Log.error_log("invalid doubanid:" + douban_id)
             return ""
         return douban_id
 
@@ -729,7 +678,7 @@ class Info:
         if imdb_id == "":
             return ""
         if not (imdb_id.startswith('tt') and imdb_id[2:].isdigit()): 
-            error_log("invalid imdb_id:" + imdb_id)
+            Log.error_log("invalid imdb_id:" + imdb_id)
             return ""
 
         # 不允许tt以后的数字大于等于7位数，前面还加0
@@ -801,31 +750,31 @@ def find_end_number(string):
     string = string.strip('\n')
     string = string.strip()
     # print('-----------------')
-    info_log(string)
+    Log.info_log(string)
     # print('-----------------')
 
     t_index = string.find('-')
     if t_index == -1:
-        exec_log("can't find -:" + string)
+        Log.exec_log("can't find -:" + string)
         return -1
     t_start_number = string[:t_index]  # 本页起始number, 如1
     if not t_start_number.isdigit():
-        exec_log("invalid start number:" + string)
+        Log.exec_log("invalid start number:" + string)
         return -1
 
     string = string[t_index + 1:]
     t_index = string.find('/')
     if t_index == -1:
-        exec_log("can't find /:" + string)
+        Log.exec_log("can't find /:" + string)
         return -1
     t_end_number = string[:t_index].strip()  # 本页结束number，如15
     if not t_end_number.isdigit():
-        exec_log("invalid end number:" + string)
+        Log.exec_log("invalid end number:" + string)
         return "error"
 
     t_total = string[t_index + 1:].strip()  # 总数
     if not t_end_number.isdigit():
-        exec_log("invalid total number:" + string)
+        Log.exec_log("invalid total number:" + string)
         return -1
 
     if int(t_end_number) != int(t_total):
@@ -845,25 +794,26 @@ def find_douban_id(item):
     except Exception as err:
         print(item)
         print(err)
-        exec_log("exception at find_douban_id")
+        Log.exec_log("exception at find_douban_id")
         return ""
     return ""
 
 
 def update_viewed(only_first_page=True):
-    cookie_dict = {"cookie": g_config.DOUBAN_COOKIE}
+    cookie_dict = {"cookie": SysConfig.DOUBAN_COOKIE}
     s = requests.Session()
     s.cookies.update(cookie_dict)
 
-    my_headers = {'User-Agent': g_config.USER_AGENT}
-    t_url = g_config.DOUBAN_VIEWED_URL  # 观影记录首页
+    my_headers = {'User-Agent': SysConfig.USER_AGENT}
+    t_url = SysConfig.DOUBAN_VIEWED_URL  # 观影记录首页
     while True:
         try:
             res = s.get(t_url, headers=my_headers, timeout=120)
-            soup = BeautifulSoup(res.text, 'lxml')
+            # soup = BeautifulSoup(res.text, 'lxml')
+            soup = BeautifulSoup(res.text, 'html.parser')
         except Exception as err:
             print(err)
-            exec_log("except at get url")
+            Log.exec_log("except at get url")
             return False
 
         try:
@@ -871,7 +821,7 @@ def update_viewed(only_first_page=True):
         except Exception as err:
             print(err)
             print(soup)
-            exec_log("except at find subject-num")
+            Log.exec_log("except at find subject-num")
             return False
 
         # 获取下一页开始number
@@ -885,7 +835,7 @@ def update_viewed(only_first_page=True):
         except Exception as err:
             print(err)
             print(soup)
-            exec_log("except at find grid-view")
+            Log.exec_log("except at find grid-view")
             return False
         # print(viewed)
         for item in t_items:
@@ -897,39 +847,39 @@ def update_viewed(only_first_page=True):
             except Exception as err:
                 print(err)
                 print(item)
-                exec_log("except at find em")
+                Log.exec_log("except at find em")
                 return False
             t_douban_id = find_douban_id(item)
             if t_douban_id == "":
-                exec_log("can't find douban_id:" + t_title)
+                Log.exec_log("can't find douban_id:" + t_title)
                 continue
             # print("{}:{}".format(tTitle,tDoubanID))
 
             # 更新info表中的viewed标志
-            record = select("select viewed,name from info where doubanid=%s ", (t_douban_id,))
+            record = database.select("select viewed,name from info where doubanid=%s ", (t_douban_id,))
             if record is None:
-                error_log("error:执行数据库select错误")
+                Log.error_log("error:执行数据库select错误")
                 return False
             if len(record) == 0:
-                exec_log(f"{t_douban_id} does not exist in table info")
+                Log.exec_log(f"{t_douban_id} does not exist in table info")
             elif len(record) > 1:
-                exec_log(f"{t_douban_id} have more than 1 record in table info")
+                Log.exec_log(f"{t_douban_id} have more than 1 record in table info")
             else:
                 viewed = record[0][0]
                 name = record[0][1]
                 if viewed == 0:
-                    if update("update info set viewed = 1 where doubanid=%s ", (t_douban_id,)):
-                        exec_log(f"更新info表观影记录：{name}")
+                    if database.update("update info set viewed = 1 where doubanid=%s ", (t_douban_id,)):
+                        Log.exec_log(f"更新info表观影记录：{name}")
                     else:
-                        error_log(f"更新info表出错:{t_douban_id}")
+                        Log.error_log(f"更新info表出错:{t_douban_id}")
                 else:
-                    debug_log(f"{name} 已经更新过viewed=1")
+                    Log.debug_log(f"{name} 已经更新过viewed=1")
 
         if only_first_page:
             return True  # 如果仅更新第一页，就返回，否则继续获取下一页
         if t_next_start_num <= 0:
             return True
         t_next_start_string = 'start=' + str(t_next_start_num)
-        t_url = g_config.DOUBAN_VIEWED_URL.replace('start=0', t_next_start_string)
-        info_log(t_url)
+        t_url = SysConfig.DOUBAN_VIEWED_URL.replace('start=0', t_next_start_string)
+        Log.info_log(t_url)
         time.sleep(30)

@@ -1,22 +1,20 @@
 #!/usr/bin/python3
 # coding=utf-8
-import os
-import re
 import sys
-import shutil
-import datetime
 
-sys.path.append("..")
 from connect import *
+
+SysConfig.load_sys_config("config/sys.json")
 
 sys_argv = sys.argv
 del sys_argv[0]
 Task = sys.argv[0]
-command=' '.join(sys_argv)
+command = ' '.join(sys_argv)
 
-#gSocket = Socket(12346,"192.168.31.45",socket_type=CLIENT)
 gSocket = Socket(socket_type=CLIENT)
-if not gSocket.init(): print("failed to connect"); exit()
+if not gSocket.init():
+    print("failed to connect")
+    exit()
 print(gSocket.host)
 print(gSocket.port)
 
@@ -28,7 +26,7 @@ if gSocket.send(command):
 else:
     exit()
 
-#接收返回
+# 接收返回
 reply = gSocket.receive()
 print("recv:")
 print("     "+reply)
@@ -38,6 +36,7 @@ if Task == 'spider':
     if reply == "2+ matching torrent":
         while True:
             receive = gSocket.receive()
-            if receive == 'end': exit()
+            if receive == 'end':
+                exit()
             choose = input(receive)
             gSocket.send(choose)
